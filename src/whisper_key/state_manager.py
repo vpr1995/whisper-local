@@ -1368,6 +1368,7 @@ class StateManager:
                 device=device_id if device_id != -1 else None,
                 noise_suppression_config=noise_cfg,
                 whisper_mode_config=audio_cfg.get('whisper_mode') or {},
+                mic_always_on=audio_cfg.get('mic_always_on', True) is not False,
             )
 
             # Close the old stream, otherwise it keeps capturing in the background.

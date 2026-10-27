@@ -1,13 +1,15 @@
 # audio_recorder.py
-# Continuous-stream audio capture with a pre-roll ring buffer. Key design choices:
+# Audio capture with two mic modes (audio.mic_always_on). Key design choices:
 #
-#   • A single sd.InputStream runs continuously from app startup. We do NOT
-#     open/close streams per recording — that was the source of "first word
-#     clipped" bugs and added 100-200ms of warmup latency on every press.
+#   • Always-on (default): a single sd.InputStream runs from app startup. We do
+#     NOT open/close streams per recording — that was the source of "first word
+#     clipped" bugs and added 100-200ms of warmup latency on every press. The
+#     buffer is a deque trimmed to ~500ms when idle, so anything the user said
+#     before the OS finished routing the hotkey is captured (pre-roll).
 #
-#   • The buffer is a deque trimmed to ~500ms when idle. When the user presses
-#     record, the buffer already contains the recent past, so anything they
-#     started saying before the OS finished routing the hotkey is captured.
+#   • On-demand: the mic is closed while idle (no OS mic indicator). Pressing
+#     record opens it and blocks until the first audio arrives, so the start
+#     sound only plays once the mic is live. No pre-roll: speak after the beep.
 #
 #   • WASAPI on Windows runs at native rate (typically 48 kHz); we resample to
 #     Whisper's 16 kHz only at stop time. This avoids resampling per chunk during
@@ -40,6 +42,8 @@ class AudioRecorder:
     SILENCE_RMS_THRESHOLD = 0.005
     LONG_PAUSE_SECONDS = 2.0
     LONG_PAUSE_REPLACEMENT_SECONDS = 0.4
+    # Bluetooth headsets can take over a second to switch into their mic profile.
+    MIC_OPEN_TIMEOUT_SECONDS = 3.0
 
     def __init__(self,
                  on_vad_event: Callable[[VadEvent], None],
@@ -52,7 +56,8 @@ class AudioRecorder:
                  on_streaming_result: Callable[[str, bool], None] = None,
                  device=None,
                  noise_suppression_config: Optional[dict] = None,
-                 whisper_mode_config: Optional[dict] = None):
+                 whisper_mode_config: Optional[dict] = None,
+                 mic_always_on: bool = True):
 
         self.sample_rate = self.WHISPER_SAMPLE_RATE
         self.channels = channels
@@ -62,6 +67,7 @@ class AudioRecorder:
         self.is_recording = False
         self.recording_start_time = None
         self.logger = logging.getLogger(__name__)
+        self.mic_always_on = mic_always_on
         self._noise_suppression_config = noise_suppression_config or {}
         self._whisper_mode_gain = self._parse_whisper_mode(whisper_mode_config)
 
@@ -94,15 +100,18 @@ class AudioRecorder:
         # ops (append, snapshot, clear), so it won't stall the audio callback.
         self._buffer_lock = threading.Lock()
 
-        self._capture_running = False
+        self._capture_stop = threading.Event()
         self._capture_thread = None
+        # Set by the audio callback; lets on-demand mode wait for a live mic.
+        self._first_audio_arrived = threading.Event()
         self._stream_error = None
         self._current_level = 0.0
         self.last_recording_was_silent = False
         # Loudest sample since the current recording began, so the state
         # manager can warn within a second that the mic is delivering nothing.
         self._recording_peak = 0.0
-        self._start_capture()
+        if self.mic_always_on:
+            self._start_capture()
 
     def _setup_continuous_vad_monitoring(self):
         if self.vad_manager.is_available():
@@ -185,15 +194,49 @@ class AudioRecorder:
             self.logger.error(f"Audio source test failed: {e}")
             raise
 
+    # --- Capture stream lifecycle ---
+
+    # Each capture session gets its own stop event, so a session that is still
+    # closing can never be revived by the next session's start.
     def _start_capture(self):
-        self._capture_running = True
-        self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True, name="audio-capture")
+        self._capture_stop = threading.Event()
+        self._capture_thread = threading.Thread(target=self._capture_loop, args=(self._capture_stop,),
+                                                daemon=True, name="audio-capture")
         self._capture_thread.start()
 
-    def _capture_loop(self):
+    # Asks the capture thread to close the stream. With wait=False the caller
+    # (often the hotkey or audio thread) returns at once; the stream closes
+    # within one LOOP_SLEEP_MS tick.
+    def _stop_capture(self, wait: bool):
+        self._capture_stop.set()
+        thread = self._capture_thread
+        if wait and thread and thread is not threading.current_thread():
+            thread.join(timeout=self.THREAD_JOIN_TIMEOUT)
+
+    # On-demand mode: open the mic for this one recording and block until it
+    # delivers audio, so the start sound never plays before the mic is live.
+    def _open_mic_on_demand(self) -> bool:
+        self._stop_capture(wait=True)  # finish closing the previous session's stream
+        self._first_audio_arrived.clear()
+        self._start_capture()
+        if not self._first_audio_arrived.wait(self.MIC_OPEN_TIMEOUT_SECONDS):
+            self.logger.error(f"Microphone delivered no audio within {self.MIC_OPEN_TIMEOUT_SECONDS}s of opening")
+            print("   ✗ Microphone did not start — check the device and mic permission")
+            self._stop_capture(wait=False)
+            return False
+        # Drop the audio from before the start sound: the user speaks after it.
+        with self._buffer_lock:
+            self._buffer.clear()
+        return True
+
+    def _close_mic_if_on_demand(self):
+        if not self.mic_always_on:
+            self._stop_capture(wait=False)
+
+    def _capture_loop(self, stop_event: threading.Event):
         retry_count = 0
         max_retries = 3
-        while self._capture_running and retry_count <= max_retries:
+        while not stop_event.is_set() and retry_count <= max_retries:
             try:
                 with sd.InputStream(samplerate=self._recording_rate,
                                     channels=self.channels,
@@ -203,13 +246,13 @@ class AudioRecorder:
                                     device=self.device,
                                     latency='low'):
                     retry_count = 0
-                    while self._capture_running:
+                    while not stop_event.is_set():
                         if self.is_recording:
                             self._check_max_duration_exceeded()
                         sd.sleep(self.LOOP_SLEEP_MS)
                     return
             except Exception as e:
-                if not self._capture_running:
+                if stop_event.is_set():
                     return
                 retry_count += 1
                 self._stream_error = e
@@ -239,6 +282,7 @@ class AudioRecorder:
                 return
 
     def _audio_callback(self, audio_data, frames, _time, status):
+        self._first_audio_arrived.set()
         chunk = audio_data.copy()
         recording = self.is_recording
 
@@ -277,6 +321,8 @@ class AudioRecorder:
             return False
 
         self.logger.info("Starting audio recording...")
+        if not self.mic_always_on and not self._open_mic_on_demand():
+            return False
         self.recording_start_time = time.time()
 
         if self.continuous_vad:
@@ -297,6 +343,7 @@ class AudioRecorder:
             snapshot = list(self._buffer)
             self.is_recording = False
             self._buffer.clear()
+        self._close_mic_if_on_demand()
         return self._build_audio_array(snapshot)
 
     def _build_audio_array(self, chunks) -> Optional[np.ndarray]:
@@ -435,11 +482,10 @@ class AudioRecorder:
             self.is_recording = False
             self._buffer.clear()
         self.recording_start_time = None
+        self._close_mic_if_on_demand()
 
     def shutdown(self):
-        self._capture_running = False
-        if self._capture_thread:
-            self._capture_thread.join(timeout=self.THREAD_JOIN_TIMEOUT)
+        self._stop_capture(wait=True)
 
     def _check_max_duration_exceeded(self) -> bool:
         if self.max_duration <= 0 or not self.recording_start_time:
@@ -454,6 +500,7 @@ class AudioRecorder:
             snapshot = list(self._buffer)
             self.is_recording = False
             self._buffer.clear()
+        self._close_mic_if_on_demand()
         audio_data = self._build_audio_array(snapshot)
         if self.on_max_duration_reached:
             self.on_max_duration_reached(audio_data)
@@ -465,6 +512,9 @@ class AudioRecorder:
     # False once the capture thread gave up (e.g. stream still dead after the
     # disconnect retries), so the owner can rebind to a working device.
     def is_capturing(self) -> bool:
+        # An idle on-demand mic is closed on purpose, not dead.
+        if not self.mic_always_on and not self.is_recording:
+            return True
         return self._capture_thread is not None and self._capture_thread.is_alive()
 
     def get_audio_duration(self, audio_data: np.ndarray) -> float:

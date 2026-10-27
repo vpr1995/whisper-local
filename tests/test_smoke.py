@@ -4838,3 +4838,98 @@ class WisprOctoberFeatureTests(unittest.TestCase):
         body = body[:body.index('# Types the last dictation again')]
         for writes_to_disk in ('open(', 'np.save', 'write_bytes', 'wave.'):
             self.assertNotIn(writes_to_disk, body)
+
+
+# ── On-demand microphone (audio.mic_always_on: false) ─────────────────────────
+# The mic must be closed while idle, open before the start sound plays, and
+# close again when the recording ends. A fake InputStream feeds the callback
+# from its own thread, the way PortAudio does.
+class OnDemandMicTests(unittest.TestCase):
+    def _recorder(self, mic_always_on):
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy not installed')
+        import threading
+        import time
+        fakes = fake_platform_modules()
+        for name in ('sounddevice', 'soxr'):
+            fakes[name] = _stand_in_module(name)
+        reimport_under(self, fakes)
+        import whisper_key.audio_recorder as recorder_module
+
+        open_streams = []
+
+        # Delivers one chunk every 10ms while open, like a live mic.
+        class FakeInputStream:
+            def __init__(self, callback, blocksize=None, **_kwargs):
+                self.callback = callback
+                self.open = False
+
+            def __enter__(self):
+                self.open = True
+                open_streams.append(self)
+                threading.Thread(target=self._feed, daemon=True).start()
+                return self
+
+            def _feed(self):
+                while self.open:
+                    self.callback(np.full((256, 1), 0.1, dtype=np.float32), 256, None, None)
+                    time.sleep(0.01)
+
+            def __exit__(self, *_exc):
+                self.open = False
+                open_streams.remove(self)
+
+        recorder_module.sd.InputStream = FakeInputStream
+        recorder_module.sd.sleep = lambda ms: time.sleep(ms / 1000)
+        recorder_module.sd.query_devices = lambda *a, **k: {'name': 'Fake mic', 'hostapi': 0,
+                                                             'default_samplerate': 16000}
+        recorder_module.sd.query_hostapis = lambda *_a: {'name': 'Core Audio'}
+        vad_manager = __import__('unittest.mock', fromlist=['Mock']).Mock()
+        vad_manager.is_available.return_value = False
+        rec = recorder_module.AudioRecorder(on_vad_event=lambda _e: None, vad_manager=vad_manager,
+                                            mic_always_on=mic_always_on)
+        self.addCleanup(rec.shutdown)
+        return rec, open_streams
+
+    def _wait_until(self, condition):
+        import time
+        deadline = time.time() + 2
+        while not condition() and time.time() < deadline:
+            time.sleep(0.01)
+        return condition()
+
+    def test_mic_is_closed_while_idle(self):
+        rec, open_streams = self._recorder(mic_always_on=False)
+        self.assertEqual(open_streams, [])
+        self.assertTrue(rec.is_capturing(), 'an idle on-demand mic is healthy, not dead')
+
+    def test_mic_is_live_when_recording_starts_and_closes_after(self):
+        import io, contextlib
+        rec, open_streams = self._recorder(mic_always_on=False)
+        self.assertTrue(rec.start_recording())
+        self.assertEqual(len(open_streams), 1, 'start_recording returns only once the mic delivers audio')
+        self.assertTrue(self._wait_until(lambda: len(rec._buffer) > 2))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertIsNotNone(rec.stop_recording())
+        self.assertTrue(self._wait_until(lambda: open_streams == []), 'the mic closes after recording')
+
+    def test_cancel_closes_the_mic_and_it_reopens_next_time(self):
+        rec, open_streams = self._recorder(mic_always_on=False)
+        rec.start_recording()
+        rec.cancel_recording()
+        self.assertTrue(self._wait_until(lambda: open_streams == []))
+        self.assertTrue(rec.start_recording())
+        self.assertEqual(len(open_streams), 1)
+
+    def test_always_on_mic_opens_at_startup(self):
+        _rec, open_streams = self._recorder(mic_always_on=True)
+        self.assertTrue(self._wait_until(lambda: len(open_streams) == 1))
+
+    def test_setting_is_documented_and_wired(self):
+        defaults = (ROOT / 'src' / 'whisper_key' / 'config.defaults.yaml').read_text(encoding='utf-8')
+        self.assertIn('mic_always_on: true', defaults)
+        for module in ('main.py', 'state_manager.py'):
+            source = (ROOT / 'src' / 'whisper_key' / module).read_text(encoding='utf-8')
+            self.assertIn("mic_always_on=", source, f'{module} must pass the setting to AudioRecorder')

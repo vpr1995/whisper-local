@@ -270,6 +270,13 @@ audio: # Audio Recording Settings
     # are plugged/unplugged. Use system tray to select device - it will save the ID here.
     input_device: "default"
 
+    # Keep the microphone open while idle
+    # true = mic stays open; ~0.5s before the hotkey press is captured (pre-roll),
+    #        so the first word is never clipped. The OS mic indicator stays on.
+    # false = mic opens only while recording. Wait for the start sound, then
+    #         speak. The beep can take up to ~1s on Bluetooth headsets.
+    mic_always_on: true
+
     # Noise suppression (requires: pip install 'whisper-local[noise]')
     # Applies spectral gating via noisereduce before passing audio to Whisper.
     # Helps in noisy environments (fans, HVAC, keyboard clatter).

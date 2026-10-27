@@ -139,6 +139,7 @@ def setup_audio_recorder(audio_config, state_manager, vad_manager, streaming_man
         device=audio_config['input_device'],
         noise_suppression_config=audio_config.get('noise_suppression') or {},
         whisper_mode_config=audio_config.get('whisper_mode') or {},
+        mic_always_on=audio_config.get('mic_always_on', True) is not False,
     )
 
 def setup_vad(vad_config):
