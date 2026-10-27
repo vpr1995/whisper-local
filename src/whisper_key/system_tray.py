@@ -71,13 +71,15 @@ class SystemTray:
                 "idle": self._create_fallback_icon("idle"),
                 "recording": self._create_fallback_icon("recording"),
                 "processing": self._create_fallback_icon("processing"),
+                "sleeping": self._create_fallback_icon("sleeping"),
             }
         
     def _create_fallback_icon(self, state: str) -> Image.Image:
         colors = {
             'idle': (128, 128, 128),      # Gray
             'recording': (34, 139, 34),   # Green  
-            'processing': (255, 165, 0)   # Orange
+            'processing': (255, 165, 0),  # Orange
+            'sleeping': (88, 86, 214),    # Indigo: model unloaded after idle
         }
         
         color = colors.get(state, (128, 128, 128))  # Default to gray

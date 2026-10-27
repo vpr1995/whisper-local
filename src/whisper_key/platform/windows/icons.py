@@ -1,5 +1,6 @@
 # platform/windows/icons.py
-# Loads the tray icon images for each app state (idle/recording/processing).
+# Loads the tray icon images for each app state (idle/recording/processing,
+# plus sleeping: model unloaded after idle).
 # macOS mirror: platform/macos/icons.py.
 from pathlib import Path
 from PIL import Image
@@ -13,4 +14,5 @@ def get_tray_icons() -> dict:
         "idle": Image.open(ASSETS_DIR / "tray_idle.png"),
         "recording": Image.open(ASSETS_DIR / "tray_recording.png"),
         "processing": Image.open(ASSETS_DIR / "tray_processing.png"),
+        "sleeping": Image.open(ASSETS_DIR / "tray_sleeping.png"),
     }

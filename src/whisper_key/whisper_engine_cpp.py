@@ -3,8 +3,10 @@
 # via whisper.backend: whisper_cpp. Mirrors WhisperEngine's public API so the rest
 # of the app is backend-agnostic. Better on Apple Silicon; uses GGUF models.
 
+import gc
 import logging
 import os
+import threading
 import time
 from typing import Callable, Optional
 
@@ -50,6 +52,13 @@ class WhisperEngineCpp:
         self.model = None
         self._loading_thread = None
         self._progress_callback = None
+        # Same idle unload contract as WhisperEngine (see idle_unload.py).
+        self._model_lock = threading.RLock()
+        self._last_used = time.monotonic()
+        # Called with no arguments after an idle unload or the reload that
+        # follows it, so the UI can show/clear the "sleeping" tray icon.
+        self.on_model_state_change = None
+        self.last_error = None
         # Same contract as WhisperEngine: see dictation_languages.py.
         from .dictation_languages import normalize_languages
         self.allowed_languages = normalize_languages(languages)
@@ -65,12 +74,69 @@ class WhisperEngineCpp:
         print(f"🧠 Loading whisper.cpp model [{self.model_key}]...")
         print("   (Model files auto-download from ggerganov/whisper.cpp on first use)")
         try:
-            self.model = self._Model(self.model_key, n_threads=self._n_threads)
+            self.model = self._create_model(self.model_key)
             print(f"   ✓ whisper.cpp model [{self.model_key}] ready! (threads={self._n_threads})")
             self._warmup()
         except Exception as e:
             self.logger.error(f"Failed to load whisper.cpp model '{self.model_key}': {e}")
             raise
+
+    def _create_model(self, model_key: str):
+        return self._Model(model_key, n_threads=self._n_threads)
+
+    # ── Idle unload / on-demand reload (mirrors WhisperEngine) ──────────────
+
+    def unload_if_idle(self, idle_seconds: float) -> bool:
+        if not self._model_lock.acquire(blocking=False):
+            return False
+        try:
+            if self.model is None:
+                return False
+            idle_for = time.monotonic() - self._last_used
+            if idle_for < idle_seconds:
+                return False
+            self.model = None
+            gc.collect()
+        finally:
+            self._model_lock.release()
+        print(f"💤 whisper.cpp model [{self.model_key}] unloaded after "
+              f"{idle_for / 60:.1f} min idle to free memory; it reloads on your next recording")
+        self.logger.info(f"Model unloaded after {idle_for:.0f}s idle")
+        self._notify_model_state_change()
+        return True
+
+    def ensure_model_loaded(self) -> bool:
+        with self._model_lock:
+            self._last_used = time.monotonic()
+            if self.model is not None:
+                return True
+            try:
+                print(f"🧠 Reloading whisper.cpp model [{self.model_key}]...")
+                self.model = self._create_model(self.model_key)
+                self._notify_model_state_change()
+                return True
+            except Exception as e:
+                self.last_error = f"model reload failed: {e}"
+                self.logger.error(f"Failed to reload whisper.cpp model: {e}", exc_info=True)
+                return False
+
+    @property
+    def is_model_loaded(self) -> bool:
+        return self.model is not None
+
+    def _notify_model_state_change(self):
+        if self.on_model_state_change:
+            try:
+                self.on_model_state_change()
+            except Exception as e:
+                self.logger.debug(f"Model state callback failed: {e}")
+
+    def preload_model_async(self):
+        if self.model is not None:
+            self._last_used = time.monotonic()
+            return
+        threading.Thread(target=self.ensure_model_loaded, daemon=True,
+                         name='model-reload').start()
 
     # Mirror of WhisperEngine._language_from_allowed, using pywhispercpp's
     # auto_detect_language(), which returns probabilities for every language.
@@ -102,6 +168,17 @@ class WhisperEngineCpp:
             self.logger.warning("No audio data to transcribe")
             return None
 
+        with self._model_lock:
+            self.last_error = None
+            if not self.ensure_model_loaded():
+                return None
+            try:
+                return self._transcribe_with_loaded_model(audio_data)
+            finally:
+                self._last_used = time.monotonic()
+
+    # The decode itself; caller holds _model_lock with the model loaded.
+    def _transcribe_with_loaded_model(self, audio_data: np.ndarray) -> Optional[str]:
         try:
             if self.vad_manager and self.vad_manager.is_available():
                 if not self.vad_manager.check_audio_for_speech(audio_data):
@@ -145,6 +222,7 @@ class WhisperEngineCpp:
             return transcribed_text or None
 
         except Exception as e:
+            self.last_error = str(e) or e.__class__.__name__
             self.logger.error(f"Transcription failed: {e}", exc_info=True)
             print(f"❌ Transcription failed: {e}")
             return None
@@ -157,9 +235,10 @@ class WhisperEngineCpp:
         try:
             if progress_callback:
                 progress_callback(f"Loading whisper.cpp model {new_model_key}...")
-            self.model = self._Model(new_model_key, n_threads=self._n_threads)
-            self.model_key = new_model_key
-            self._warmup()
+            with self._model_lock:
+                self.model = self._create_model(new_model_key)
+                self.model_key = new_model_key
+                self._warmup()
             if progress_callback:
                 progress_callback(f"Model {new_model_key} ready")
             return True

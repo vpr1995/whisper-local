@@ -65,6 +65,13 @@ whisper: # Whisper AI Model Settings
     # toggles this; you can also flip it manually here.
     task: transcribe
 
+    # Free the model's memory after this many minutes without dictation
+    # (0 = keep it loaded). It reloads in the background when you next start
+    # recording, so the first dictation after a long break may wait a moment.
+    # CPU only for now: on cuda the setting is ignored (see the GPU
+    # model-switch crash in docs/roadmap/roadmap.md).
+    unload_after_minutes: 0
+
     # Available models (set enabled: false to hide from menu)
     # To add custom models (CTranslate2 format), add entry with source (HuggingFace or local path)
     # Example: my-model: {source: "username/repo-ct2", label: "My Model", group: custom}
@@ -404,6 +411,7 @@ terminal_title: # Terminal Tab Title Status
         - ["🔴", 1.5]
         - ["⠀⠀", 1.0]
     processing: ""
+    sleeping: "💤" # model unloaded after idle (whisper.unload_after_minutes)
 
 system_tray: # System Tray Settings
     # Enable/disable system tray icon

@@ -466,6 +466,7 @@ def _resolve_hotkey_conflicts(config, default_config, stop_key, auto_send_key, r
 
 def validate_config(config, default_config, logger):
     _validate_numeric_range(config, default_config, 'audio.max_duration', logger, min_val=0)
+    _validate_numeric_range(config, default_config, 'whisper.unload_after_minutes', logger, min_val=0)
 
     _validate_numeric_range(config, default_config, 'vad.vad_onset_threshold', logger, min_val=0.0, max_val=1.0)
     _validate_numeric_range(config, default_config, 'vad.vad_offset_threshold', logger, min_val=0.0, max_val=1.0)

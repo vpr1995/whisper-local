@@ -3,9 +3,12 @@
 # Loads the model once at startup and warms it with a dummy transcription so the
 # user's first real recording isn't slowed by lazy initialisation. Model switches
 # happen on a background thread with progress callbacks so the UI stays live.
+# With idle unload on (see idle_unload.py) the model may be dropped between
+# dictations; transcribe_audio() reloads it on demand.
 # `whisper_engine_cpp.py` mirrors this class's API for the opt-in whisper.cpp
 # backend — keep the two signatures in sync.
 
+import gc
 import logging
 import time
 import threading
@@ -70,6 +73,13 @@ class WhisperEngine:
 
         self._loading_thread = None
         self._progress_callback = None
+        # Guards self.model between transcription and idle unload/reload, so
+        # the idle thread can never drop the model in the middle of a decode.
+        self._model_lock = threading.RLock()
+        self._last_used = time.monotonic()
+        # Called with no arguments after an idle unload or the reload that
+        # follows it, so the UI can show/clear the "sleeping" tray icon.
+        self.on_model_state_change = None
 
         self.vad_manager = vad_manager
         # Why the last transcribe_audio() returned nothing, when it was an
@@ -114,12 +124,7 @@ class WhisperEngine:
             if self.device == 'cuda':
                 self._verify_gpu_runtime()
 
-            model_source = self._get_model_source(self.model_key)
-            self.model = WhisperModel(
-                model_source,
-                device=self.device,
-                compute_type=self.compute_type
-            )
+            self.model = self._create_model(self.model_key)
 
             if not was_cached:
                 print("\n")  # Workaround for download status bar misplacement
@@ -132,6 +137,13 @@ class WhisperEngine:
         except Exception as e:
             self.logger.error(f"Failed to load Whisper model: {e}")
             raise
+
+    def _create_model(self, model_key: str) -> WhisperModel:
+        return WhisperModel(
+            self._get_model_source(model_key),
+            device=self.device,
+            compute_type=self.compute_type
+        )
 
     # Fail fast when the CUDA runtime is incomplete. The model itself loads
     # without cuBLAS/cuDNN; their absence only shows on the first inference,
@@ -171,13 +183,7 @@ class WhisperEngine:
 
                 self.logger.info(f"Loading Whisper model: {new_model_key} (async)")
 
-                model_source = self._get_model_source(new_model_key)
-                new_model = WhisperModel(
-                    model_source,
-                    device=self.device,
-                    compute_type=self.compute_type
-                )
-                self.model = new_model
+                self.model = self._create_model(new_model_key)
 
                 self.model_key = new_model_key
                 self.logger.info(f"Whisper model [{new_model_key}] loaded successfully (async)")
@@ -205,7 +211,71 @@ class WhisperEngine:
     
     def is_loading(self) -> bool:
         return self._loading_thread is not None and self._loading_thread.is_alive()
-    
+
+    # ── Idle unload / on-demand reload ─────────────────────────────────────
+    # Dropping the model and recreating it, not CTranslate2's unload_model():
+    # measured on macOS, unload_model() cycles leaked ~10 MB each while a
+    # fresh WhisperModel returned to the same footprint every time.
+
+    # Drop the model if nothing has used it for `idle_seconds`. Gives up
+    # rather than waiting when a transcription holds the lock: busy is not idle.
+    def unload_if_idle(self, idle_seconds: float) -> bool:
+        if not self._model_lock.acquire(blocking=False):
+            return False
+        try:
+            if self.model is None or self.is_loading():
+                return False
+            idle_for = time.monotonic() - self._last_used
+            if idle_for < idle_seconds:
+                return False
+            self.model = None
+            gc.collect()
+        finally:
+            self._model_lock.release()
+        print(f"💤 Whisper model [{self.model_key}] unloaded after "
+              f"{idle_for / 60:.1f} min idle to free memory; it reloads on your next recording")
+        self.logger.info(f"Model unloaded after {idle_for:.0f}s idle")
+        self._notify_model_state_change()
+        return True
+
+    # Reload the model if idle unload dropped it. Blocking; True when ready.
+    def ensure_model_loaded(self) -> bool:
+        with self._model_lock:
+            self._last_used = time.monotonic()
+            if self.model is not None:
+                return True
+            try:
+                print(f"🧠 Reloading Whisper model [{self.model_key}]...")
+                t0 = time.time()
+                self.model = self._create_model(self.model_key)
+                self._notify_model_state_change()
+                self.logger.info(f"Model reloaded in {time.time() - t0:.2f}s")
+                return True
+            except Exception as e:
+                self.last_error = f"model reload failed: {e}"
+                self.logger.error(f"Failed to reload Whisper model: {e}", exc_info=True)
+                return False
+
+    @property
+    def is_model_loaded(self) -> bool:
+        return self.model is not None
+
+    def _notify_model_state_change(self):
+        if self.on_model_state_change:
+            try:
+                self.on_model_state_change()
+            except Exception as e:
+                self.logger.debug(f"Model state callback failed: {e}")
+
+    # Called at recording start: reload in the background while the user
+    # speaks, so the transcription right after rarely waits for the model.
+    def preload_model_async(self):
+        if self.model is not None:
+            self._last_used = time.monotonic()
+            return
+        threading.Thread(target=self.ensure_model_loaded, daemon=True,
+                         name='model-reload').start()
+
 
     def _warmup(self):
         try:
@@ -226,15 +296,22 @@ class WhisperEngine:
     # whisper_engine_cpp and system_audio both feed it the same array shape.
     def transcribe_audio(self,
                          audio_data: np.ndarray) -> Optional[str]:
-        if self.model is None:
-            return None
-        
         if audio_data is None or len(audio_data) == 0:
             self.logger.warning("No audio data to transcribe")
             return None
 
-        self.last_error = None
-        self.last_language_outsider = None
+        with self._model_lock:
+            self.last_error = None
+            self.last_language_outsider = None
+            if not self.ensure_model_loaded():
+                return None
+            try:
+                return self._transcribe_with_loaded_model(audio_data)
+            finally:
+                self._last_used = time.monotonic()
+
+    # The decode itself; caller holds _model_lock with the model loaded.
+    def _transcribe_with_loaded_model(self, audio_data: np.ndarray) -> Optional[str]:
         try:
             speech_detected = True
             if self.vad_manager and self.vad_manager.is_available():

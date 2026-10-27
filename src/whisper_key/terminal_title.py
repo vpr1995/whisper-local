@@ -23,6 +23,7 @@ _DEFAULTS = {
     "idle": "",
     "recording": [["🔴", 1.5], ["⠀⠀", 1.0]],
     "processing": "",
+    "sleeping": "💤",
 }
 
 

@@ -63,6 +63,7 @@ class StateManager:
 
         self.audio_recorder = audio_recorder
         self.whisper_engine = whisper_engine
+        self.whisper_engine.on_model_state_change = self._on_model_state_change
         self.clipboard_manager = clipboard_manager
         self.system_tray = OptionalComponent(system_tray)
         self.terminal_title = OptionalComponent(terminal_title)
@@ -107,6 +108,8 @@ class StateManager:
         )
         self.level_overlay = None
         self.fallback_window = FallbackWindow()
+        # Set by main when whisper.unload_after_minutes > 0; stopped on shutdown.
+        self.idle_unloader = None
 
     def attach_components(self,
                           audio_recorder: AudioRecorder,
@@ -237,6 +240,7 @@ class StateManager:
     def start_rephrase_recording(self):
         if not self.can_start_recording():
             return
+        self.whisper_engine.preload_model_async()
         import time
         import pyperclip
         from .platform import keyboard as kb
@@ -281,6 +285,7 @@ class StateManager:
         if not self.can_start_recording():
             return
 
+        self.whisper_engine.preload_model_async()
         with self._state_lock:
             self._command_mode = True
         self._streaming_delivery_active = False  # command mode is never live-typed
@@ -299,6 +304,7 @@ class StateManager:
             self._schedule_silent_mic_check()
 
     def _begin_recording(self):
+        self.whisper_engine.preload_model_async()
         self._apply_recording_context()
         self._maybe_pause_media()
         with self._recorder_lock:
@@ -858,13 +864,26 @@ class StateManager:
     # OptionalComponent-wrapped: a disabled tray or a non-TTY terminal is a
     # silent no-op rather than a branch at each call site.
     def _update_ui_state(self, state: str):
+        # Idle with the model unloaded (whisper.unload_after_minutes) is shown
+        # as "sleeping", so the tray tells the user the next dictation reloads.
+        if state == "idle" and not self.whisper_engine.is_model_loaded:
+            state = "sleeping"
         self.system_tray.update_state(state)
         self.terminal_title.update_state(state)
+
+    # Engine callback after an idle unload or reload. Only repaints when the
+    # app is idle: recording/processing art must not be overwritten.
+    def _on_model_state_change(self):
+        if self.get_current_state() == "idle":
+            self._update_ui_state("idle")
 
     
     def shutdown(self):        
         self.terminal_title.stop()
         print("Whisper Local is shutting down... goodbye!")
+
+        if self.idle_unloader:
+            self.idle_unloader.stop()
 
         if self.audio_recorder.get_recording_status():
             self.audio_recorder.stop_recording()

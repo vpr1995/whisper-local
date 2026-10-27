@@ -202,6 +202,26 @@ def setup_whisper_engine(whisper_config, vad_manager, model_registry, log_transc
             raise
         return _handle_gpu_failure(e, whisper_config, vad_manager, model_registry, log_transcriptions, config_manager)
 
+# Optional idle unload of the Whisper model (whisper.unload_after_minutes).
+# Skipped on cuda: dropping and recreating a GPU model is the same pattern as
+# the known CTranslate2 GPU model-switch crash, so it stays CPU-only until
+# that is fixed upstream.
+def setup_idle_model_unloader(whisper_config, whisper_engine, state_manager, logger):
+    from .idle_unload import IdleModelUnloader
+    minutes = whisper_config.get('unload_after_minutes', 0) or 0
+    if minutes <= 0:
+        return None
+    if whisper_engine.device == 'cuda':
+        logger.warning("whisper.unload_after_minutes is ignored on GPU (cuda)")
+        print("   ⚠ Idle model unload is CPU-only; ignored while running on GPU")
+        return None
+    unloader = IdleModelUnloader(
+        whisper_engine, minutes,
+        is_app_idle=lambda: state_manager.get_current_state() == "idle")
+    unloader.start()
+    print(f"   ✓ Model memory is freed after {minutes:g} min idle")
+    return unloader
+
 def setup_clipboard_manager(clipboard_config):
     from .clipboard_manager import ClipboardManager
     return ClipboardManager(
@@ -596,6 +616,8 @@ def main():
         audio_recorder = setup_audio_recorder(audio_config, state_manager, vad_manager, streaming_manager)
         system_tray = setup_system_tray(tray_config, config_manager, state_manager, model_registry, console_config)
         state_manager.attach_components(audio_recorder, system_tray)
+        state_manager.idle_unloader = setup_idle_model_unloader(
+            whisper_config, whisper_engine, state_manager, logger)
         
         try:
             hotkey_listener = setup_hotkey_listener(hotkey_config, state_manager, voice_commands_config['enabled'])

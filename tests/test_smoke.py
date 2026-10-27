@@ -229,6 +229,184 @@ class WhisperCppTranscribeTests(unittest.TestCase):
         self.assertEqual(engine.transcribe_audio(audio), "Bonjour. Ensuite")
 
 
+class IdleModelUnloaderTests(unittest.TestCase):
+    # The policy around the engine: unload only when enabled, the app is
+    # between recordings, and no model switch is running. The engine's own
+    # "idle long enough" check is exercised by WhisperCppIdleUnloadTests.
+    class FakeEngine:
+        def __init__(self):
+            self.loading = False
+            self.unload_calls = []
+
+        def is_loading(self):
+            return self.loading
+
+        def unload_if_idle(self, idle_seconds):
+            self.unload_calls.append(idle_seconds)
+            return True
+
+    def _make(self, minutes=5, app_idle=True):
+        from whisper_key.idle_unload import IdleModelUnloader
+        engine = self.FakeEngine()
+        state = {"idle": app_idle}
+        unloader = IdleModelUnloader(engine, minutes, is_app_idle=lambda: state["idle"])
+        return unloader, engine, state
+
+    def test_unloads_when_idle_with_timeout_in_seconds(self):
+        unloader, engine, _ = self._make(minutes=5)
+        self.assertTrue(unloader.check_now())
+        self.assertEqual(engine.unload_calls, [300.0])
+
+    def test_zero_timeout_is_disabled(self):
+        unloader, engine, _ = self._make(minutes=0)
+        self.assertFalse(unloader.enabled)
+        self.assertFalse(unloader.check_now())
+        unloader.start()
+        self.assertIsNone(unloader._thread)
+        self.assertEqual(engine.unload_calls, [])
+
+    def test_never_unloads_while_recording_or_transcribing(self):
+        unloader, engine, _ = self._make(app_idle=False)
+        self.assertFalse(unloader.check_now())
+        self.assertEqual(engine.unload_calls, [])
+
+    def test_never_unloads_during_a_model_switch(self):
+        unloader, engine, _ = self._make()
+        engine.loading = True
+        self.assertFalse(unloader.check_now())
+        self.assertEqual(engine.unload_calls, [])
+
+    def test_short_timeout_polls_at_least_that_often(self):
+        unloader, _, _ = self._make(minutes=0.25)
+        self.assertEqual(unloader.poll_seconds, 15.0)
+
+
+class WhisperCppIdleUnloadTests(unittest.TestCase):
+    # Engine half of idle unload, on the whisper.cpp engine because it runs
+    # without the ML stack. WhisperEngine mirrors the same methods.
+    _make_engine = WhisperCppTranscribeTests._make_engine
+
+    def _make_counting_engine(self):
+        engine, calls, audio = self._make_engine()
+        created = []
+        original_create = engine._create_model
+        engine._create_model = lambda key: created.append(key) or original_create(key)
+        return engine, calls, audio, created
+
+    def test_recent_use_is_not_idle(self):
+        engine, _, _, _ = self._make_counting_engine()
+        self.assertFalse(engine.unload_if_idle(60))
+        self.assertIsNotNone(engine.model)
+
+    def test_unload_then_transcribe_reloads_the_model(self):
+        engine, calls, audio, created = self._make_counting_engine()
+        self.assertTrue(engine.unload_if_idle(0))
+        self.assertIsNone(engine.model)
+        self.assertEqual(engine.transcribe_audio(audio), "Bonjour. Ensuite")
+        self.assertEqual(created, ["small"])
+
+    def test_unload_gives_up_while_a_transcription_holds_the_model(self):
+        engine, _, _, _ = self._make_counting_engine()
+        import threading
+        holder_ready, release = threading.Event(), threading.Event()
+
+        def hold_lock():
+            with engine._model_lock:
+                holder_ready.set()
+                release.wait(5)
+
+        holder = threading.Thread(target=hold_lock)
+        holder.start()
+        holder_ready.wait(5)
+        try:
+            self.assertFalse(engine.unload_if_idle(0))
+        finally:
+            release.set()
+            holder.join()
+        self.assertIsNotNone(engine.model)
+
+    def test_unload_and_reload_notify_the_ui(self):
+        engine, _, audio, _ = self._make_counting_engine()
+        events = []
+        engine.on_model_state_change = lambda: events.append(engine.is_model_loaded)
+        engine.unload_if_idle(0)
+        engine.transcribe_audio(audio)
+        self.assertEqual(events, [False, True])
+
+    def test_failed_reload_is_reported_as_an_error(self):
+        engine, _, audio, _ = self._make_counting_engine()
+        engine.unload_if_idle(0)
+
+        def broken_create(key):
+            raise OSError("disk gone")
+        engine._create_model = broken_create
+        self.assertIsNone(engine.transcribe_audio(audio))
+        self.assertIn("disk gone", engine.last_error)
+
+
+class SleepingTrayStateTests(unittest.TestCase):
+    # With the model unloaded after idle, "idle" is shown as "sleeping" in the
+    # tray and terminal title, and the engine's unload/reload callback repaints
+    # only while the app is idle.
+    def _state_manager(self, model_loaded):
+        import logging
+        import threading
+        import unittest.mock as mock
+        try:
+            import numpy  # noqa: F401
+        except ImportError:
+            self.skipTest('numpy not installed')
+        fakes = fake_platform_modules()
+        for name in ('PIL', 'PIL.Image', 'PIL.ImageDraw', 'pystray', 'sounddevice', 'soxr',
+                     'faster_whisper', 'faster_whisper.utils', 'playsound3'):
+            fakes[name] = _stand_in_module(name)
+        reimport_under(self, fakes)
+        from whisper_key.state_manager import StateManager
+        sm = StateManager.__new__(StateManager)
+        sm.logger = logging.getLogger('test')
+        sm._state_lock = threading.Lock()
+        sm.is_processing = False
+        sm.is_model_loading = False
+        sm.audio_recorder = mock.Mock()
+        sm.audio_recorder.get_recording_status.return_value = False
+        sm.system_tray = mock.Mock()
+        sm.terminal_title = mock.Mock()
+        sm.whisper_engine = mock.Mock(is_model_loaded=model_loaded)
+        return sm
+
+    def test_idle_with_model_unloaded_shows_sleeping(self):
+        sm = self._state_manager(model_loaded=False)
+        sm._update_ui_state("idle")
+        sm.system_tray.update_state.assert_called_with("sleeping")
+        sm.terminal_title.update_state.assert_called_with("sleeping")
+
+    def test_idle_with_model_loaded_stays_idle(self):
+        sm = self._state_manager(model_loaded=True)
+        sm._update_ui_state("idle")
+        sm.system_tray.update_state.assert_called_with("idle")
+
+    def test_busy_states_are_never_replaced(self):
+        sm = self._state_manager(model_loaded=False)
+        sm._update_ui_state("recording")
+        sm.system_tray.update_state.assert_called_with("recording")
+
+    def test_model_callback_does_not_repaint_while_recording(self):
+        sm = self._state_manager(model_loaded=True)
+        sm.audio_recorder.get_recording_status.return_value = True
+        sm._on_model_state_change()
+        sm.system_tray.update_state.assert_not_called()
+
+    def test_model_callback_repaints_when_idle(self):
+        sm = self._state_manager(model_loaded=False)
+        sm._on_model_state_change()
+        sm.system_tray.update_state.assert_called_with("sleeping")
+
+    def test_both_platforms_ship_sleeping_art(self):
+        for plat in ('macos', 'windows'):
+            self.assertTrue((ROOT / 'src' / 'whisper_key' / 'platform' / plat / 'assets'
+                             / 'tray_sleeping.png').is_file(), plat)
+
+
 class InstanceManagerTests(unittest.TestCase):
     def test_exposes_cleanup_pid_file(self):
         src = (ROOT / "src" / "whisper_key" / "instance_manager.py").read_text(encoding="utf-8")

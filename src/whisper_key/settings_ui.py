@@ -433,6 +433,11 @@ def _build_general_tab(nb, cm, vars_, row_index):
     _row(tab, 'whisper.beam_size', 'Beam size (1–10)',
          lambda p: _entry(p, v), row_index)
 
+    v = tk.StringVar(master=nb, value=str(_v(cfg, 'whisper', 'unload_after_minutes', default=0)))
+    vars_['whisper.unload_after_minutes'] = v
+    _row(tab, 'whisper.unload_after_minutes', 'Free model memory after idle, minutes (0 = never; restart to apply)',
+         lambda p: _entry(p, v), row_index)
+
     v = tk.StringVar(master=nb, value=str(_v(cfg, 'whisper', 'initial_prompt', default='')))
     vars_['whisper.initial_prompt'] = v
     _row(tab, 'whisper.initial_prompt', 'Initial prompt',
@@ -667,6 +672,7 @@ def _save_all(cm, vars_):
 # look numeric — e.g. initial_prompt "2024" must stay the string "2024".
 _NUMERIC_PATHS = {
     'whisper.beam_size',
+    'whisper.unload_after_minutes',
     'audio.max_duration',
     'audio.noise_suppression.strength',
     'vad.vad_silence_timeout_seconds',

@@ -14,6 +14,7 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Audio Feedback** | `audio_feedback.py` | Recording event sound notifications | playsound3 |
 | **Speech Recognition** | `whisper_engine.py` | Audio transcription using AI | faster-whisper |
 | **Model Management** | `model_registry.py` | Whisper model registry & cache detection | faster-whisper |
+| **Idle Model Unload** | `idle_unload.py` | Frees model memory after `whisper.unload_after_minutes` idle; engine reloads on next recording | threading |
 | **Voice Activity Detection** | `voice_activity_detection.py` | Continuous VAD monitoring & silence detection | ten-vad, threading |
 | **Clipboard Operations** | `clipboard_manager.py` | Text copying & auto-paste functionality | pyperclip, ctypes SendInput (Win), Quartz (Mac) |
 | **Hotkey Detection** | `hotkey_listener.py` | Global hotkey monitoring | global-hotkeys (Win), NSEvent (Mac) |
