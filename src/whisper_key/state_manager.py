@@ -10,7 +10,7 @@
 #                                                     ▼
 #                                            stats + transcripts + audit
 #
-# Also owns the LevelOverlay + FallbackWindow lifecycle and the cross-cutting
+# Also owns the floating overlay + FallbackWindow lifecycle and the cross-cutting
 # concerns: profile activation, app-rule application, AI rephrase, command mode,
 # and the continuous-dictation restart loop.
 #
@@ -46,7 +46,7 @@ from .audit_log import record as audit_record
 from .terminal_title import TerminalTitle
 from .transcript_log import record_transcript
 from .platform import foreground, audio_endpoints
-from .level_overlay import LevelOverlay
+from .platform import overlay as platform_overlay
 from .fallback_window import FallbackWindow
 
 class StateManager:
@@ -127,7 +127,7 @@ class StateManager:
         overlay_cfg = self.config_manager.config.get('overlay', {}) or {}
         if overlay_cfg.get('enabled', True):
             try:
-                self.level_overlay = LevelOverlay(
+                self.level_overlay = platform_overlay.Overlay(
                     # Late-bound: a device switch replaces self.audio_recorder.
                     level_provider=lambda: self.audio_recorder.get_current_level(),
                     click_through=overlay_cfg.get('click_through', True),

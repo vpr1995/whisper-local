@@ -2,6 +2,18 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **The floating pill now works on macOS.** It is a native panel, not a Tk
+  window: blurred, rounded and dark, and it never takes focus from the text
+  field the result goes into. It shows the recording state, a live level
+  waveform, the elapsed time and, with `streaming.streaming_enabled: true`,
+  the words as you speak them (up to three lines; the panel grows to fit).
+  It turns amber while Whisper transcribes and green when the text is
+  delivered. `overlay.position` and `overlay.click_through` apply as on
+  Windows.
+
 ## [0.23.0]
 
 Three dictation features from Wispr Flow's recent changelog, built to work

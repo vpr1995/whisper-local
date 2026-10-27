@@ -37,7 +37,7 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Window Launcher** | `window_launcher.py` | Opens Tk windows in a child process where Tk needs the main thread (macOS) | subprocess, json |
 | **First-Run Welcome** | `first_run.py` | One-time onboarding window on first launch | tkinter |
 | **Terminal Title** | `terminal_title.py` | Animated terminal tab title reflecting app state | - |
-| **Level Overlay** | `level_overlay.py` | Floating level meter + streaming text pill | tkinter |
+| **Floating Overlay** | `platform/*/overlay.py` | Floating pill: level meter, timer, streaming text. Native AppKit panel on macOS, Tk `level_overlay.py` on Windows | pyobjc / tkinter |
 | **Fallback Window** | `fallback_window.py` | Capture window when no text field is focused | tkinter |
 | **Transforms** | `transforms.py` | Wispr-style AI text transforms via Ollama | ruamel.yaml |
 | **Dictionary** | `dictionary.py` | Hotword add/remove/list + add-word dialog | tkinter, ruamel.yaml |
@@ -96,6 +96,7 @@ whisper-local/
 │       │       ├── icons.py           # Tray icons
 │       │       ├── instance_lock.py   # Instance control
 │       │       ├── keyboard.py        # Key simulation
+│       │       ├── overlay.py         # Floating recording pill
 │       │       ├── paths.py           # Path management
 │       │       ├── gpu.py              # GPU detection (Windows)
 │       │       └── permissions.py     # Permission management

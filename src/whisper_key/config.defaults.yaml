@@ -449,7 +449,7 @@ voice_commands: # Voice Command Settings
     # Define commands in commands.yaml (same folder as user_settings.yaml)
     enabled: true
 
-overlay: # Floating speech-level overlay (Wispr-style bottom-center bar)
+overlay: # Floating recording pill (level, timer, live text; Windows + macOS)
     # Show a thin pill at the screen edge while recording so you can see
     # Whisper Local is listening and reacting to your voice.
     enabled: true
