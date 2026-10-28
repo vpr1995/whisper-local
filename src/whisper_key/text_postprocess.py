@@ -3,18 +3,15 @@
 # over the raw transcript: spoken editing ("scratch that", "actually 3") →
 # inline voice formatting (say "comma") → deterministic smart formatting
 # (times/emails/URLs) → user corrections → fillers, lists, style → snippets →
-# casing/punctuation tidying → optional Ollama polish. Every stage is opt-in via
-# the `postprocess` config section and pure except the final Ollama call, so
-# output stays predictable and fully offline.
+# casing/punctuation tidying → optional AI polish (ai_provider). Every stage is
+# opt-in via the `postprocess` config section and pure except the final AI call,
+# so output stays predictable and fully offline.
 
 import functools
-import json
 import logging
 import re
-import urllib.error
-import urllib.request
 
-from . import dictation_cleanup
+from . import ai_provider, dictation_cleanup
 from .snippets import expand_snippets
 from .styles import resolve_style
 
@@ -113,7 +110,10 @@ def resolve_cleanup(config: dict) -> dict:
     return resolved
 
 
-def postprocess(text: str, config: dict) -> str:
+# `on_polish_failed` is called (no arguments) when the AI polish ran but gave
+# nothing usable, so a caller that forced the polish can tell the user why the
+# text came out unpolished.
+def postprocess(text: str, config: dict, on_polish_failed=None) -> str:
     if not text or not config:
         return text
 
@@ -154,7 +154,7 @@ def postprocess(text: str, config: dict) -> str:
         text = _apply_smart_formatting(text, smart_cfg)
 
     # Both correction passes run late — after formatting, so they win over it,
-    # but before Ollama so the LLM sees already-corrected text.
+    # but before the AI polish so the model sees already-corrected text.
     #
     # `corrections` is the vocabulary map (one canonical term, many misheard
     # variants). It runs first so a specific `replacements` entry can still
@@ -198,13 +198,15 @@ def postprocess(text: str, config: dict) -> str:
     if _on(config.get('ensure_punctuation')) and not became_list:
         text = _ensure_punctuation(text)
 
-    # Same defensive shape check as smart_formatting above — a malformed
-    # `ollama:` value must degrade to "no polish", not raise mid-dictation.
-    ollama_cfg = config.get('ollama')
-    if isinstance(ollama_cfg, dict) and _on(ollama_cfg.get('enabled')):
-        polished = _ollama_polish(text, ollama_cfg)
+    # Same defensive shape check as smart_formatting above: a malformed `ai:` value
+    # must degrade to "no polish", not raise mid-dictation.
+    ai_cfg = config.get('ai')
+    if isinstance(ai_cfg, dict) and _on(ai_cfg.get('polish')):
+        polished = ai_provider.polish(text, config)
         if polished:
             text = polished
+        elif on_polish_failed:
+            on_polish_failed()
 
     return text
 
@@ -543,40 +545,3 @@ def _ensure_punctuation(text: str) -> str:
     if stripped.endswith(_SENTENCE_END):
         return text
     return stripped + '.' + trailing
-
-
-def _ollama_polish(text: str, cfg: dict) -> str:
-    endpoint = cfg.get('endpoint', 'http://localhost:11434').rstrip('/')
-    model = cfg.get('model', 'llama3.2')
-    prompt_template = cfg.get(
-        'prompt',
-        "Polish this dictation. Fix punctuation and capitalization only. Do not change wording or add anything. Output ONLY the polished text:\n\n{text}",
-    )
-    timeout = float(cfg.get('timeout', 5))
-
-    if '{text}' in prompt_template:
-        final_prompt = prompt_template.replace('{text}', text)
-    else:
-        final_prompt = f"{prompt_template}\n\n{text}"
-
-    payload = {
-        'model': model,
-        'prompt': final_prompt,
-        'stream': False,
-    }
-
-    try:
-        req = urllib.request.Request(
-            f"{endpoint}/api/generate",
-            data=json.dumps(payload).encode('utf-8'),
-            headers={'Content-Type': 'application/json'},
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read())
-        polished = (data.get('response') or '').strip()
-        if polished:
-            logger.debug("Ollama polish applied")
-            return polished
-    except (urllib.error.URLError, OSError, ValueError) as e:
-        logger.warning(f"Ollama post-edit unavailable ({e}); using raw transcript")
-    return ''

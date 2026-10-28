@@ -18,6 +18,8 @@
 #   inline_formatting:    true | false  - "
 #   lowercase:            true | false  - "
 #   list_formatting:      true | false  - "
+#   polish:      true | false   - the AI fixes punctuation of what you dictate here
+#                                (overrides postprocess.ai.polish for this app)
 #   style:       formal | casual | very_casual | verbatim (or one of your own
 #                postprocess.styles) - sets the formatting toggles above in one go
 #
@@ -59,6 +61,7 @@ rules:
     match: ["windowsterminal.exe", "wt.exe", "conhost.exe", "powershell.exe", "cmd.exe", "alacritty.exe", "wezterm-gui.exe"]
     auto_paste: false
     style: verbatim
+    polish: false
 
   # Code editors: never auto-send, never paste — copy only so the user
   # decides where it lands; identifier/path bias. Keep it verbatim: no forced
@@ -68,6 +71,7 @@ rules:
     auto_paste: false
     initial_prompt: "Programming context. Identifiers, snake_case, camelCase, file paths, regex."
     style: verbatim
+    polish: false
 
   # Chat apps: send the message immediately, casual tone bias
   - id: chat-apps
@@ -77,8 +81,10 @@ rules:
     list_formatting: false   # a new line would send the message early
     initial_prompt: "Casual chat message. Conversational tone."
 
-  # Email clients: professional bias, no auto-send
+  # Email clients: professional bias, no auto-send, AI polish on
   - id: email-clients
-    match: ["outlook.exe", "thunderbird.exe", "Mail"]
+    # "com.microsoft.outlook" is Outlook on macOS (apps there are matched by bundle id)
+    match: ["outlook.exe", "com.microsoft.outlook", "thunderbird.exe", "Mail"]
     style: formal
+    polish: true
     initial_prompt: "Professional email body. Polite, clear sentences."

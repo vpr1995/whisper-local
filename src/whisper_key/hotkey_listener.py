@@ -1,6 +1,6 @@
 # hotkey_listener.py
 # Registers global hotkeys and maps them to StateManager actions: record (toggle
-# or push-to-talk), stop, auto-send, cancel, command mode, AI rephrase, pause-all,
+# or push-to-talk), stop, auto-send, stop-and-polish, cancel, command mode, AI rephrase, pause-all,
 # paste-last and per-transform hotkeys. Handles PTT press/release (with optional
 # double-tap-to-lock) and re-registration when transforms or hotkey config
 # change. Backed by the platform.hotkeys layer.
@@ -17,11 +17,13 @@ class HotkeyListener:
                  command_hotkey: str = None, rephrase_hotkey: str = None,
                  pause_hotkey: str = None, transforms_manager=None,
                  recording_mode: str = "push_to_talk", paste_last_hotkey: str = None,
-                 double_tap_to_lock: bool = False, double_tap_window_ms: int = 400):
+                 double_tap_to_lock: bool = False, double_tap_window_ms: int = 400,
+                 stop_polish_key: str = None):
         self.state_manager = state_manager
         self.recording_hotkey = recording_hotkey
         self.stop_key = stop_key
         self.auto_send_key = auto_send_key
+        self.stop_polish_key = stop_polish_key
         self.cancel_combination = cancel_combination
         self.command_hotkey = command_hotkey
         self.rephrase_hotkey = rephrase_hotkey
@@ -90,6 +92,14 @@ class HotkeyListener:
                 'callback': self._auto_send_key_pressed,
                 'release_callback': self._arm_keys_on_release,
                 'name': 'auto-send'
+            })
+
+        if self.stop_polish_key:
+            hotkey_configs.append({
+                'combination': self.stop_polish_key,
+                'callback': self._stop_polish_key_pressed,
+                'release_callback': self._arm_keys_on_release,
+                'name': 'stop-and-polish'
             })
 
         if self.cancel_combination:
@@ -216,21 +226,30 @@ class HotkeyListener:
             self.logger.debug("Stop key ignored - waiting for key release first")
 
     def _auto_send_key_pressed(self):
-        self.logger.debug(f"Auto-send key pressed: {self.auto_send_key}, keys_armed={self.keys_armed}")
+        self._stop_variant_key_pressed("Auto-send", self.auto_send_key, use_auto_enter=True)
+
+    def _stop_polish_key_pressed(self):
+        self._stop_variant_key_pressed("Stop-and-polish", self.stop_polish_key, force_polish=True)
+
+    # Shared by the stop keys that change how the dictation is delivered. They
+    # only act while recording, and disarm the keys so the modifier that is
+    # still held does not trigger a second stop.
+    def _stop_variant_key_pressed(self, key_label: str, key: str, **stop_options):
+        self.logger.debug(f"{key_label} key pressed: {key}, keys_armed={self.keys_armed}")
         if self.tap_latch and self.tap_latch.intercept_stop_key():
             return
 
         if not self.state_manager.audio_recorder.get_recording_status():
-            self.logger.debug("Auto-send key ignored - not currently recording")
+            self.logger.debug(f"{key_label} key ignored - not currently recording")
             return
 
         if not self.keys_armed:
-            self.logger.debug("Auto-send key ignored - waiting for key release first")
+            self.logger.debug(f"{key_label} key ignored - waiting for key release first")
             return
 
         self.keys_armed = False
 
-        self.state_manager.stop_recording(use_auto_enter=True)
+        self.state_manager.stop_recording(**stop_options)
 
     def _cancel_hotkey_pressed(self):
         self.logger.info(f"Cancel hotkey pressed: {self.cancel_combination}")
@@ -277,7 +296,7 @@ class HotkeyListener:
         self._pause_hotkey_pressed()
 
     def _arm_keys_on_release(self):
-        self.logger.debug("Key released - arming stop/auto-send keys")
+        self.logger.debug("Key released - arming stop keys")
         self.keys_armed = True
 
     def start_listening(self):
@@ -306,7 +325,7 @@ class HotkeyListener:
             self.logger.error(f"Error stopping hotkey listener: {e}")
 
     def change_hotkey_config(self, setting: str, value):
-        valid_settings = ['recording_hotkey', 'stop_key', 'auto_send_key', 'cancel_combination', 'command_hotkey', 'rephrase_hotkey', 'pause_hotkey', 'paste_last_hotkey', 'recording_mode']
+        valid_settings = ['recording_hotkey', 'stop_key', 'auto_send_key', 'stop_polish_key', 'cancel_combination', 'command_hotkey', 'rephrase_hotkey', 'pause_hotkey', 'paste_last_hotkey', 'recording_mode']
 
         if setting not in valid_settings:
             raise ValueError(f"Invalid setting '{setting}'. Valid options: {valid_settings}")

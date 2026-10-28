@@ -33,6 +33,10 @@ USER_FILE_HEADER = """\
 #     - id: chat-apps
 #       auto_send: false
 #
+#     # polish what you dictate in an app with the AI (or never): polish: true | false
+#     - id: chat-apps
+#       polish: true
+#
 #     # turn a shipped rule off
 #     - id: terminals
 #       disabled: true
@@ -66,12 +70,49 @@ def formatting_overrides(rule, postprocess_cfg: dict = None) -> dict:
 # global toggles < global `style` < the app rule's style < the rule's explicit
 # toggles. The style is resolved here, once, so postprocess() can't re-apply
 # the global one over a rule's choice.
-def effective_postprocess_config(postprocess_cfg: dict, rule=None) -> dict:
+#
+# A rule's `polish: true | false` replaces `ai.polish` for that delivery only.
+def effective_postprocess_config(postprocess_cfg: dict, rule=None, force_polish: bool = False) -> dict:
     from .styles import resolve_style
     cfg = dict(postprocess_cfg or {})
     cfg.update(resolve_style(cfg.pop('style', None), cfg))
     cfg.update(formatting_overrides(rule, cfg))
+    if rule and isinstance(rule.get('polish'), bool):
+        ai_settings = cfg.get('ai')
+        cfg['ai'] = {**(ai_settings if isinstance(ai_settings, dict) else {}), 'polish': rule['polish']}
+    # "Stop and polish": this one dictation is polished whatever the global setting or the rule say.
+    if force_polish:
+        ai_settings = cfg.get('ai')
+        cfg['ai'] = {**(ai_settings if isinstance(ai_settings, dict) else {}), 'polish': True}
     return cfg
+
+
+# Writes `polish: <enabled>` for the shipped rule `rule_id` into the user's app_rules.yaml,
+# as `- id: <rule_id>` plus the key (the documented override form). Round-trip YAML keeps
+# the user's comments. The running app picks it up on the next transcription.
+def set_rule_polish(rule_id: str, enabled: bool):
+    from ruamel.yaml import YAML
+    AppRules()      # creates the user file with its header when it does not exist yet
+    path = Path(get_user_app_data_path()) / USER_FILE
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    yaml.indent(mapping=2, sequence=4, offset=2)      # the layout the file header documents
+    with open(path, encoding='utf-8') as f:
+        data = yaml.load(f)
+    rules = data.get('rules')
+    if rules is None:
+        rules = data['rules'] = []
+    entry = next((rule for rule in rules if isinstance(rule, dict) and rule.get('id') == rule_id), None)
+    if entry is None:
+        if hasattr(rules, 'fa'):
+            rules.fa.set_block_style()      # an empty `rules: []` is flow style; keep new entries readable
+        rules.append({'id': rule_id, 'polish': enabled})
+    else:
+        entry['polish'] = enabled
+    temporary_path = path.with_suffix(path.suffix + '.tmp')
+    with open(temporary_path, 'w', encoding='utf-8', newline='') as f:
+        yaml.dump(data, f)
+    temporary_path.replace(path)
 
 
 # What identified a rule before ids existed: the set of strings it matches on.

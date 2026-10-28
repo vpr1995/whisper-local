@@ -29,7 +29,8 @@ This creates a zip with redacted logs, `--doctor` output, and recent crashes. At
 | "Could not register hotkeys" | Another instance is already running, or another app owns the combo | `whisper-local --quit` then relaunch. Or change the hotkey |
 | GPU not used despite `device: cuda` | CTranslate2 CUDA runtime not installed | Run `whisper-local --setup` and accept the GPU install prompt |
 | Transcription accuracy is poor | Tiny model + noisy environment | Settings → General → Model = `base` or `small`. Settings → Audio → Noise suppression = on (`pip install 'whisper-local[noise]'`) |
-| `Ollama unreachable` in tray | Ollama service not running locally | `ollama serve` in a terminal, or disable in Settings → Post-process |
+| `Rephrase failed: Ollama did not answer` in tray | Ollama is the active AI and is not running | `ollama serve` in a terminal, or use Apple Intelligence (dashboard → Style → AI) |
+| `Apple Intelligence is getting ready` / `needs Command Line Tools` | The Apple Intelligence helper is not built yet | Run `xcode-select --install`, then restart. Run `--doctor` for the reason |
 | Text appears twice in chat apps | `auto_send_key` pressed by accident | The Esc cancel + retry; consider switching off auto-send for that app via `app_rules.yaml` |
 | Audio device unplugged mid-recording | USB mic disconnect | App should auto-recover to default input. If not, restart and tell the maintainer |
 | Settings change didn't take effect | Hotkeys / device changes require restart | Quit and relaunch the app |

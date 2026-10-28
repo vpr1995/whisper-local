@@ -81,7 +81,7 @@ This is a **community tool**, not a product. There's no support SLA, no roadmap 
 | **Customisable voice commands** | ✅ | partial | ✅ | ❌ | ❌ |
 | **Push-to-talk + auto-paste + auto-send** | ✅ | ✅ | partial | ❌ | ❌ |
 | **GPU acceleration (NVIDIA & AMD)** | ✅ | n/a | n/a | n/a | ❌ |
-| **AI rephrase / transforms (Ollama)** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **AI rephrase / transforms (Apple Intelligence or Ollama)** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **Hackable / MIT licensed** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **No account required** | ✅ | ❌ | ❌ | ❌ | ✅ |
 
@@ -105,7 +105,7 @@ This is a **community tool**, not a product. There's no support SLA, no roadmap 
 - 🙌 **Hands-free lock** — double-tap the record hotkey to keep recording without holding it; tap again to stop (`hotkey.double_tap_to_lock`, opt-in)
 - 🤫 **Whisper mode** — boosts quiet speech so you can dictate in an open office (`audio.whisper_mode`, opt-in)
 - 🔢 **Smart formatting** — deterministic, offline: "3 p.m." → "3 PM", "john at example dot com" → "john@example.com" (`postprocess.smart_formatting`, each toggle opt-in)
-- 🤖 **AI rephrase** — dedicated `Ctrl+Shift+Win` hotkey: select text, hold, speak your instruction, release — local Ollama rewrites it in place
+- 🤖 **AI rephrase** — dedicated `Ctrl+Shift+Win` hotkey: select text, hold, speak your instruction, release — Apple Intelligence (macOS 26+) or local Ollama rewrites it in place
 - 🌐 **Translation mode** — speak any language, get English; dashboard → Style → Profiles → Translate
 - 🔁 **Continuous dictation mode** — for long-form notes, the app auto-restarts recording after each delivery
 - 📋 **Fallback window** — if no text field is focused, the transcript appears in a small window (pre-selected, copy button, already on clipboard)
@@ -120,7 +120,7 @@ This is a **community tool**, not a product. There's no support SLA, no roadmap 
 - 🎛️ **Profiles** — switch between Dictation / Chat / Code / Notes presets on the dashboard's Style page
 - 🪟 **Per-app rules** — different behaviour *and* formatting per foreground app: auto-send in Slack, copy-only + verbatim (no auto-caps/periods) in VS Code, full sentences in email, suppress in 1Password
 - ⌨️ **Type-as-you-speak** *(experimental, opt-in)* — `streaming.deliver_to_cursor` commits finalized phrases to the cursor live, Wispr-Flow style (trades full-Whisper accuracy for latency; see [docs/streaming.md](docs/streaming.md))
-- 🧹 **Optional LLM cleanup** — pipe transcripts through a local [Ollama](https://ollama.ai) model for punctuation / capitalisation polish (off by default, fully local)
+- 🧹 **Optional AI polish** — a local model fixes punctuation / capitalisation: Apple Intelligence on a Mac with macOS 26+, otherwise [Ollama](https://ollama.ai). Off by default, fully local
 - 📜 **Recent transcriptions** — the dashboard's Home page lists your latest results, with a Copy button
 - 🔧 **Settings backup/restore** — `--export-settings` / `--import-settings` for portability
 - 🖥️ **Dashboard** — `whisper-local --settings` opens the dashboard on its Settings page (no YAML editing required). The sidebar also holds Home, History, Models, Vocabulary, Style and About
@@ -202,6 +202,7 @@ To choose a model yourself, set `whisper.model` (for example `tiny`, ~75 MB).
 | Hold to record | `Ctrl+Win` | `Fn+Ctrl` |
 | Stop & paste | release key (push-to-talk) or `Ctrl` | release or `Fn` |
 | Stop & auto-send (Enter) | `Alt` | `Option` |
+| Stop & polish with the AI | off (`hotkey.stop_polish_key`) | off (`hotkey.stop_polish_key`) |
 | Cancel | `Esc` | `Shift` |
 | Voice command mode | `Alt+Win` | `Fn+Command` |
 
@@ -352,24 +353,44 @@ context (`initial_prompt`, `language`, `task`), **and** formatting
 (`capitalize_first`, `ensure_punctuation`, `strip_trailing_period`,
 `inline_formatting`). Hot-reloads — edit and the next transcription picks it up.
 
-## 🧹 Optional LLM cleanup
+## 🧹 Optional AI polish, transforms and rephrase
 
-If you have [Ollama](https://ollama.ai) running locally, Whisper Local can
-pipe each transcript through a small local model for punctuation and
-capitalisation polish. **Off by default and fully local** — set
-`postprocess.ollama.enabled: true` in `user_settings.yaml` to enable.
+Three features use a local AI model: **polish** (fixes punctuation and
+capitalisation of each dictation), the **AI transforms** and **rephrase
+selection**. All three use one provider, chosen by `postprocess.ai.provider`
+(or dashboard → Style → AI):
+
+- `auto` (default): **Apple Intelligence** when it is available, otherwise Ollama.
+- `apple_intelligence`: Apple Intelligence, with Ollama as the fallback.
+- `ollama`: always [Ollama](https://ollama.ai).
+
+Apple Intelligence runs on this Mac, offline. It needs a Mac with Apple
+silicon, macOS 26 or later, Apple Intelligence turned on in System Settings,
+and Apple's Command Line Tools (`xcode-select --install`). The app compiles a
+small helper once, in the background. Windows always uses Ollama.
+
+Polish is **off by default**. It adds about a second. If the model changes
+your words or answers them, Whisper Local types your original text instead.
+Dictations over 1200 characters are not polished. On the Style page you can
+switch polish on for email apps, chat apps, or everywhere else. Code editors
+and terminals never polish.
 
 ```yaml
 postprocess:
-  capitalize_first: true        # works without Ollama
-  ensure_punctuation: true      # works without Ollama
-  strip_filler_words: true      # works without Ollama
-  ollama:
-    enabled: false              # set true to opt in
+  capitalize_first: true        # works without any AI
+  ensure_punctuation: true      # works without any AI
+  strip_filler_words: true      # works without any AI
+  ai:
+    provider: auto             # auto | apple_intelligence | ollama
+    polish: false              # set true to polish every dictation
+  ollama:                      # used when Ollama answers
     endpoint: http://localhost:11434
     model: llama3.2
     timeout: 5
 ```
+
+To polish only in some apps, add `polish: true | false` to a rule in
+`app_rules.yaml`.
 
 ## ⚙️ Configuration
 
@@ -465,7 +486,7 @@ Whisper Local makes the following network calls and **no others**:
 1. **First launch only:** downloads the Whisper model from `huggingface.co` into your local cache.
 2. **GPU onboarding (opt-in):** if you accept the GPU setup prompt, `pip install` pulls CUDA / ROCm runtime packages from PyPI / `repo.radeon.com`.
 3. **Update check (opt-in, off by default):** once a day asks `api.github.com` for the latest release tag. Nothing but the app version leaves the machine.
-4. **Ollama (opt-in, off by default):** text goes to whatever Ollama endpoint you configure, `localhost` unless you change it.
+4. **Ollama (opt-in, off by default):** text goes to whatever Ollama endpoint you configure, `localhost` unless you change it. Apple Intelligence makes no network call: it runs on your Mac.
 
 During dictation, **zero network traffic**. Every entry point is in [`onboarding.py`](src/whisper_key/onboarding.py), [`update_check.py`](src/whisper_key/update_check.py) and [`text_postprocess.py`](src/whisper_key/text_postprocess.py), and each is gated behind an explicit setting or prompt. Search the source for `urllib` if you'd rather check.
 

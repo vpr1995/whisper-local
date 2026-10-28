@@ -100,7 +100,7 @@ class SettingsApiTests(unittest.TestCase):
         from whisper_key.settings_store import SETTING_RULES
         self.assertFalse(paths & set(SETTING_RULES), paths & set(SETTING_RULES))
         self.assertFalse(self.api.save_setting('whisper.model', 'tiny')['ok'])
-        self.assertFalse(self.api.save_setting('postprocess.ollama.enabled', True)['ok'])
+        self.assertFalse(self.api.save_setting('postprocess.ai.polish', True)['ok'])
         self.assertEqual(self.saved() if os.path.exists(os.path.join(self.tmp.name, 'user_settings.yaml')) else {}, {})
 
     def test_style_page_owns_cleanup_and_style(self):
@@ -188,6 +188,18 @@ class SettingsApiTests(unittest.TestCase):
             clash = self.api.save_setting('hotkey.paste_last_hotkey', 'shift+ctrl+x')  # same keys, any order
             self.assertFalse(clash['ok'])
             self.assertIn('already used', clash['error'])
+
+    def test_stop_and_polish_row_sits_with_the_other_stop_keys(self):
+        row = self.row('hotkey.stop_polish_key')
+        self.assertEqual(row['label'], 'Stop and polish')
+        self.assertEqual(row['control'], 'hotkey')
+        self.assertTrue(row['optional'], 'blank must turn it off')
+        self.assertEqual(row['caption'], 'Stops and polishes this one dictation with the AI, even where polish is off. Blank turns it off.')
+        with mock.patch.object(self.settings_module, '_known_key_names', return_value=None):
+            self.assertTrue(self.api.save_setting('hotkey.stop_polish_key', '')['ok'])
+            self.assertTrue(self.api.save_setting('hotkey.stop_polish_key', 'ctrl+shift+p')['ok'])
+            clash = self.api.save_setting('hotkey.paste_last_hotkey', 'shift+ctrl+p')
+            self.assertFalse(clash['ok'])
 
     # ── Restart rules ──
 

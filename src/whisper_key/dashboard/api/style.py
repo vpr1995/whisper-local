@@ -1,7 +1,7 @@
 # dashboard/api/style.py
 # Python API for the Style page: profiles (preset bundles of settings), the global
-# writing style, the clean-up level, the optional Ollama polish, the AI transforms
-# list and the per-app rules. Profiles, style, clean-up and Ollama settings are
+# writing style, the clean-up level, the AI provider and polish, the AI transforms
+# list and the per-app rules. Profiles, style, clean-up and AI settings are
 # written to disk here; transforms and app rules are read-only lists with "open the
 # YAML" buttons (hand-edited files).
 
@@ -32,8 +32,23 @@ CLEANUP_DESCRIPTIONS = {
     'high': ("High", "Medium, plus spoken times, email addresses and web links turned into text."),
 }
 
-# The postprocess.ollama settings the page edits (page field name == config key).
-OLLAMA_KEYS = ('enabled', 'model', 'endpoint', 'timeout')
+# The AI settings the page edits: page field name -> config path.
+AI_SETTING_PATHS = {
+    'provider': 'postprocess.ai.provider',
+    'polish': 'postprocess.ai.polish',
+    'model': 'postprocess.ollama.model',
+    'endpoint': 'postprocess.ollama.endpoint',
+    'timeout': 'postprocess.ollama.timeout',
+}
+
+# Where polish can be switched on, in the order the page lists them: (id, label, app rule id).
+# `everywhere` is the global setting; the others are the shipped app rules that carry a
+# `polish` override. Code editors and terminals are never listed: they never polish.
+POLISH_CATEGORIES = (
+    ('email', "Email apps", 'email-clients'),
+    ('chat', "Chat apps", 'chat-apps'),
+    ('everywhere', "Everywhere else", None),
+)
 
 # Friendly wording for the settings a profile flips. Anything not listed falls back to
 # "section.key = value" so a user-defined profile still describes itself.
@@ -50,6 +65,15 @@ OVERRIDE_PHRASES = {
 
 
 # ── Pure helpers ─────────────────────────────────────────────────────────────
+
+# One sentence saying which AI answers and, when Apple Intelligence is not in use
+# although the user may expect it, why not.
+def ai_status_text(status: dict) -> str:
+    if status['active_provider'] == 'apple_intelligence':
+        return "Using Apple Intelligence (on this Mac, offline)."
+    if status['provider_setting'] == 'ollama' or status['apple_available']:
+        return "Using Ollama."
+    return f"{status['apple_reason_text']}. Using Ollama."
 
 # One short sentence for a single profile override ('' when it is not worth showing).
 def describe_override(section: str, key: str, value) -> str:
@@ -87,6 +111,8 @@ def summarize_rule(rule: dict) -> dict:
         effects.append("Presses Enter after pasting")
     if rule.get('initial_prompt'):
         effects.append("Custom prompt")
+    if isinstance(rule.get('polish'), bool):
+        effects.append("AI polish on" if rule['polish'] else "AI polish off")
     return {
         'id': rule.get('id') or '',
         'name': humanize_name(rule['id']) if rule.get('id') else "Your rule",
@@ -173,28 +199,72 @@ class StyleApi:
         self._load_config().update_user_setting('postprocess', 'cleanup', level_id)
         return {'ok': True, 'restart_required': False}
 
-    # ── AI polish (Ollama) ───────────────────────────────────────────────────
+    # ── AI (provider, polish, Ollama server) ─────────────────────────────────
 
-    def get_ollama_polish(self) -> dict:
-        ollama = (self._load_config().config.get('postprocess', {}) or {}).get('ollama', {}) or {}
+    # Everything the AI card shows: saved values, the provider that will really answer,
+    # and one sentence of live status for the caption under "AI provider".
+    def get_ai_settings(self) -> dict:
+        from ... import ai_provider
+        postprocess = self._load_config().config.get('postprocess', {}) or {}
+        ai = postprocess.get('ai', {}) or {}
+        ollama = postprocess.get('ollama', {}) or {}
+        status = ai_provider.describe_status(postprocess)
         return {
-            'enabled': bool(ollama.get('enabled', False)),
+            'provider': status['provider_setting'],
+            'polish_in': self._polish_categories(bool(ai.get('polish', False))),
             'model': str(ollama.get('model') or ''),
             'endpoint': str(ollama.get('endpoint') or ''),
             'timeout': ollama.get('timeout', 5),
+            'active_provider': status['active_provider'],
+            'status_text': ai_status_text(status),
         }
 
-    # Saves ONE postprocess.ollama.<key> (the page saves each field as it is edited).
-    # settings_store validates it, so a typo can't leave polish on a dead address.
-    # postprocess.* hot-reloads in the running app: no restart.
-    def set_ollama_setting(self, key: str, value) -> dict:
+    # [{id, label, enabled}] for the "Polish in" toggles. A category whose app rule is
+    # unset follows the global setting; one whose rule the user turned off is not listed.
+    def _polish_categories(self, global_polish: bool) -> list:
+        from ...app_rules import AppRules
+        rules_by_id = {rule.get('id'): rule for rule in AppRules().rules}
+        categories = []
+        for category_id, label, rule_id in POLISH_CATEGORIES:
+            if rule_id is None:
+                categories.append({'id': category_id, 'label': label, 'enabled': global_polish})
+            elif rule_id in rules_by_id:
+                rule_polish = rules_by_id[rule_id].get('polish')
+                categories.append({'id': category_id, 'label': label,
+                                   'enabled': rule_polish if isinstance(rule_polish, bool) else global_polish})
+        return categories
+
+    # Switches AI polish on or off for one category. "Everywhere else" is the global
+    # setting; an app category writes `polish` into its rule in app_rules.yaml.
+    def set_polish_for(self, category_id: str, enabled) -> dict:
+        from ...app_rules import set_rule_polish
+        rule_by_category = {category: rule for category, _, rule in POLISH_CATEGORIES}
+        if category_id not in rule_by_category:
+            return {'ok': False, 'error': f"Unknown polish category: {category_id}"}
+        rule_id = rule_by_category[category_id]
+        if not isinstance(enabled, bool):
+            return {'ok': False, 'error': "Expected on or off."}
+        if rule_id is None:
+            return self.set_ai_setting('polish', enabled)
+        try:
+            set_rule_polish(rule_id, enabled)
+        except Exception as error:
+            logger.error(f"Could not save polish for {rule_id}: {error}")
+            return {'ok': False, 'error': "Could not write app_rules.yaml."}
+        return {'ok': True, 'restart_required': False, 'settings': self.get_ai_settings()}
+
+    # Saves ONE AI setting (the page saves each control as it is edited). settings_store
+    # validates it, so a typo can't leave polish pointing at a dead address. postprocess.*
+    # hot-reloads in the running app: no restart. Returns the fresh settings so the page
+    # can update the caption and show or hide the Ollama fields.
+    def set_ai_setting(self, key: str, value) -> dict:
         from ...settings_store import save_validated_setting
-        if key not in OLLAMA_KEYS:
-            return {'ok': False, 'error': f"Unknown AI polish setting: {key}"}
-        result = save_validated_setting(self._load_config(), f'postprocess.ollama.{key}', value)
+        if key not in AI_SETTING_PATHS:
+            return {'ok': False, 'error': f"Unknown AI setting: {key}"}
+        result = save_validated_setting(self._load_config(), AI_SETTING_PATHS[key], value)
         if not result['ok']:
             return {'ok': False, 'error': result['error']}
-        return {'ok': True, 'restart_required': False}
+        return {'ok': True, 'restart_required': False, 'settings': self.get_ai_settings()}
 
     # ── Transforms ───────────────────────────────────────────────────────────
 

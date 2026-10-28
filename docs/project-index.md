@@ -35,18 +35,21 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Local API Server** | `local_server.py` | `--serve` OpenAI-compatible Whisper HTTP endpoint | http.server |
 | **Dashboard** | `dashboard/` | One pywebview window with a sidebar: Home, History, Models, Vocabulary, Style, Settings, About. Vanilla HTML/CSS/JS in `dashboard/web/`, no build step. Always runs in a child process (`--window dashboard`, opened via `window_launcher.open_dashboard(page)`). Python API per area in `dashboard/api/` (`shell.py` is shared); one `web/pages/<page>.js` per page | pywebview |
 | **Transcript History** | `transcript_log.py` + dashboard History page | Journal of past transcriptions: stored log plus the search and "Fix this everywhere" actions | json |
+| **Requirements Checklist** | `requirements_check.py` | The "What Whisper Local needs" rows on the dashboard About page (microphone, Accessibility, speech model, Apple Intelligence, Ollama) and their whitelisted fix actions. No UI | - |
 | **Hotkey Cheat Sheet** | `cheat_sheet.py` | Pure builder of the configured-hotkey rows shown on the dashboard's Home and About pages. No UI | - |
 | **Window Launcher** | `window_launcher.py` | Runs the dashboard (always) and the Tk fallback window (macOS) in child processes. The dashboard talks to the app over stdin/stdout JSON: the app sends `navigate` and the dashboard sends back `retry_last_dictation`, `toggle_pause_hotkeys` and `restart` | subprocess, json |
 | **First-Run Welcome** | `first_run.py` | One-time onboarding window on first launch | tkinter |
 | **Terminal Title** | `terminal_title.py` | Animated terminal tab title reflecting app state | - |
+| **Apple Intelligence** | `platform/macos/apple_intelligence.py` (+ Windows stub, `assets/apple_intelligence_helper.swift`) | `availability()`, `prepare()` (compiles the Swift helper once into `<app data>/apple_intelligence/`) and `generate()` for Apple's on-device model; Windows always reports unavailable | swiftc (Command Line Tools) |
 | **Floating Overlay** | `platform/*/overlay.py` | Floating pill: level meter, timer, streaming text. Native AppKit panel on macOS, Tk `level_overlay.py` on Windows | pyobjc / tkinter |
 | **Fallback Window** | `fallback_window.py` | Capture window when no text field is focused | tkinter |
-| **Transforms** | `transforms.py` | Wispr-style AI text transforms via Ollama | ruamel.yaml |
+| **AI Provider** | `ai_provider.py` | One front door for polish, transforms and rephrase: picks Apple Intelligence (macOS 26+) or Ollama from `postprocess.ai.provider`, checks that polish kept the words, holds the Ollama call and the user-facing reason texts. The helper is built in the background at app start | urllib |
+| **Transforms** | `transforms.py` | Wispr-style AI text transforms through the AI provider | ruamel.yaml |
 | **Dictionary** | `dictionary.py` | Hotword add/remove/list (`--add-word`, `--remove-word`, `--list-dictionary`) and history mining. The dashboard Vocabulary page is the GUI | ruamel.yaml |
 | **Profiles** | `profiles.py` | Dictation/Chat/Code/Notes/Translate presets | ruamel.yaml |
-| **Per-App Rules** | `app_rules.py` | Foreground-app-specific behaviour overrides | ruamel.yaml |
+| **Per-App Rules** | `app_rules.py` | Foreground-app-specific behaviour overrides (delivery, formatting, per-app `polish`) | ruamel.yaml |
 | **Layered Defaults** | `defaults_merge.py` | Loads shipped defaults under the user's app_rules/commands/transforms/profiles, and migrates pre-0.21 full copies | ruamel.yaml |
-| **Text Post-Process** | `text_postprocess.py` | Inline formatting, smart formatting, voice editing, corrections + optional Ollama polish | urllib |
+| **Text Post-Process** | `text_postprocess.py` | Inline formatting, smart formatting, voice editing, corrections + optional AI polish (via `ai_provider.py`) | - |
 | **Dictation Cleanup** | `dictation_cleanup.py` | Backtrack ("actually 3"), stutter removal, spoken lists, lowercase | re |
 | **Dictation Languages** | `dictation_languages.py` | "Languages you speak": restricts auto-detection, flags speech in other languages | - |
 | **Snippets** | `snippets.py` | Spoken shortcuts expanded inline during dictation | re |
@@ -97,6 +100,7 @@ whisper-local/
 │       │   └── {macos,windows}/       # Platform-specific implementations
 │       │       ├── assets/            # Platform-specific assets
 │       │       ├── app.py             # Thread requirements, getch()
+│       │       ├── apple_intelligence.py # On-device AI helper (macOS); Windows stub
 │       │       ├── hotkeys.py         # Hotkey detection
 │       │       ├── icons.py           # Tray icons
 │       │       ├── instance_lock.py   # Instance control

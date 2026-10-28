@@ -1,9 +1,10 @@
 # Whisper Local — Transforms
 #
-# Hotkey-triggered text rewrites via your local Ollama. Workflow:
+# Hotkey-triggered text rewrites by the AI provider (Apple Intelligence on a
+# supported Mac, otherwise your local Ollama; set it in postprocess.ai.provider). Workflow:
 #   1. Select text in any app
 #   2. Press the transform's hotkey (or pick from tray > Transforms)
-#   3. Selection is sent to local Ollama with the transform's prompt
+#   3. Selection is sent to the AI with the transform's prompt
 #   4. The polished result replaces your selection
 #
 # Each transform is a dict with:
@@ -11,14 +12,14 @@
 #   description:  one-line summary (shown as tooltip)
 #   hotkey:       OPTIONAL key combo to trigger directly. Leave empty
 #                 to make the transform only available from the tray.
-#   prompt:       the instruction sent to Ollama (your selection is
+#   prompt:       the instruction sent to the AI (your selection is
 #                 concatenated below)
 #   model:        OPTIONAL — override the default Ollama model just
-#                 for this transform
-#   timeout:      OPTIONAL — override the default Ollama timeout
+#                 for this transform (ignored by Apple Intelligence)
+#   timeout:      OPTIONAL — override the default timeout, in seconds
 #
-# Requires Ollama running locally (`ollama serve`). Hot-reloads on
-# file save — no app restart needed.
+# Without Apple Intelligence, Ollama must be running (`ollama serve`).
+# Hot-reloads on file save — no app restart needed.
 
 transforms:
   - name: polish
@@ -41,9 +42,11 @@ transforms:
   - name: professional
     description: Rewrite in a polished, professional tone
     prompt: |-
-      Rewrite the following text in a polished, professional tone
-      suitable for business email. Keep it concise. Output ONLY the
-      rewritten text:
+      Rewrite the following text in a clear, polished, professional
+      tone. Keep the same meaning and the same length or shorter. Do
+      not add a subject line, greeting, sign-off, signature or
+      placeholders such as [Name], and do not add facts. Output ONLY
+      the rewritten text:
 
   - name: casual
     description: Rewrite in a casual, friendly tone

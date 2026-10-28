@@ -11,6 +11,16 @@ import importlib.resources
 import tomllib
 from pathlib import Path
 
+# Raised by platform/*/apple_intelligence.generate(). `code` is a short machine-readable
+# reason ("timeout", "guardrail", "not_macos", ...), never user-facing text. Lives here so
+# both platform implementations and the AI provider share one type.
+class OnDeviceAIError(Exception):
+    def __init__(self, code: str, detail: str = ''):
+        super().__init__(f"{code}: {detail}" if detail else code)
+        self.code = code
+        self.detail = detail
+
+
 class OptionalComponent:
     def __init__(self, component):
         self._component = component

@@ -1,6 +1,7 @@
 # dashboard/api/about.py
-# Python API for the About page: app links, the full hotkey cheat sheet, and the
-# diagnostics tools (doctor report, log bundle, self-test, open log/config folders).
+# Python API for the About page: app links, the "What Whisper Local needs" checklist,
+# the full hotkey cheat sheet, and the diagnostics tools (doctor report, log bundle,
+# self-test, open log/config folders).
 # The doctor and the log bundler print to stdout, so their output is captured here
 # and turned into structured rows for the page.
 
@@ -124,6 +125,20 @@ class AboutApi:
         from ...utils import get_user_app_data_path, get_version
         return {'version': get_version(), 'links': ABOUT_LINKS, 'config_folder': get_user_app_data_path()}
 
+    # ── Requirements checklist ───────────────────────────────────────────────
+
+    # The checklist rows (see requirements_check.py). `check_again` makes Apple
+    # Intelligence ask again instead of answering from its cache.
+    def get_requirements(self, check_again: bool = False) -> list:
+        from ...requirements_check import collect_requirements
+        return collect_requirements(self._load_config(), force_refresh=bool(check_again))
+
+    # Runs one of the checklist's system fixes by name (only names in requirements_check
+    # do anything). Returns False for an unknown name or a fix that did not start.
+    def run_requirement_fix(self, fix_id: str) -> bool:
+        from ...requirements_check import run_fix
+        return run_fix(fix_id)
+
     # ── Hotkey cheat sheet ───────────────────────────────────────────────────
 
     # Every hotkey, including unset ones (keys == []), as {label, keys, help, group}.
@@ -208,10 +223,6 @@ class AboutApi:
 
     # True when the model the app would load is already on disk.
     def _selected_model_is_cached(self) -> bool:
-        from ...engine_factory import resolve_backend
-        from ...model_registry import ModelRegistry
-        whisper_cfg = self._load_config().get_whisper_config()
-        registry = ModelRegistry(whisper_cfg.get('models', {}), {},
-                                 active_backend=whisper_cfg.get('backend', 'faster_whisper'))
-        _backend, model_key = resolve_backend(whisper_cfg, registry)
-        return registry.is_model_cached(model_key)
+        from ...requirements_check import selected_speech_model
+        _model_key, is_cached = selected_speech_model(self._load_config().get_whisper_config())
+        return is_cached

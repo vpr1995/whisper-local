@@ -223,14 +223,12 @@ def setup_audio_feedback(audio_feedback_config):
 
 def setup_voice_commands(voice_commands_config, clipboard_manager, log_transcriptions=False, config_manager=None):
     from .voice_commands import VoiceCommandManager
-    provider = None
-    if config_manager is not None:
-        provider = lambda: (config_manager.get_postprocess_config().get('ollama') or {})
+    provider = config_manager.get_postprocess_config if config_manager is not None else None
     return VoiceCommandManager(
         enabled=voice_commands_config['enabled'],
         clipboard_manager=clipboard_manager,
         log_transcriptions=log_transcriptions,
-        ollama_config_provider=provider,
+        ai_config_provider=provider,
     )
 
 def setup_system_tray(tray_config, config_manager, state_manager, model_registry, console_config=None):
@@ -285,6 +283,7 @@ def setup_hotkey_listener(hotkey_config, state_manager, voice_commands_enabled=T
         recording_hotkey=hotkey_config['recording_hotkey'],
         stop_key=hotkey_config['stop_key'],
         auto_send_key=hotkey_config.get('auto_send_key'),
+        stop_polish_key=hotkey_config.get('stop_polish_key'),
         cancel_combination=hotkey_config.get('cancel_combination'),
         command_hotkey=hotkey_config.get('command_hotkey') if voice_commands_enabled else None,
         rephrase_hotkey=hotkey_config.get('rephrase_hotkey'),
@@ -523,6 +522,11 @@ def main():
             logging.getLogger(__name__).debug(f"Autostart repair skipped: {e}")
         logger = logging.getLogger(__name__)
         setup_exception_handler()
+
+        # Build the Apple Intelligence helper in the background (a no-op off macOS 26+).
+        # Until it is ready the AI provider simply counts Apple Intelligence as unavailable.
+        from . import ai_provider
+        ai_provider.prepare_in_background()
 
         whisper_config = config_manager.get_whisper_config()
         audio_config = config_manager.get_audio_config()

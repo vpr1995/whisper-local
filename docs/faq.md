@@ -8,7 +8,7 @@
 1. **First-launch model download** from `huggingface.co` (~75 MB for `tiny`, up to ~2.9 GB for `large`). Once cached, never re-downloaded.
 2. **Optional GPU runtime install** if you accept the on-screen prompt (CUDA from PyPI, ROCm from `repo.radeon.com`).
 3. **Optional update check** — once a day, only if you opt in with `update_check.enabled: true`. Only sends the app version in the User-Agent header.
-4. **Optional Ollama post-processing** — only if you point it at an Ollama server you control (defaults to `localhost`).
+4. **Optional Ollama post-processing** — only if you point it at an Ollama server you control (defaults to `localhost`). Apple Intelligence runs on your Mac and makes no network call.
 
 Search the source for `urllib`, `requests`, `httpx`, `socket.connect` if you don't believe us. Every entry point is gated.
 
@@ -105,8 +105,8 @@ postprocess:
 
 By default your list *replaces* the English one; set `inline_formatting_extend: true`
 to keep the English defaults and add yours on top. Matching is whole-word and
-case-insensitive. This runs after Whisper and before any optional Ollama cleanup,
-so it's a reliable, deterministic step regardless of which local LLM you use.
+case-insensitive. This runs after Whisper and before any optional AI polish,
+so it's a reliable, deterministic step regardless of which AI you use.
 
 **Spoken cue words get extra punctuation from Whisper.** When you say "comma",
 Whisper hears speech and adds its own commas/periods around it based on prosody, so

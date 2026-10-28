@@ -48,7 +48,7 @@ from .transcript_log import record_transcript
 from .platform import foreground, audio_endpoints
 from .platform import overlay as platform_overlay
 from .fallback_window import FallbackWindow
-from . import window_launcher
+from . import ai_provider, window_launcher
 
 class StateManager:
     def __init__(self,
@@ -106,7 +106,7 @@ class StateManager:
         self.profile_manager = ProfileManager(config_manager)
         self.app_rules = AppRules()
         self.transforms_manager = TransformsManager(
-            ollama_config_provider=lambda: (config_manager.get_postprocess_config().get('ollama') or {}),
+            ai_config_provider=config_manager.get_postprocess_config,
         )
         self.level_overlay = None
         self.fallback_window = FallbackWindow()
@@ -191,13 +191,14 @@ class StateManager:
     
     # Returns as soon as the audio is captured; the transcription runs on its
     # own thread (see _run_pipeline_async).
-    def stop_recording(self, use_auto_enter: bool = False) -> bool:
+    # `force_polish` is the "Stop and polish" key: it applies to this one dictation only.
+    def stop_recording(self, use_auto_enter: bool = False, force_polish: bool = False) -> bool:
         with self._recorder_lock:
             if not self.audio_recorder.get_recording_status():
                 return False
             self._clear_streaming_display()
             audio_data = self.audio_recorder.stop_recording()
-        self._run_pipeline_async(audio_data, use_auto_enter)
+        self._run_pipeline_async(audio_data, use_auto_enter, force_polish)
         return True
     
     def cancel_active_recording(self):
@@ -577,11 +578,11 @@ class StateManager:
     # which may block. `is_processing` is raised here, before the thread even
     # starts, so can_start_recording() is false from the moment the key is
     # released rather than from whenever the new thread gets scheduled.
-    def _run_pipeline_async(self, audio_data, use_auto_enter: bool = False):
+    def _run_pipeline_async(self, audio_data, use_auto_enter: bool = False, force_polish: bool = False):
         with self._state_lock:
             self.is_processing = True
         threading.Thread(target=self._transcription_pipeline,
-                         args=(audio_data, use_auto_enter),
+                         args=(audio_data, use_auto_enter, force_polish),
                          daemon=True, name='transcription').start()
 
     # The heart of the app: everything between "user released the hotkey" and
@@ -592,7 +593,7 @@ class StateManager:
     # record stats/history once delivery actually succeeded. Every early return
     # is a legitimate "nothing to deliver" case and must still clear state via
     # the finally block.
-    def _transcription_pipeline(self, audio_data, use_auto_enter: bool = False):
+    def _transcription_pipeline(self, audio_data, use_auto_enter: bool = False, force_polish: bool = False):
         try:
             with self._state_lock:
                 self.is_processing = True
@@ -623,6 +624,8 @@ class StateManager:
             # nothing was actually finalized (e.g. a very short utterance).
             if self._streaming_delivery_active and self.streaming_delivery:
                 if self._finalize_streaming_delivery(use_auto_enter, duration):
+                    if force_polish:
+                        self.system_tray.notify("Polish unavailable: live typing had already pasted the text; pasted as spoken")
                     return
 
             print(f"   ✓ Recorded {duration:.1f} seconds, transcribing...")
@@ -677,8 +680,15 @@ class StateManager:
             fmt_overrides = app_rules_formatting_overrides(rule, raw_postprocess_cfg)
             if fmt_overrides:
                 self.logger.info(f"App rule {rule.get('match')} → formatting overrides {fmt_overrides}")
-            postprocess_cfg = effective_postprocess_config(raw_postprocess_cfg, rule)
-            transcribed_text = postprocess(transcribed_text, postprocess_cfg)
+            postprocess_cfg = effective_postprocess_config(raw_postprocess_cfg, rule, force_polish=force_polish)
+            # Only the "Stop and polish" key explains a missing polish; a polish
+            # that is merely switched on stays quiet and keeps the plain text.
+            on_polish_failed = None
+            if force_polish:
+                def on_polish_failed():
+                    reason = ai_provider.polish_failure_reason(postprocess_cfg)
+                    self.system_tray.notify(f"Polish unavailable: {reason}; pasted as spoken")
+            transcribed_text = postprocess(transcribed_text, postprocess_cfg, on_polish_failed=on_polish_failed)
 
             # Post-processing can legitimately empty the text — e.g. "scratch that"
             # erasing the whole utterance. Don't deliver an empty string (which
@@ -999,24 +1009,17 @@ class StateManager:
     def _handle_rephrase(self, selection: str, instruction: str):
         import time
         import pyperclip
-        from .text_postprocess import _ollama_polish
+        from . import ai_provider
         from .platform import keyboard as kb
 
         print(f"\n   🤖 Rephrasing ({len(selection)} chars) with instruction: '{instruction[:60]}'")
 
-        full_prompt = (
-            f"{instruction}\n\n"
-            "Output ONLY the rewritten text with no preamble, no quotes, no commentary.\n\n"
-            f"Input:\n{selection}"
-        )
-        ollama_cfg = dict(self.config_manager.get_postprocess_config().get('ollama') or {})
-        ollama_cfg['enabled'] = True
-        ollama_cfg['prompt'] = '{text}'
-
-        polished = _ollama_polish(full_prompt, ollama_cfg)
+        ai_config = self.config_manager.get_postprocess_config()
+        polished = ai_provider.rewrite(ai_provider.build_rephrase_prompt(instruction, selection), ai_config)
         if not polished:
-            print("   ✗ Rephrase failed — Ollama unreachable or returned nothing")
-            self.system_tray.notify("Rephrase failed — is Ollama running?")
+            provider_label = ai_provider.active_provider_label(ai_config)
+            print(f"   ✗ Rephrase failed — {provider_label} returned nothing")
+            self.system_tray.notify(f"Rephrase failed: {provider_label} did not answer")
             if self.level_overlay:
                 self.level_overlay.flash_failure()
             return

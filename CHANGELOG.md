@@ -5,6 +5,32 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 ## [Unreleased]
 
 ### Added
+- **"What Whisper Local needs" on the About page.** One list shows if the
+  microphone, Accessibility, the speech model, Apple Intelligence and Ollama
+  are ready. Each item that is missing has a button: open the correct System
+  Settings pane, install Apple's Command Line Tools, open the Models page, or
+  get Ollama. "Check again" runs the checks again.
+- **Apple Intelligence for the AI features.** AI polish, AI transforms and
+  rephrase now use Apple's on-device model when your Mac supports it
+  (Apple silicon, macOS 26 or later, Apple Intelligence turned on). If it is
+  not available, they use Ollama. Set `postprocess.ai.provider` to `auto`
+  (default), `apple_intelligence` or `ollama`, or use dashboard > Style > AI.
+  The app compiles a small helper in the background at start. This needs
+  Apple's Command Line Tools (`xcode-select --install`). `--doctor` shows
+  why Apple Intelligence is not in use.
+- **Stop and polish key.** Set `hotkey.stop_polish_key` (dashboard > Settings >
+  More shortcuts) to a key that stops the recording and polishes that one
+  dictation with the AI. It works when polish is off, also in apps where a
+  rule turns polish off. If the AI cannot answer, the app types your original
+  text and shows a notice with the reason. The key is off by default.
+- **Polish checks the result.** If the AI changes your words, answers your
+  dictation, or refuses, the app types your original text. Dictations over
+  1200 characters are not polished.
+- **Polish per app.** Add `polish: true | false` to a rule in
+  `app_rules.yaml`. Email apps polish by default (when polish is available).
+  Code editors and terminals never polish. Outlook for Mac is now part of the
+  email rule. On the Style page, "Polish in" has a toggle for email apps,
+  chat apps and everywhere else.
 - **A dashboard window.** `Open Whisper Local…` in the tray opens one window
   with a sidebar: **Home** (status, recent transcriptions, your hotkeys),
   **History** (search your past dictations, copy or fix one everywhere),
@@ -65,7 +91,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 - **The pill keeps the whole recording in view.** Earlier phrases no longer
   vanish after a pause; the newest words stay visible at the end.
 
-### Changed
+### Added
 - **A shorter tray menu.** It now shows the status, Start/Stop dictation,
   Model (downloaded models only), Microphone, Auto-paste, Open Whisper
   Local…, Settings… and Quit. Profiles, history, retry, pause, restart,
@@ -77,6 +103,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 - **New dependency: `pywebview` (6.2 or later).** On Windows the dashboard
   uses the WebView2 runtime, which comes with Windows 10 and 11 when Microsoft
   Edge is installed.
+
+### Changed
+- **The AI polish config keys changed (no migration).**
+  `postprocess.ollama.enabled` and `postprocess.ollama.prompt` are removed.
+  Use `postprocess.ai.polish` and `postprocess.ai.polish_prompt`. The new key
+  `postprocess.ai.provider` selects the AI. The Ollama endpoint, model and
+  timeout stay in `postprocess.ollama`.
+- **The Professional transform does not write email scaffolding.** It does
+  not add a subject line, a greeting, a sign-off or `[Name]` placeholders.
 
 ### Removed
 - **The Tk Settings window** (`--settings`, `settings_ui.py`) and **the Tk

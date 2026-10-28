@@ -278,6 +278,10 @@ class ConfigManager:
         if auto_paste_enabled and auto_send_key:
             print(f"   [{beautify_hotkey(auto_send_key)}] to auto-paste and send with ENTER")
 
+        stop_polish_key = self.config['hotkey'].get('stop_polish_key', '')
+        if stop_polish_key:
+            print(f"   [{beautify_hotkey(stop_polish_key)}] to stop and polish with the AI")
+
     def print_startup_hotkey_instructions(self):
         recording_hotkey = beautify_hotkey(self.config['hotkey']['recording_hotkey'])
         recording_mode = self.config['hotkey'].get('recording_mode', 'toggle')
@@ -460,10 +464,15 @@ def _validate_numeric_range(config, default_config, path, logger, min_val=None, 
         _set_to_default(config, default_config, path, current_value, logger)
 
 
-def _resolve_hotkey_conflicts(config, default_config, stop_key, auto_send_key, recording_hotkey, command_hotkey, logger):
+def _resolve_hotkey_conflicts(config, default_config, stop_key, auto_send_key, recording_hotkey, command_hotkey, logger,
+                              stop_polish_key=''):
     if stop_key == auto_send_key:
         logger.warning(f"   ✗ Auto-send key disabled: '{auto_send_key}' conflicts with stop key")
         _set_config_value_at_path(config, 'hotkey.auto_send_key', '')
+
+    if stop_polish_key and stop_polish_key in (stop_key, auto_send_key):
+        logger.warning(f"   ✗ Stop-and-polish key disabled: '{stop_polish_key}' conflicts with another stop key")
+        _set_config_value_at_path(config, 'hotkey.stop_polish_key', '')
 
     if stop_key == recording_hotkey:
         logger.warning(f"   ✗ Stop key '{stop_key}' conflicts with recording hotkey, resetting to default")
@@ -493,6 +502,8 @@ def validate_config(config, default_config, logger):
     auto_send_key = _get_config_value_at_path(config, 'hotkey.auto_send_key')
     recording_hotkey = _get_config_value_at_path(config, 'hotkey.recording_hotkey')
     command_hotkey = _get_config_value_at_path(config, 'hotkey.command_hotkey')
-    _resolve_hotkey_conflicts(config, default_config, stop_key, auto_send_key, recording_hotkey, command_hotkey, logger)
+    stop_polish_key = _get_config_value_at_path(config, 'hotkey.stop_polish_key')
+    _resolve_hotkey_conflicts(config, default_config, stop_key, auto_send_key, recording_hotkey, command_hotkey, logger,
+                              stop_polish_key=stop_polish_key)
 
     return config

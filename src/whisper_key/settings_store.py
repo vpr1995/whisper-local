@@ -50,7 +50,7 @@ def coerce_setting_value(raw, path):
 
 
 # Persist ONE already-coerced value through ConfigManager. Two-level paths
-# ("whisper.model") update directly; three-level paths ("postprocess.ollama.enabled")
+# ("whisper.model") update directly; three-level paths ("postprocess.ai.polish")
 # merge into a copy of the nested dict so sibling keys survive. Raises if the
 # write fails; silently ignores paths that aren't in the config.
 def write_setting(cm, path, value):
@@ -84,7 +84,7 @@ def reset_settings_preserving_hotwords(settings_path) -> list:
 
 
 # ── Settings owned by other dashboard pages ──────────────────────────────────
-# Speech-engine settings (Models page) and AI polish settings (Style page) used to
+# Speech-engine settings (Models page) and AI settings (Style page) used to
 # live on the Settings page. Their rules (options, ranges, coercion, restart) stay
 # here so any page can read, validate and save them without the Settings catalogue.
 #   rule keys: kind (select|number|text|toggle), options [(value, label)] for static
@@ -110,14 +110,17 @@ MODEL_SETTING_RULES = {
     'whisper.languages': dict(kind='text'),   # "en, fr" in the UI, a list in the config
 }
 
-POLISH_SETTING_RULES = {
-    'postprocess.ollama.enabled': dict(kind='toggle'),
+# AI provider choice, polish toggle and the Ollama server settings (Style page "AI" card).
+AI_SETTING_RULES = {
+    'postprocess.ai.provider': dict(kind='select', options=[('auto', 'Auto'), ('apple_intelligence', 'Apple Intelligence'),
+                                                            ('ollama', 'Ollama')]),
+    'postprocess.ai.polish': dict(kind='toggle'),
     'postprocess.ollama.model': dict(kind='text', required=True),
     'postprocess.ollama.endpoint': dict(kind='text', required=True, url=True),
     'postprocess.ollama.timeout': dict(kind='number', min=1, max=120, integer=False, unit='sec'),
 }
 
-SETTING_RULES = {**MODEL_SETTING_RULES, **POLISH_SETTING_RULES}
+SETTING_RULES = {**MODEL_SETTING_RULES, **AI_SETTING_RULES}
 
 # Only postprocess.* is re-read per dictation; everything under whisper.* is loaded at startup.
 HOT_RELOAD_PREFIXES = ('postprocess.', 'history.')

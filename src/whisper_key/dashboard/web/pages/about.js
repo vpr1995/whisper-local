@@ -1,6 +1,6 @@
 // pages/about.js
-// About page: app identity and links, app controls (restart, retry, pause hotkeys),
-// diagnostics tools (doctor report, self-test, log bundle, usage summary) and the full
+// About page: app identity and links, the "What Whisper Local needs" checklist, app
+// controls (restart, retry, pause hotkeys), diagnostics tools (doctor report, self-test, log bundle, usage summary) and the full
 // hotkey cheat sheet. Data and actions come from api/about.py; the controls go through
 // send_app_command, which talks to the running app.
 
@@ -46,6 +46,50 @@ function buildIdentityCard(info, api) {
         link('Changelog', () => api.call('open_changelog')),
         link('Report an issue', open(info.links.issues)),
         link('Discussions', open(info.links.discussions))))));
+}
+
+// ── Requirements checklist ───────────────────────────────────────────────────
+
+const REQUIREMENT_GLYPHS = { ok: '✓', warn: '!', fail: '✕' };
+
+// Runs a checklist row's fix: system fixes go to Python (which only runs known names),
+// the other two kinds are handled here.
+async function runRequirementFix(fix, api) {
+  if (fix.kind === 'page') return window.dashboard.navigate(fix.target);
+  if (fix.kind === 'url') return api.call('open_external_url', fix.url);
+  const started = await api.call('run_requirement_fix', fix.id).catch(() => false);
+  if (!started) ui.toast('Could not open that. Open it yourself from System Settings.', 'error');
+}
+
+// One checklist row: status badge, title, why it is needed, what is wrong, and a fix button.
+function buildRequirementRow(requirement, api) {
+  return el('div', { class: `setting-row requirement-row requirement-${requirement.status}` },
+    el('span', { class: 'requirement-badge', 'aria-label': requirement.status, text: REQUIREMENT_GLYPHS[requirement.status] }),
+    el('div', { class: 'setting-text' },
+      el('div', { class: 'setting-label', text: requirement.title }),
+      requirement.caption ? el('div', { class: 'setting-caption', text: requirement.caption }) : null,
+      requirement.detail ? el('div', { class: 'requirement-detail selectable', text: requirement.detail }) : null),
+    requirement.fix ? el('div', { class: 'setting-control' },
+      ui.button(requirement.fix.label, () => runRequirementFix(requirement.fix, api), { icon: requirement.fix.kind === 'url' ? 'external' : null })) : null);
+}
+
+// The checklist card. It owns its rows so "Check again" can redraw them in place. The
+// first check runs after the page is drawn (the microphone probe can take a second),
+// so the rest of the About page never waits for it.
+function buildRequirementsCard(api) {
+  const rowsHolder = el('div', { class: 'requirement-rows' },
+    el('div', { class: 'pad setting-caption', text: 'Checking…' }));
+
+  const runChecks = async (checkAgain) => {
+    const rows = await api.call('get_requirements', checkAgain).catch(() => null);
+    if (rows) rowsHolder.replaceChildren(...rows.map((row) => buildRequirementRow(row, api)));
+    else rowsHolder.replaceChildren(el('div', { class: 'pad setting-caption', text: 'Could not run the checks.' }));
+  };
+
+  const checkAgainButton = ui.button('Check again', (event, button) =>
+    runWithBusyButton(button, 'Checking…', () => runChecks(true)), { variant: 'ghost' });
+  runChecks(false);
+  return ui.card(null, [rowsHolder, el('div', { class: 'requirement-footer' }, checkAgainButton)]);
 }
 
 // ── Controls ─────────────────────────────────────────────────────────────────
@@ -194,6 +238,8 @@ registerPage('about', {
 
     container.append(
       buildIdentityCard(info, api),
+      ui.sectionHeader('What Whisper Local needs'),
+      buildRequirementsCard(api),
       ui.sectionHeader('Controls'),
       buildControlsCard(api),
       ui.sectionHeader('Diagnostics'),

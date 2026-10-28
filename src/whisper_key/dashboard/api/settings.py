@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 START_ON_LOGIN_PATH = 'app.start_on_login'
 
 HOTKEY_PATHS = (
-    'hotkey.recording_hotkey', 'hotkey.stop_key', 'hotkey.auto_send_key',
+    'hotkey.recording_hotkey', 'hotkey.stop_key', 'hotkey.auto_send_key', 'hotkey.stop_polish_key',
     'hotkey.cancel_combination', 'hotkey.command_hotkey', 'hotkey.rephrase_hotkey',
     'hotkey.pause_hotkey', 'hotkey.paste_last_hotkey',
 )
@@ -170,12 +170,14 @@ def _build_catalogue(config: dict) -> list:
             _hotkey('hotkey.stop_key', 'Stop', 'Ends the recording and delivers your text.'),
             _hotkey('hotkey.auto_send_key', 'Stop and press Enter',
                     'Stops, pastes, then presses Enter for you. Handy in chat apps. Blank turns it off.'),
+            _hotkey('hotkey.stop_polish_key', 'Stop and polish',
+                    'Stops and polishes this one dictation with the AI, even where polish is off. Blank turns it off.'),
             _hotkey('hotkey.cancel_combination', 'Cancel', 'Throws the recording away without typing anything.'),
         ]),
         _section('other-shortcuts', 'Other shortcuts', 'more-shortcuts', [
             _hotkey('hotkey.command_hotkey', 'Voice command', 'Say a command instead of dictating text. Blank turns it off.'),
             _hotkey('hotkey.rephrase_hotkey', 'Rephrase selection',
-                    'Select text, hold this, and say how to change it, such as "make this shorter". Needs Ollama.'),
+                    'Select text, hold this, and say how to change it, such as "make this shorter". Uses the AI set on the Style page.'),
             _hotkey('hotkey.paste_last_hotkey', 'Paste last dictation',
                     'Pastes your latest dictation again, for when it landed in the wrong window.'),
             _hotkey('hotkey.pause_hotkey', 'Pause shortcuts',

@@ -318,27 +318,106 @@ class StyleApiTests(unittest.TestCase):
             self.assertEqual(self.api.get_profiles()['active'], 'code', "the active profile must persist")
             self.assertFalse(self.api.set_profile('no-such-profile')['ok'])
 
-    def test_ollama_polish_defaults_and_values(self):
-        self.assertEqual(self.api.get_ollama_polish(),
-                         {'enabled': False, 'model': '', 'endpoint': '', 'timeout': 5})
+    # The real Apple Intelligence answer depends on the test machine, so pin it.
+    def _with_apple(self, available, reason=''):
+        return mock.patch('whisper_key.ai_provider.apple_availability', return_value=(available, reason))
+
+    def test_ai_settings_defaults_and_values(self):
+        with self._with_apple(False, 'not_macos'):
+            data = self.api.get_ai_settings()
+        self.assertEqual((data['provider'], data['model'], data['endpoint'], data['timeout']), ('auto', '', '', 5))
+        self.assertEqual(data['active_provider'], 'ollama')
+        self.assertEqual(data['status_text'], "Apple Intelligence is only on Macs. Using Ollama.")
+        self.config.config['postprocess']['ai'] = {'provider': 'auto', 'polish': True}
         self.config.config['postprocess']['ollama'] = {
-            'enabled': True, 'model': 'llama3.2', 'endpoint': 'http://localhost:11434', 'timeout': 8}
-        self.assertEqual(self.api.get_ollama_polish(),
-                         {'enabled': True, 'model': 'llama3.2', 'endpoint': 'http://localhost:11434', 'timeout': 8})
+            'model': 'llama3.2', 'endpoint': 'http://localhost:11434', 'timeout': 8}
+        with self._with_apple(True):
+            data = self.api.get_ai_settings()
+        self.assertEqual((data['model'], data['timeout']), ('llama3.2', 8))
+        self.assertEqual(data['active_provider'], 'apple_intelligence')
+        self.assertEqual(data['status_text'], "Using Apple Intelligence (on this Mac, offline).")
 
-    def test_set_ollama_setting_merges_into_nested_dict(self):
-        self.config.config['postprocess']['ollama'] = {'enabled': False, 'model': 'llama3.2', 'timeout': 5}
-        self.assertEqual(self.api.set_ollama_setting('enabled', True), {'ok': True, 'restart_required': False})
-        self.config.update_user_setting.assert_called_with(
-            'postprocess', 'ollama', {'enabled': True, 'model': 'llama3.2', 'timeout': 5})
-        self.assertTrue(self.api.set_ollama_setting('timeout', ' 12 ')['ok'])
-        self.config.update_user_setting.assert_called_with(
-            'postprocess', 'ollama', {'enabled': False, 'model': 'llama3.2', 'timeout': 12})
+    def test_status_text_when_ollama_is_chosen_or_apple_is_off(self):
+        self.config.config['postprocess']['ai'] = {'provider': 'ollama'}
+        with self._with_apple(True):
+            self.assertEqual(self.api.get_ai_settings()['status_text'], "Using Ollama.")
+        self.config.config['postprocess']['ai'] = {'provider': 'apple_intelligence'}
+        with self._with_apple(False, 'apple_intelligence_off'):
+            self.assertEqual(self.api.get_ai_settings()['status_text'],
+                             "Apple Intelligence is turned off in System Settings. Using Ollama.")
 
-    def test_set_ollama_setting_rejects_bad_values(self):
+    # update_user_setting that really stores the value, like ConfigManager does.
+    def _store_writes(self):
+        def store(section, key, value):
+            self.config.config.setdefault(section, {})[key] = value
+        self.config.update_user_setting.side_effect = store
+
+    def test_set_ai_setting_merges_into_nested_dict_and_returns_fresh_settings(self):
+        self._store_writes()
+        self.config.config['postprocess']['ai'] = {'provider': 'auto', 'polish': False, 'polish_prompt': 'p {text}'}
+        self.config.config['postprocess']['ollama'] = {'model': 'llama3.2', 'timeout': 5}
+        with self._with_apple(True):
+            result = self.api.set_ai_setting('polish', True)
+            self.assertEqual((result['ok'], result['restart_required']), (True, False))
+            self.config.update_user_setting.assert_called_with(
+                'postprocess', 'ai', {'provider': 'auto', 'polish': True, 'polish_prompt': 'p {text}'})
+            result = self.api.set_ai_setting('provider', 'ollama')
+            self.assertEqual(result['settings']['active_provider'], 'ollama')
+            self.assertTrue(self.api.set_ai_setting('timeout', ' 12 ')['ok'])
+        self.config.update_user_setting.assert_called_with('postprocess', 'ollama', {'model': 'llama3.2', 'timeout': 12})
+
+    # Runs `body` with the user's app data folder (and so app_rules.yaml) in a temp dir.
+    def _in_temp_app_data(self, body):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch('whisper_key.app_rules.get_user_app_data_path', return_value=tmp), \
+             self._with_apple(True):
+            body(Path(tmp))
+
+    def test_polish_categories_default_to_email_on_and_the_rest_off(self):
+        def body(_):
+            categories = {c['id']: c for c in self.api.get_ai_settings()['polish_in']}
+            self.assertEqual([c['label'] for c in categories.values()], ["Email apps", "Chat apps", "Everywhere else"])
+            self.assertEqual({k: c['enabled'] for k, c in categories.items()},
+                             {'email': True, 'chat': False, 'everywhere': False})
+        self._in_temp_app_data(body)
+
+    def test_unset_app_category_follows_the_global_setting(self):
+        def body(_):
+            self.config.config['postprocess']['ai'] = {'polish': True}
+            categories = {c['id']: c['enabled'] for c in self.api.get_ai_settings()['polish_in']}
+            self.assertEqual(categories, {'email': True, 'chat': True, 'everywhere': True})
+        self._in_temp_app_data(body)
+
+    def test_set_polish_for_an_app_category_writes_the_rule_override(self):
+        def body(tmp):
+            self.config.update_user_setting.reset_mock()
+            result = self.api.set_polish_for('chat', True)
+            self.assertTrue(result['ok'])
+            self.assertTrue(next(c for c in result['settings']['polish_in'] if c['id'] == 'chat')['enabled'])
+            self.assertIn('- id: chat-apps\n    polish: true', (tmp / 'app_rules.yaml').read_text())
+            self.assertFalse(self.api.set_polish_for('email', False)['settings']['polish_in'][0]['enabled'])
+            self.config.update_user_setting.assert_not_called()      # app rules, not user_settings.yaml
+        self._in_temp_app_data(body)
+
+    def test_set_polish_for_everywhere_writes_the_global_setting(self):
+        def body(_):
+            self.assertTrue(self.api.set_polish_for('everywhere', True)['ok'])
+            self.config.update_user_setting.assert_called_with(
+                'postprocess', 'ai', {'polish': True})
+        self._in_temp_app_data(body)
+
+    def test_set_polish_for_rejects_unknown_category_and_non_booleans(self):
+        def body(tmp):
+            self.assertFalse(self.api.set_polish_for('code', True)['ok'])
+            self.assertFalse(self.api.set_polish_for('chat', 'yes')['ok'])
+            self.assertFalse((tmp / 'app_rules.yaml').exists() and 'polish' in (tmp / 'app_rules.yaml').read_text())
+        self._in_temp_app_data(body)
+
+    def test_set_ai_setting_rejects_bad_values(self):
         for key, value in [('model', '  '), ('endpoint', 'localhost:11434'), ('timeout', 'soon'),
-                           ('timeout', 0), ('timeout', 500), ('bogus', 'x')]:
-            self.assertFalse(self.api.set_ollama_setting(key, value)['ok'], (key, value))
+                           ('timeout', 0), ('timeout', 500), ('provider', 'openai'), ('polish', 'yes'),
+                           ('bogus', 'x')]:
+            self.assertFalse(self.api.set_ai_setting(key, value)['ok'], (key, value))
         self.config.update_user_setting.assert_not_called()
 
     def test_transforms_list_with_keys(self):
@@ -512,6 +591,164 @@ class AboutApiTests(unittest.TestCase):
             info = self.api.get_about_info()
         self.assertTrue(info['links']['issues'].endswith('/issues'))
         self.assertTrue(info['version'])
+
+
+# ── Requirements checklist ───────────────────────────────────────────────────
+
+from whisper_key import requirements_check  # noqa: E402
+
+
+# Fake platform modules: no real permission probe, subprocess or System Settings call.
+def fake_permissions(microphone='granted', accessibility=True):
+    permissions = mock.MagicMock()
+    permissions.check_microphone_permission.return_value = microphone
+    permissions.check_accessibility_permission.return_value = accessibility
+    return permissions
+
+
+def fake_apple_intelligence(tools_installed=True):
+    apple_intelligence = mock.MagicMock()
+    apple_intelligence.command_line_tools_installed.return_value = tools_installed
+    return apple_intelligence
+
+
+class RequirementRowTests(unittest.TestCase):
+    def test_microphone_states(self):
+        granted = requirements_check._microphone_row(fake_permissions('granted'))
+        self.assertEqual((granted['status'], granted['fix']), ('ok', None))
+        denied = requirements_check._microphone_row(fake_permissions('denied'))
+        self.assertEqual(denied['status'], 'fail')
+        self.assertEqual(denied['fix']['id'], requirements_check.FIX_OPEN_MICROPHONE_SETTINGS)
+        asked_later = requirements_check._microphone_row(fake_permissions('not_determined'))
+        self.assertEqual((asked_later['status'], asked_later['fix']), ('warn', None))
+
+    def test_accessibility_missing_offers_settings(self):
+        row = requirements_check._accessibility_row(fake_permissions(accessibility=False))
+        self.assertEqual(row['status'], 'fail')
+        self.assertEqual(row['fix']['id'], requirements_check.FIX_OPEN_ACCESSIBILITY_SETTINGS)
+
+    def test_missing_model_opens_models_page(self):
+        with mock.patch.object(requirements_check, 'selected_speech_model', return_value=('base', False)):
+            row = requirements_check._speech_model_row({})
+        self.assertEqual(row['status'], 'fail')
+        self.assertEqual(row['fix'], {'kind': 'page', 'target': 'models', 'label': 'Open Models'})
+        with mock.patch.object(requirements_check, 'selected_speech_model', return_value=('base', True)):
+            self.assertEqual(requirements_check._speech_model_row({})['status'], 'ok')
+
+    def apple_row(self, availability, tools_installed=True):
+        with mock.patch('whisper_key.ai_provider.apple_availability', return_value=availability):
+            return requirements_check._apple_intelligence_row(fake_apple_intelligence(tools_installed), False)
+
+    def test_apple_intelligence_ready(self):
+        row = self.apple_row((True, ''))
+        self.assertEqual((row['status'], row['fix']), ('ok', None))
+
+    def test_apple_intelligence_needs_tools(self):
+        # The dashboard process never ran the helper build, so "not built" + no tools = tools missing.
+        row = self.apple_row((False, 'not_built'), tools_installed=False)
+        self.assertEqual(row['status'], 'warn')
+        self.assertEqual(row['fix']['id'], requirements_check.FIX_INSTALL_COMMAND_LINE_TOOLS)
+        self.assertIn('xcode-select --install', row['detail'])
+
+    def test_apple_intelligence_off_opens_settings(self):
+        row = self.apple_row((False, 'apple_intelligence_off'))
+        self.assertEqual(row['fix']['id'], requirements_check.FIX_OPEN_APPLE_INTELLIGENCE_SETTINGS)
+
+    def test_apple_intelligence_states_without_a_fix(self):
+        for reason in ('needs_macos_26', 'needs_apple_silicon', 'device_not_eligible', 'model_not_ready', 'not_built'):
+            row = self.apple_row((False, reason))
+            self.assertEqual((row['status'], row['fix']), ('warn', None), reason)
+
+    def test_ollama_unreachable_links_to_download(self):
+        with mock.patch('whisper_key.ai_provider.probe_ollama', return_value=(False, [])):
+            row = requirements_check._ollama_row({'ollama': {'endpoint': 'http://example.invalid:1'}})
+        self.assertEqual(row['status'], 'warn')
+        self.assertIn('example.invalid', row['detail'])
+        self.assertEqual(row['fix']['url'], requirements_check.OLLAMA_DOWNLOAD_URL)
+        with mock.patch('whisper_key.ai_provider.probe_ollama', return_value=(True, ['llama3.2'])):
+            self.assertEqual(requirements_check._ollama_row({})['status'], 'ok')
+
+
+class CollectRequirementsTests(unittest.TestCase):
+    def collect(self, is_macos, ollama_in_use):
+        config = FakeConfig()
+        config.get_postprocess_config = lambda: {}
+        with mock.patch('whisper_key.platform.IS_MACOS', is_macos), \
+             mock.patch('whisper_key.platform.permissions', fake_permissions(), create=True), \
+             mock.patch('whisper_key.platform.apple_intelligence', fake_apple_intelligence(), create=True), \
+             mock.patch('whisper_key.ai_provider.apple_availability', return_value=(True, '')), \
+             mock.patch('whisper_key.ai_provider.ollama_in_use', return_value=ollama_in_use), \
+             mock.patch('whisper_key.ai_provider.probe_ollama', return_value=(True, [])), \
+             mock.patch.object(requirements_check, 'selected_speech_model', return_value=('base', True)):
+            return [row['id'] for row in requirements_check.collect_requirements(config)]
+
+    def test_mac_rows(self):
+        self.assertEqual(self.collect(True, False), ['microphone', 'accessibility', 'speech_model', 'apple_intelligence'])
+
+    def test_windows_rows_and_ollama_only_when_in_use(self):
+        self.assertEqual(self.collect(False, False), ['microphone', 'speech_model'])
+        self.assertEqual(self.collect(False, True), ['microphone', 'speech_model', 'ollama'])
+
+    def test_crashing_check_becomes_a_warning_row(self):
+        config = FakeConfig()
+        config.get_postprocess_config = lambda: {}
+        broken_permissions = mock.MagicMock()
+        broken_permissions.check_microphone_permission.side_effect = RuntimeError("boom")
+        with mock.patch('whisper_key.platform.IS_MACOS', False), \
+             mock.patch('whisper_key.platform.permissions', broken_permissions, create=True), \
+             mock.patch('whisper_key.platform.apple_intelligence', fake_apple_intelligence(), create=True), \
+             mock.patch('whisper_key.ai_provider.ollama_in_use', return_value=False), \
+             mock.patch.object(requirements_check, 'selected_speech_model', return_value=('base', True)):
+            rows = requirements_check.collect_requirements(config)
+        self.assertEqual((rows[0]['id'], rows[0]['status']), ('microphone', 'warn'))
+        self.assertEqual(rows[1]['status'], 'ok')
+
+
+class RequirementFixTests(unittest.TestCase):
+    def run_fix(self, fix_id):
+        permissions = fake_permissions()
+        apple_intelligence = fake_apple_intelligence()
+        with mock.patch('whisper_key.platform.permissions', permissions, create=True), \
+             mock.patch('whisper_key.platform.apple_intelligence', apple_intelligence, create=True):
+            return requirements_check.run_fix(fix_id), permissions, apple_intelligence
+
+    def test_named_fixes_open_the_matching_pane(self):
+        for fix_id, pane in ((requirements_check.FIX_OPEN_MICROPHONE_SETTINGS, 'microphone'),
+                             (requirements_check.FIX_OPEN_ACCESSIBILITY_SETTINGS, 'accessibility'),
+                             (requirements_check.FIX_OPEN_APPLE_INTELLIGENCE_SETTINGS, 'apple_intelligence')):
+            started, permissions, _apple = self.run_fix(fix_id)
+            self.assertTrue(started)
+            permissions.open_settings_pane.assert_called_once_with(pane)
+
+    def test_install_tools_fix(self):
+        started, _permissions, apple_intelligence = self.run_fix(requirements_check.FIX_INSTALL_COMMAND_LINE_TOOLS)
+        self.assertTrue(started)
+        apple_intelligence.install_command_line_tools.assert_called_once_with()
+
+    def test_unknown_fix_does_nothing(self):
+        started, permissions, apple_intelligence = self.run_fix('rm -rf /')
+        self.assertFalse(started)
+        permissions.open_settings_pane.assert_not_called()
+        apple_intelligence.install_command_line_tools.assert_not_called()
+
+    def test_about_api_passes_check_again_through(self):
+        api = make_api(about_api.AboutApi, FakeConfig())
+        with mock.patch('whisper_key.requirements_check.collect_requirements', return_value=[]) as collect:
+            self.assertEqual(api.get_requirements(True), [])
+        self.assertTrue(collect.call_args.kwargs['force_refresh'])
+
+
+class SettingsPaneWhitelistTests(unittest.TestCase):
+    # Only named panes open; nothing the page sends reaches `open`.
+    def test_macos_open_settings_pane_rejects_unknown_names(self):
+        if sys.platform != 'darwin':
+            self.skipTest("macOS only")
+        from whisper_key.platform.macos import permissions as macos_permissions
+        with mock.patch.object(macos_permissions.subprocess, 'run') as run:
+            self.assertFalse(macos_permissions.open_settings_pane('https://evil.example'))
+            run.assert_not_called()
+            self.assertTrue(macos_permissions.open_settings_pane('microphone'))
+            self.assertEqual(run.call_args.args[0][1], macos_permissions.SETTINGS_PANE_URLS['microphone'])
 
 
 if __name__ == '__main__':

@@ -224,6 +224,12 @@ hotkey: # Hotkey Configuration
     # Only works when auto-paste is enabled
     auto_send_key: "alt | macos: option"
 
+    # Alternative stop key that delivers this one dictation with the AI polish
+    # forced on, even where postprocess.ai.polish or an app rule has it off.
+    # If the AI cannot answer, the plain text is pasted and a notice says why.
+    # Leave empty to disable (every simple key is already taken by default).
+    stop_polish_key: ""
+
     # Key combination to cancel recording
     # Format: modifier+modifier+key (use lowercase) or single key
     # Examples: "esc", "ctrl+c", "shift+esc"
@@ -241,7 +247,7 @@ hotkey: # Hotkey Configuration
 
     # Key combination for AI rephrase mode
     # Select text first, hold this key, speak instructions like "make this concise".
-    # Selection is sent to local Ollama with your instruction; result pastes back.
+    # Selection is sent to the AI provider (postprocess.ai) with your instruction; result pastes back.
     # Leave empty to disable.
     rephrase_hotkey: "ctrl+shift+win | macos: ctrl+option+command"
 
@@ -516,7 +522,7 @@ postprocess: # Transcription post-processing pipeline
     inline_formatting: true
 
     # Custom phrase -> symbol replacements for inline_formatting. Runs after Whisper
-    # and before any Ollama step. Essential for NON-ENGLISH dictation: when Whisper
+    # and before the AI polish step. Essential for NON-ENGLISH dictation: when Whisper
     # transcribes (say) Polish, the built-in English triggers above won't appear, so
     # define your own. Matching is whole-word and case-insensitive.
     #
@@ -572,7 +578,7 @@ postprocess: # Transcription post-processing pipeline
         urls: null
 
     # Post-transcription corrections: literal, whole-word, case-insensitive text
-    # fixes applied after Whisper and before any Ollama step. Use this for
+    # fixes applied after Whisper and before the AI polish step. Use this for
     # consistent misrecognitions ("see translate two" → "CTranslate2"). The
     # History page can append here for you via "Fix this everywhere...".
     # Each entry: from (required), to, whole_word (default true),
@@ -673,17 +679,33 @@ postprocess: # Transcription post-processing pipeline
     # Append a period if the text doesn't end in punctuation
     ensure_punctuation: false
 
-    # Optional local LLM cleanup via Ollama (https://ollama.ai)
-    # Off by default. Requires Ollama running locally on the configured endpoint.
-    ollama:
-        enabled: false
-        endpoint: http://localhost:11434
-        model: llama3.2
-        timeout: 5
-        prompt: |-
+    # AI steps: polish, the AI transforms and "rephrase selection" all use this one provider.
+    ai:
+        # Which AI answers:
+        #   auto               Apple Intelligence (on this Mac, offline) when it is available,
+        #                      otherwise Ollama
+        #   apple_intelligence Apple Intelligence; falls back to Ollama when it is not available
+        #                      (needs macOS 26+, Apple silicon and Apple Intelligence turned on)
+        #   ollama             always Ollama (https://ollama.ai), running on `ollama:` below
+        provider: auto
+
+        # Rewrite every dictation with the AI to fix punctuation and capitalization.
+        # Off by default. Adds about 0.7 s per dictation. If the AI changes your words
+        # (or answers them), the raw text is typed instead. Dictations over 1200
+        # characters are never sent.
+        polish: false
+
+        # The instruction for polish. {text} is replaced by the dictation.
+        polish_prompt: |-
             Polish this dictation. Fix punctuation and capitalization only. Do not change wording or add anything. Output ONLY the polished text:
 
             {text}
+
+    # Ollama server, used when the AI provider resolves to Ollama.
+    ollama:
+        endpoint: http://localhost:11434
+        model: llama3.2
+        timeout: 5
 
 history: # Transcript history (the History page, --history, and the tray's Recent list)
     # How long to keep the text of past dictations on this machine, in days.

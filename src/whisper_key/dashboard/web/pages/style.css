@@ -42,9 +42,14 @@
 .style-compact-row { padding: 10px 14px; }
 .style-cleanup-text { margin: 0; font-size: 13px; }
 
-/* AI polish fields */
-.style-polish-fields[hidden] { display: none; }
-.style-polish-fields .setting-row { border-top: 1px solid var(--border); }
+/* AI card: "Polish in" toggles sit side by side, each with its label before the switch */
+.style-polish-toggles { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 18px; }
+.style-polish-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.style-polish-toggle-label { font-size: 13px; color: var(--fg-secondary); white-space: nowrap; }
+
+/* AI card: Ollama fields, shown only while Ollama answers */
+.style-ai-fields[hidden] { display: none; }
+.style-ai-fields .setting-row { border-top: 1px solid var(--border); }
 .style-input-group { display: inline-flex; align-items: center; gap: 6px; }
 .style-input {
   height: 28px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-control);

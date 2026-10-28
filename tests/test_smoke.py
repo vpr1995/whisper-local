@@ -766,19 +766,15 @@ class TextPostprocessTests(unittest.TestCase):
         }
         self.assertEqual(postprocess("x backref y", cfg), r"x \1\g<0> y")
 
-    def test_ollama_polish_handles_curly_braces_in_text(self):
-        from whisper_key.text_postprocess import _ollama_polish
-        cfg = {'enabled': True, 'endpoint': 'http://127.0.0.1:0', 'timeout': 0.1,
-               'prompt': 'Polish:\n\n{text}'}
-        result = _ollama_polish("config = {a: 1, b: 2}", cfg)
-        self.assertEqual(result, '')
-
-    def test_ollama_polish_handles_curly_braces_in_prompt(self):
-        from whisper_key.text_postprocess import _ollama_polish
-        cfg = {'enabled': True, 'endpoint': 'http://127.0.0.1:0', 'timeout': 0.1,
-               'prompt': 'Format: {format_var} not a placeholder. {text}'}
-        result = _ollama_polish("hi", cfg)
-        self.assertEqual(result, '')
+    # An unreachable Ollama must degrade to "no polish" whatever braces the text or prompt holds.
+    def test_ai_polish_handles_curly_braces_in_text_and_prompt(self):
+        import unittest.mock as mock
+        from whisper_key import ai_provider
+        config = {'ai': {'provider': 'ollama', 'polish_prompt': 'Polish:\n\n{text}'},
+                  'ollama': {'endpoint': 'http://127.0.0.1:0', 'timeout': 0.1}}
+        self.assertEqual(ai_provider.polish("config = {a: 1, b: 2}", config), '')
+        config['ai']['polish_prompt'] = 'Format: {format_var} not a placeholder. {text}'
+        self.assertEqual(ai_provider.polish("hi", config), '')
 
     # --- Post-transcription replacements (correction-learning backing store) ---
     def test_replacement_literal_whole_word(self):
@@ -894,7 +890,7 @@ class TextPostprocessTests(unittest.TestCase):
         for bad in (
             {'smart_formatting': 'not-a-dict'},
             {'smart_formatting': True},
-            {'ollama': 'not-a-dict'},
+            {'ai': 'not-a-dict'},
             {'replacements': 'not-a-list'},
             {'replacements': [None, 42, 'str', {'no_from_key': 1}]},
             {'inline_formatting': True, 'inline_formatting_replacements': 'nope'},
@@ -959,6 +955,56 @@ class AppRulesShapeTests(unittest.TestCase):
         self.assertIsInstance(data['rules'], list)
         for rule in data['rules']:
             self.assertIn('match', rule)
+
+
+class AppRulesPolishTests(unittest.TestCase):
+    def shipped_rules(self):
+        from ruamel.yaml import YAML
+        path = ROOT / "src" / "whisper_key" / "app_rules.defaults.yaml"
+        return {rule['id']: rule for rule in YAML().load(path.read_text(encoding='utf-8'))['rules']}
+
+    def test_shipped_polish_settings(self):
+        rules = self.shipped_rules()
+        self.assertIs(rules['email-clients']['polish'], True)
+        self.assertIs(rules['code-editors']['polish'], False)
+        self.assertIs(rules['terminals']['polish'], False)
+        self.assertNotIn('polish', rules['chat-apps'])
+        self.assertIn('com.microsoft.outlook', rules['email-clients']['match'])
+
+    def test_outlook_on_macos_matches_by_bundle_id(self):
+        from whisper_key.app_rules import AppRules
+        rule = self.shipped_rules()['email-clients']
+        self.assertTrue(AppRules._matches(None, rule, 'com.microsoft.outlook', 'microsoft outlook'))
+
+    def test_a_rule_overrides_global_polish_for_that_delivery(self):
+        from whisper_key.app_rules import effective_postprocess_config
+        base = {'ai': {'provider': 'auto', 'polish': False, 'polish_prompt': 'p'}}
+        email = effective_postprocess_config(base, {'polish': True})
+        self.assertEqual(email['ai'], {'provider': 'auto', 'polish': True, 'polish_prompt': 'p'})
+        editor = effective_postprocess_config({'ai': {'polish': True}}, {'polish': False})
+        self.assertIs(editor['ai']['polish'], False)
+        self.assertIs(effective_postprocess_config({'ai': {'polish': True}}, {'style': 'casual'})['ai']['polish'], True)
+        self.assertIs(base['ai']['polish'], False, 'the global config must not be mutated')
+        self.assertIs(effective_postprocess_config({}, {'polish': True})['ai']['polish'], True)
+
+    def test_set_rule_polish_keeps_user_comments_and_other_overrides(self):
+        import tempfile
+        import unittest.mock as mock
+        from whisper_key import app_rules
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch('whisper_key.app_rules.get_user_app_data_path', return_value=tmp):
+            path = Path(tmp) / 'app_rules.yaml'
+            path.write_text("format: 2\n# my note\nrules:\n  - id: chat-apps\n    auto_send: false  # keep\n", encoding='utf-8')
+            app_rules.set_rule_polish('chat-apps', True)
+            app_rules.set_rule_polish('email-clients', False)
+            text = path.read_text(encoding='utf-8')
+            self.assertIn('# my note', text)
+            self.assertIn('# keep', text)
+            self.assertIn('auto_send: false', text)
+            merged = {rule.get('id'): rule for rule in app_rules.AppRules().rules}
+            self.assertIs(merged['chat-apps']['polish'], True)
+            self.assertIs(merged['chat-apps']['auto_send'], False)
+            self.assertIs(merged['email-clients']['polish'], False)
 
 
 class AppRulesFormattingTests(unittest.TestCase):
@@ -4206,7 +4252,7 @@ class LayeredDefaultsTests(unittest.TestCase):
         # shipped rule as it changes.
         self._write('app_rules.yaml', (
             'rules:\n'
-            '  - match: ["outlook.exe", "thunderbird.exe", "Mail"]\n'
+            '  - match: ["outlook.exe", "com.microsoft.outlook", "thunderbird.exe", "Mail"]\n'
             '    style: casual\n'
             '    initial_prompt: "Professional email body. Polite, clear sentences."\n'))
         rules = self._load_rules()
@@ -4214,7 +4260,7 @@ class LayeredDefaultsTests(unittest.TestCase):
                          [{'id': 'email-clients', 'style': 'casual'}])
         email = next(r for r in rules if r.get('id') == 'email-clients')
         self.assertEqual(email['style'], 'casual')
-        self.assertEqual(email['match'], ['outlook.exe', 'thunderbird.exe', 'Mail'])
+        self.assertEqual(email['match'], ['outlook.exe', 'com.microsoft.outlook', 'thunderbird.exe', 'Mail'])
 
     def test_user_rules_are_matched_before_shipped_rules(self):
         self._write('app_rules.yaml',
@@ -4605,7 +4651,7 @@ class OctoberReviewTests(unittest.TestCase):
         pipeline_may_finish = threading.Event()
         pipeline_started = threading.Event()
 
-        def slow_pipeline(audio, use_auto_enter=False):
+        def slow_pipeline(audio, use_auto_enter=False, force_polish=False):
             pipeline_started.set()
             pipeline_may_finish.wait(timeout=5)
         sm._transcription_pipeline = slow_pipeline
@@ -5336,3 +5382,138 @@ class OnDemandMicTests(unittest.TestCase):
         for module in ('main.py', 'state_manager.py'):
             source = (ROOT / 'src' / 'whisper_key' / module).read_text(encoding='utf-8')
             self.assertIn("mic_always_on=", source, f'{module} must pass the setting to AudioRecorder')
+
+
+# ── "Stop and polish": a stop key that forces the AI polish for one dictation ─
+class StopAndPolishTests(unittest.TestCase):
+    def _config_with_defaults(self):
+        from ruamel.yaml import YAML
+        with open(ROOT / "src" / "whisper_key" / "config.defaults.yaml", encoding="utf-8") as f:
+            return YAML().load(f)
+
+    def test_the_key_is_off_by_default_and_listed_beside_auto_send(self):
+        hotkeys = self._config_with_defaults()['hotkey']
+        self.assertEqual(hotkeys['stop_polish_key'], '')
+        keys = list(hotkeys)
+        self.assertEqual(keys.index('stop_polish_key'), keys.index('auto_send_key') + 1)
+
+    def test_a_clash_with_another_stop_key_switches_it_off(self):
+        import copy
+        import logging
+        reimport_under(self, fake_platform_modules())
+        from whisper_key.config_manager import validate_config
+        defaults = self._config_with_defaults()
+        for clashing in ('stop_key', 'auto_send_key'):
+            config = copy.deepcopy(defaults)
+            config['hotkey']['stop_polish_key'] = config['hotkey'][clashing]
+            validate_config(config, defaults, logging.getLogger('test'))
+            self.assertEqual(config['hotkey']['stop_polish_key'], '', clashing)
+
+    def test_the_listener_registers_the_key_only_when_it_is_set(self):
+        import unittest.mock as mock
+        helper = WisprStyleFeatureTests('test_paste_last_retypes_without_auto_send')
+        HotkeyListener, _ = helper._import_app_modules()
+        with mock.patch.object(HotkeyListener, 'start_listening'):
+            unset = HotkeyListener(mock.Mock(), 'ctrl+win', 'ctrl')
+            polish = HotkeyListener(mock.Mock(), 'ctrl+win', 'ctrl', stop_polish_key='alt+p')
+        self.assertNotIn('alt+p', [binding[0] for binding in unset.hotkey_bindings])
+        self.assertIn('alt+p', [binding[0] for binding in polish.hotkey_bindings])
+
+    def test_pressing_the_key_stops_with_polish_forced_only_while_recording(self):
+        import unittest.mock as mock
+        helper = WisprStyleFeatureTests('test_paste_last_retypes_without_auto_send')
+        HotkeyListener, _ = helper._import_app_modules()
+        with mock.patch.object(HotkeyListener, 'start_listening'):
+            listener = HotkeyListener(mock.Mock(), 'ctrl+win', 'ctrl', stop_polish_key='alt+p')
+        recorder = listener.state_manager.audio_recorder
+        recorder.get_recording_status.return_value = False
+        listener._stop_polish_key_pressed()
+        listener.state_manager.stop_recording.assert_not_called()
+        recorder.get_recording_status.return_value = True
+        listener._stop_polish_key_pressed()
+        listener.state_manager.stop_recording.assert_called_once_with(force_polish=True)
+        # The auto-send key keeps its own behaviour on the shared code path.
+        listener.keys_armed = True
+        listener._auto_send_key_pressed()
+        listener.state_manager.stop_recording.assert_called_with(use_auto_enter=True)
+
+    def test_forcing_polish_beats_the_global_setting_and_the_app_rule(self):
+        from whisper_key.app_rules import effective_postprocess_config
+        base = {'ai': {'provider': 'auto', 'polish': False, 'polish_prompt': 'p'}}
+        forced = effective_postprocess_config(base, {'polish': False}, force_polish=True)
+        self.assertEqual(forced['ai'], {'provider': 'auto', 'polish': True, 'polish_prompt': 'p'})
+        self.assertIs(effective_postprocess_config({}, None, force_polish=True)['ai']['polish'], True)
+        self.assertIs(effective_postprocess_config(base, None)['ai']['polish'], False)
+        self.assertIs(base['ai']['polish'], False, 'the global config must not be mutated')
+
+    # Runs the real pipeline for one dictation in a code editor (rule: polish off)
+    # with the AI mocked. Returns (text handed to delivery, tray notices).
+    def _run_dictation(self, force_polish, polish_result):
+        import unittest.mock as mock
+        sm = OctoberReviewTests._bare_state_manager(self)
+        sm._command_mode = sm._rephrase_mode = False
+        sm._rephrase_selection = ''
+        sm._streaming_delivery_active = False
+        sm.streaming_delivery = None
+        sm._pending_model_change = sm._pending_device_change = None
+        sm.level_overlay = None
+        sm.audio_feedback = mock.Mock()
+        sm.system_tray = mock.Mock()
+        sm.whisper_engine = mock.Mock()
+        sm.whisper_engine.transcribe_audio.return_value = 'send me the report'
+        sm.audio_recorder.get_audio_duration.return_value = 2.0
+        sm.app_rules = mock.Mock()
+        sm.app_rules.match_for_foreground.return_value = {'match': ['code.exe'], 'polish': False}
+        sm.config_manager = mock.Mock()
+        sm.config_manager.get_postprocess_config.return_value = {'ai': {'provider': 'ollama', 'polish': False}}
+        sm.clipboard_manager = mock.Mock()
+        sm.clipboard_manager.deliver_transcription.return_value = False   # skip stats and history writes
+        for quiet in ('_offer_outsider_language', '_refresh_hotwords', '_update_ui_state'):
+            setattr(sm, quiet, lambda *args, **kwargs: None)
+        sm._foreground_is_textable = lambda: True
+        # The ai_provider the re-imported state_manager really uses (see reimport_under).
+        ai_provider_in_use = sys.modules['whisper_key.state_manager'].ai_provider
+        with mock.patch.object(ai_provider_in_use, 'polish', return_value=polish_result) as polish, \
+                mock.patch.object(ai_provider_in_use, 'apple_availability', return_value=(False, 'unknown')):
+            sm._transcription_pipeline(object(), force_polish=force_polish)
+        delivered = sm.clipboard_manager.deliver_transcription.call_args[0][0]
+        notices = [call.args[0] for call in sm.system_tray.notify.call_args_list]
+        return delivered, notices, polish
+
+    def test_a_forced_polish_is_delivered_even_where_the_rule_says_no(self):
+        delivered, notices, polish = self._run_dictation(True, 'Send me the report.')
+        polish.assert_called_once()
+        self.assertEqual(delivered, 'Send me the report.')
+        self.assertEqual(notices, [])
+
+    def test_a_normal_stop_still_obeys_the_rule(self):
+        delivered, notices, polish = self._run_dictation(False, 'Send me the report.')
+        polish.assert_not_called()
+        self.assertEqual(notices, [])
+
+    def test_a_failed_forced_polish_pastes_plain_text_and_says_why(self):
+        delivered, notices, _ = self._run_dictation(True, '')
+        self.assertEqual(delivered, 'send me the report')   # as spoken, not polished
+        self.assertEqual(len(notices), 1)
+        self.assertTrue(notices[0].startswith('Polish unavailable: '), notices)
+        self.assertTrue(notices[0].endswith('; pasted as spoken'), notices)
+        self.assertIn('Ollama', notices[0])
+
+    def test_failure_reason_names_why_apple_intelligence_is_not_used(self):
+        import unittest.mock as mock
+        from whisper_key import ai_provider
+        with mock.patch.object(ai_provider, 'apple_availability', return_value=(False, 'apple_intelligence_off')):
+            reason = ai_provider.polish_failure_reason({'ai': {'provider': 'auto'}})
+            self.assertIn(ai_provider.APPLE_REASON_TEXT['apple_intelligence_off'], reason)
+            self.assertEqual(ai_provider.polish_failure_reason({'ai': {'provider': 'ollama'}}),
+                             'Ollama gave no usable answer')
+        with mock.patch.object(ai_provider, 'apple_availability', return_value=(True, '')):
+            self.assertEqual(ai_provider.polish_failure_reason({'ai': {'provider': 'auto'}}),
+                             'Apple Intelligence gave no usable answer')
+
+    def test_the_cheat_sheet_lists_the_key(self):
+        from whisper_key.cheat_sheet import collect_hotkey_rows
+        rows = collect_hotkey_rows({'hotkey': {'stop_polish_key': 'alt+p'}})
+        polish_row = next(row for row in rows if row['label'] == 'Stop & polish (AI)')
+        self.assertEqual(polish_row['key'], 'alt+p')
+        self.assertIsNone(next(row for row in collect_hotkey_rows({}) if row['label'] == 'Stop & polish (AI)')['key'])

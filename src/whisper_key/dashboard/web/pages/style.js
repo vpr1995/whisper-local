@@ -1,6 +1,6 @@
 // pages/style.js
 // Style page: how dictation is shaped. A profile tile grid (preset bundles of settings),
-// the writing style chips, the clean-up level, the optional Ollama polish, and two
+// the writing style chips, the clean-up level, the AI provider and polish, and two
 // compact lists (AI transforms, per-app rules) that open their YAML for editing.
 // Everything except transforms and app rules is saved from here. Data and actions
 // come from api/style.py.
@@ -141,44 +141,75 @@ function buildCleanupSection(api, data) {
     el('div', { class: 'setting-control' }, segmented)));
 }
 
-// ── AI polish (Ollama) ───────────────────────────────────────────────────────
+// ── AI (provider, polish, Ollama server) ─────────────────────────────────────
 
-// Toggle plus, when on, model / server address / timeout fields. Each field saves when
-// it loses focus or on Enter, and snaps back to the saved value if the API rejects it.
-function buildPolishSection(api, saved) {
-  const fields = el('div', { class: 'style-polish-fields' });
-  fields.hidden = !saved.enabled;
+const AI_PROVIDER_OPTIONS = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'apple_intelligence', label: 'Apple Intelligence' },
+  { value: 'ollama', label: 'Ollama' },
+];
 
-  const toggle = ui.toggle(saved.enabled, async (enabled) => {
-    const result = await saveOrToast(api, 'set_ollama_setting', 'enabled', enabled);
-    if (!result) { toggle.checked = !enabled; return; }
-    saved.enabled = enabled;
-    fields.hidden = !enabled;
-    ui.toast(enabled ? 'AI polish is on. It applies to your next dictation.' : 'AI polish is off.', 'success');
+// Provider choice with a live status caption, the polish toggle, and the Ollama server
+// fields (only while Ollama is the AI that answers). Each control saves on change and
+// snaps back to the saved value if the API rejects it.
+function buildAiSection(api, saved) {
+  const statusCaption = el('div', { class: 'setting-caption', text: saved.status_text });
+  const ollamaFields = el('div', { class: 'style-ai-fields' });
+  const refresh = (settings) => {
+    Object.assign(saved, settings);
+    statusCaption.textContent = saved.status_text;
+    for (const category of saved.polish_in) polishToggles[category.id].checked = category.enabled;
+    ollamaFields.hidden = saved.active_provider !== 'ollama';
+  };
+  ollamaFields.hidden = saved.active_provider !== 'ollama';
+
+  const providerChoice = ui.segmented(AI_PROVIDER_OPTIONS, saved.provider, async (provider) => {
+    const result = await saveOrToast(api, 'set_ai_setting', 'provider', provider);
+    if (!result) { providerChoice.value = saved.provider; return; }
+    refresh(result.settings);
+    ui.toast('AI provider saved. It applies right away.', 'success');
   });
 
-  // One labelled input row for a postprocess.ollama.<key> field.
+  // "Polish in": one toggle per category (email apps, chat apps, everywhere else). They
+  // are re-set from the saved settings after every save, since an app category without
+  // its own setting follows "Everywhere else".
+  const polishToggles = {};
+  const polishRow = el('div', { class: 'style-polish-toggles' });
+  for (const category of saved.polish_in) {
+    polishToggles[category.id] = ui.toggle(category.enabled, async (enabled) => {
+      const result = await saveOrToast(api, 'set_polish_for', category.id, enabled);
+      if (!result) { polishToggles[category.id].checked = !enabled; return; }
+      refresh(result.settings);
+      ui.toast(`AI polish is ${enabled ? 'on' : 'off'} for ${category.label.toLowerCase()}. It applies to your next dictation.`, 'success');
+    });
+    polishRow.append(el('label', { class: 'style-polish-toggle' },
+      el('span', { class: 'style-polish-toggle-label', text: category.label }), polishToggles[category.id]));
+  }
+
+  // One labelled input row for an Ollama field.
   const fieldRow = (key, label, caption, inputProps, suffix) => {
     const input = el('input', { class: 'style-input', type: 'text', spellcheck: 'false', ...inputProps });
     input.value = saved[key];
     input.addEventListener('change', async () => {
-      const result = await saveOrToast(api, 'set_ollama_setting', key, input.value);
-      if (result) { saved[key] = input.value.trim(); input.value = saved[key]; ui.toast(`${label} saved.`, 'success'); }
+      const result = await saveOrToast(api, 'set_ai_setting', key, input.value);
+      if (result) { refresh(result.settings); input.value = saved[key]; ui.toast(`${label} saved.`, 'success'); }
       else input.value = saved[key];
     });
     return ui.settingRow(label, caption, el('span', { class: 'style-input-group' }, input, suffix));
   };
 
-  fields.append(
-    fieldRow('model', 'Model', 'The Ollama model that does the polishing.', { class: 'style-input style-input-text' }),
-    fieldRow('endpoint', 'Server address', 'Where Ollama is listening.', { class: 'style-input style-input-text' }),
-    fieldRow('timeout', 'Give up after', 'Falls back to your plain text if Ollama is slow.',
+  ollamaFields.append(
+    fieldRow('model', 'Ollama model', 'The model that answers.', { class: 'style-input style-input-text' }),
+    fieldRow('endpoint', 'Ollama server address', 'Where Ollama is listening.', { class: 'style-input style-input-text' }),
+    fieldRow('timeout', 'Give up after', 'Polish keeps your plain text if Ollama is slower.',
       { class: 'style-input style-input-number', inputmode: 'numeric' }, el('span', { class: 'setting-caption', text: 'sec' })));
 
   return ui.card(null, [
-    ui.settingRow('Polish with a local AI (Ollama)',
-      'Fixes punctuation with a model on your own computer. Needs Ollama running.', toggle),
-    fields,
+    el('div', { class: 'setting-row' },
+      el('div', { class: 'setting-text' }, el('div', { class: 'setting-label', text: 'AI provider' }), statusCaption),
+      el('div', { class: 'setting-control' }, providerChoice)),
+    ui.settingRow('Polish in', 'Fixes punctuation with the AI. Adds about a second.', polishRow),
+    ollamaFields,
   ]);
 }
 
@@ -227,11 +258,11 @@ registerPage('style', {
       noticeSlot);
 
     // Independent blocks: one failing call must not blank the page.
-    const [profiles, styles, cleanup, polish, transforms, appRules] = await Promise.all([
+    const [profiles, styles, cleanup, aiSettings, transforms, appRules] = await Promise.all([
       api.call('get_profiles').catch(() => null),
       api.call('get_writing_styles').catch(() => null),
       api.call('get_cleanup_levels').catch(() => null),
-      api.call('get_ollama_polish').catch(() => null),
+      api.call('get_ai_settings').catch(() => null),
       api.call('get_transforms').catch(() => []),
       api.call('get_app_rules').catch(() => []),
     ]);
@@ -245,11 +276,12 @@ registerPage('style', {
       ui.sectionHeader('Clean-up', el('span', { class: 'section-caption',
         text: 'How much to tidy what you said before it is typed.' })),
       cleanup ? buildCleanupSection(api, cleanup) : unavailable(),
-      ui.sectionHeader('AI polish'),
-      polish ? buildPolishSection(api, polish) : unavailable(),
+      ui.sectionHeader('AI', el('span', { class: 'section-caption',
+        text: 'Used by polish, AI transforms and rephrase.' })),
+      aiSettings ? buildAiSection(api, aiSettings) : unavailable(),
       el('div', { class: 'style-duo' }, buildTransformsCard(api, transforms), buildAppRulesCard(api, appRules)),
       el('p', { class: 'style-footnote',
-        text: 'Select text, press a transform\'s hotkey and a local Ollama model rewrites it.' }),
+        text: 'Select text, press a transform\'s hotkey and the AI rewrites it.' }),
     ]);
   },
 });

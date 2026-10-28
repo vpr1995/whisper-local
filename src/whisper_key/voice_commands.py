@@ -57,11 +57,11 @@ RISKY_PATTERNS = re.compile(
 
 
 class VoiceCommandManager:
-    def __init__(self, enabled=True, clipboard_manager=None, log_transcriptions=False, ollama_config_provider=None):
+    def __init__(self, enabled=True, clipboard_manager=None, log_transcriptions=False, ai_config_provider=None):
         self.enabled = enabled
         self.clipboard_manager = clipboard_manager
         self.log_transcriptions = log_transcriptions
-        self.ollama_config_provider = ollama_config_provider
+        self.ai_config_provider = ai_config_provider
         self.logger = logging.getLogger(__name__)
 
         if not self.enabled:
@@ -223,10 +223,10 @@ class VoiceCommandManager:
 
     def _execute_rephrase(self, instruction: str, trigger: str):
         import time
-        from .text_postprocess import _ollama_polish
+        from . import ai_provider
 
-        if not self.ollama_config_provider:
-            print("   ✗ Rephrase requires Ollama config; nothing wired")
+        if not self.ai_config_provider:
+            print("   ✗ Rephrase has no AI settings wired")
             return
 
         try:
@@ -247,18 +247,10 @@ class VoiceCommandManager:
             except Exception: pass
             return
 
-        full_prompt = (
-            f"{instruction}\n\n"
-            "Output ONLY the rewritten text with no preamble, no quotes, no commentary.\n\n"
-            f"Input:\n{selection}"
-        )
-        ollama_cfg = dict(self.ollama_config_provider() or {})
-        ollama_cfg['enabled'] = True
-        ollama_cfg['prompt'] = '{text}'
-
-        polished = _ollama_polish(full_prompt, ollama_cfg)
+        ai_config = self.ai_config_provider() or {}
+        polished = ai_provider.rewrite(ai_provider.build_rephrase_prompt(instruction, selection), ai_config)
         if not polished:
-            print("   ✗ Rephrase failed — Ollama unreachable or returned nothing")
+            print(f"   ✗ Rephrase failed — {ai_provider.active_provider_label(ai_config)} returned nothing")
             try: pyperclip.copy(original_clipboard)
             except Exception: pass
             return
