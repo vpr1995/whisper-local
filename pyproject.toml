@@ -54,6 +54,7 @@ dependencies = [
     "hf-xet>=1.1.5",
     "playsound3>=2.0",
     "ten-vad>=1.0.6",
+    "pywebview>=6.2",
 
     # Windows-only
     "global-hotkeys>=0.1.7; sys_platform=='win32'",
@@ -93,4 +94,4 @@ Changelog = "https://github.com/drajb/whisper-local/blob/master/CHANGELOG.md"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"whisper_key" = ["assets/**/*", "platform/*/assets/*", "config.defaults.yaml", "commands.defaults.yaml", "profiles.defaults.yaml", "app_rules.defaults.yaml", "transforms.defaults.yaml"]
+"whisper_key" = ["assets/**/*", "platform/*/assets/*", "config.defaults.yaml", "commands.defaults.yaml", "profiles.defaults.yaml", "app_rules.defaults.yaml", "transforms.defaults.yaml", "dashboard/web/**/*"]

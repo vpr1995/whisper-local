@@ -42,7 +42,7 @@ whisper-local --import-model "E:\whisper-local-model-base"
 ```
 
 That installs the model into your app-data folder, registers it, and makes it
-active. Restart Whisper Local (tray → Restart) and you're done. The app will
+active. Restart Whisper Local (dashboard → About → Restart) and you're done. The app will
 never try to reach HuggingFace for it again.
 
 ## Option 2 — One shared copy on a network drive

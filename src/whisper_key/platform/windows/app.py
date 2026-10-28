@@ -18,6 +18,14 @@ def run_event_loop(shutdown_event):
     while not shutdown_event.wait(timeout=0.1):
         pass
 
+# Gives the process its own taskbar identity so the dashboard window groups
+# under "Whisper Local" with our icon instead of python.exe's. The window icon
+# itself is passed to pywebview (winforms honours it), not set here.
+# macOS mirror: platform/macos/app.py, which also sets the Dock icon.
+def set_process_identity(app_name: str, icon_path: str):
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('WhisperLocal.Dashboard')
+
 def getch():
     return msvcrt.getwch()
 

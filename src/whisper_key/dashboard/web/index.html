@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!-- index.html: the dashboard shell. A sidebar (built by app.js) and a content mount
+     point; every page registers itself from its own pages/*.js file. No CDN, no build. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Whisper Local</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="styles.css">
+  <!-- One stylesheet per page, owned by that page. -->
+  <link rel="stylesheet" href="pages/history.css">
+  <link rel="stylesheet" href="pages/models.css">
+  <link rel="stylesheet" href="pages/vocabulary.css">
+  <link rel="stylesheet" href="pages/style.css">
+  <link rel="stylesheet" href="pages/settings.css">
+  <link rel="stylesheet" href="pages/about.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="sidebar" id="sidebar" aria-label="Sections"></nav>
+    <main class="content">
+      <div class="content-scroll" id="content-scroll">
+        <div class="page-mount" id="page-mount"></div>
+      </div>
+      <footer class="status-bar" id="status-bar" data-state="" data-kind="" role="status" aria-live="polite">
+        <span class="status-dot" id="status-dot"></span>
+        <svg class="status-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+        <span class="status-text" id="status-text"></span>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Order matters: app.js defines registerPage/ui, pages then register, and app.js
+       boots the router on DOMContentLoaded (after all of these have run). Page agents:
+       your script tag is already listed, just fill in your file. -->
+  <script src="app.js"></script>
+  <script src="pages/home.js"></script>
+  <script src="pages/history.js"></script>
+  <script src="pages/models.js"></script>
+  <script src="pages/vocabulary.js"></script>
+  <script src="pages/style.js"></script>
+  <script src="pages/settings.js"></script>
+  <script src="pages/about.js"></script>
+</body>
+</html>

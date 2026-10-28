@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="824" height="824" viewBox="0 0 824 824">
+  <!-- Simplified mark for 16-64 px (Windows .ico small frames, dashboard brand.svg):
+       flat tile, no glow/shadow, thicker bars and cursor so nothing mushes.
+       Tile fills the whole 824 box (no canvas margin). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0" stop-color="#4b5364"/><stop offset="1" stop-color="#14171f"/>
+    </linearGradient>
+    <linearGradient id="mint" gradientUnits="userSpaceOnUse" x1="0" y1="120" x2="0" y2="700">
+      <stop offset="0" stop-color="#9ffbe6"/><stop offset="1" stop-color="#28c9a8"/>
+    </linearGradient>
+  </defs>
+  <rect width="824" height="824" rx="185" fill="url(#bg)"/>
+  <g fill="url(#mint)">
+    <rect x="82" y="262" width="92" height="300" rx="46" opacity="0.78"/>
+    <rect x="236" y="192" width="92" height="440" rx="46" opacity="0.92"/>
+    <rect x="390" y="122" width="92" height="580" rx="46"/>
+  </g>
+  <g fill="#ffffff">
+    <rect x="594" y="112" width="84" height="600" rx="42"/>
+    <rect x="520" y="104" width="232" height="84" rx="42"/>
+    <rect x="520" y="636" width="232" height="84" rx="42"/>
+  </g>
+</svg>

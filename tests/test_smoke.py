@@ -1163,12 +1163,6 @@ class TranscriptLogTests(unittest.TestCase):
         self.assertEqual(len(entries), 0)
 
 
-class SettingsUiModuleTests(unittest.TestCase):
-    def test_module_importable(self):
-        from whisper_key import settings_ui
-        self.assertTrue(hasattr(settings_ui, 'run_settings_window'))
-
-
 class ModelTransferTests(unittest.TestCase):
     # Offline model transfer for locked-down networks where huggingface.co is
     # blocked. These use a stub model folder so they never need a real download.
@@ -1615,7 +1609,7 @@ class SettingsResetTests(unittest.TestCase):
     def test_reset_preserves_hotwords(self):
         import tempfile, os
         from ruamel.yaml import YAML
-        from whisper_key.settings_ui import reset_settings_preserving_hotwords
+        from whisper_key.settings_store import reset_settings_preserving_hotwords
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, 'user_settings.yaml')
             with open(path, 'w', encoding='utf-8') as f:
@@ -1633,19 +1627,13 @@ class SettingsResetTests(unittest.TestCase):
     def test_reset_with_no_hotwords_removes_file(self):
         import tempfile, os
         from ruamel.yaml import YAML
-        from whisper_key.settings_ui import reset_settings_preserving_hotwords
+        from whisper_key.settings_store import reset_settings_preserving_hotwords
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, 'user_settings.yaml')
             with open(path, 'w', encoding='utf-8') as f:
                 YAML().dump({'clipboard': {'auto_paste': False}}, f)
             self.assertEqual(reset_settings_preserving_hotwords(path), [])
             self.assertFalse(os.path.exists(path))  # clean wipe when nothing to keep
-
-
-class HistoryWindowModuleTests(unittest.TestCase):
-    def test_module_importable(self):
-        from whisper_key import history_window
-        self.assertTrue(hasattr(history_window, 'show_history'))
 
 
 class ReleaseWorkflowTests(unittest.TestCase):
@@ -1709,9 +1697,11 @@ class FirstRunTests(unittest.TestCase):
 
 
 class CheatSheetTests(unittest.TestCase):
-    def test_module_importable(self):
+    def test_hotkey_rows_are_pure_data(self):
         from whisper_key import cheat_sheet
-        self.assertTrue(hasattr(cheat_sheet, 'show_cheat_sheet'))
+        rows = cheat_sheet.collect_hotkey_rows({'hotkey': {'recording_hotkey': 'ctrl+win'}})
+        self.assertEqual(rows[0]['key'], 'ctrl+win')
+        self.assertIsNone(rows[1]['key'])
 
 
 class BundleLogsTests(unittest.TestCase):
@@ -2285,14 +2275,13 @@ class ReviewFixTests(unittest.TestCase):
         self.assertFalse(_is_newer("1.2", "1.2.0"))           # padded equal
         self.assertTrue(_is_newer("v1.3.0", "1.2.9"))         # leading v tolerated
 
-    # settings_ui._coerce must keep free-text settings as strings even when numeric-looking.
+    # coerce_setting_value must keep free-text settings as strings even when numeric-looking.
     def test_coerce_is_type_aware(self):
-        from whisper_key.settings_ui import _coerce
-        sentinel = object()  # not a BooleanVar
-        self.assertEqual(_coerce(sentinel, "2024", "whisper.initial_prompt"), "2024")
-        self.assertEqual(_coerce(sentinel, "3", "postprocess.ollama.model"), "3")
-        self.assertEqual(_coerce(sentinel, "5", "whisper.beam_size"), 5)
-        self.assertAlmostEqual(_coerce(sentinel, "0.75", "audio.noise_suppression.strength"), 0.75)
+        from whisper_key.settings_store import coerce_setting_value as coerce
+        self.assertEqual(coerce("2024", "whisper.initial_prompt"), "2024")
+        self.assertEqual(coerce("3", "postprocess.ollama.model"), "3")
+        self.assertEqual(coerce("5", "whisper.beam_size"), 5)
+        self.assertAlmostEqual(coerce("0.75", "audio.noise_suppression.strength"), 0.75)
 
     # autostart.toggle returns the achieved state (macOS path, temp plist).
     def test_autostart_toggle_returns_state(self):
@@ -2960,28 +2949,6 @@ class UserReportedSeptemberTests(unittest.TestCase):
         # Runs of plain spaces SHOULD still collapse.
         self.assertEqual(postprocess('one    two', {'strip_filler_words': True}), 'one two')
 
-    # --- #10: --history killed its own window ---
-    def test_window_launchers_return_their_thread(self):
-        # main.py waits on this thread. Returning None again would restore the
-        # bug: the window lives on a daemon thread and sys.exit kills it.
-        import inspect
-        for module, func in (('history_window', 'show_history'),
-                             ('cheat_sheet', 'show_cheat_sheet')):
-            try:
-                mod = __import__('whisper_key.' + module, fromlist=[func])
-            except Exception:
-                self.skipTest(module + ' not importable on this platform')
-            source = inspect.getsource(getattr(mod, func))
-            self.assertIn('return thread', source,
-                          func + ' must return its thread so the CLI can join it (issue #10)')
-
-    def test_history_cli_joins_instead_of_sleeping(self):
-        source = (ROOT / 'src' / 'whisper_key' / 'main.py').read_text(encoding='utf-8')
-        block = source[source.index('if args.history:'):source.index('if args.enable_autostart:')]
-        self.assertIn('.join()', block)
-        self.assertNotIn('time.sleep(0.5)', block,
-                         'sleeping then exiting kills the daemon window (issue #10)')
-
     # --- #12: clipboard-free dictation leaked to the clipboard ---
     def _clipboard(self, method, also_copy):
         # clipboard_manager pulls the platform keyboard backend and PIL,
@@ -3552,7 +3519,7 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
         from whisper_key import window_launcher
         with mock.patch('whisper_key.utils.tk_requires_main_thread', return_value=False), \
              mock.patch.object(window_launcher.subprocess, 'Popen') as popen:
-            self.assertFalse(window_launcher.open_in_child_process('cheat-sheet'))
+            self.assertFalse(window_launcher.open_in_child_process('fallback'))
         popen.assert_not_called()
 
     def test_macos_windows_open_in_a_child_with_the_payload_on_stdin(self):
@@ -3577,18 +3544,12 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
         from whisper_key import window_launcher
         with mock.patch('whisper_key.utils.tk_requires_main_thread', return_value=True), \
              mock.patch.object(window_launcher.subprocess, 'Popen', side_effect=OSError('nope')):
-            self.assertTrue(window_launcher.open_in_child_process('add-word'))
+            self.assertTrue(window_launcher.open_in_child_process('fallback'))
 
-    def test_child_runs_each_window_blocking_on_its_main_thread(self):
+    def test_child_runs_its_window_on_the_main_thread(self):
         import io
         import unittest.mock as mock
         from whisper_key import window_launcher
-        for name, target in (('cheat-sheet', 'whisper_key.cheat_sheet.show_cheat_sheet'),
-                             ('add-word', 'whisper_key.dictionary.show_add_word_dialog'),
-                             ('history', 'whisper_key.history_window.show_history')):
-            with mock.patch(target) as show:
-                self.assertEqual(window_launcher.run_window(name, io.StringIO('')), 0)
-            self.assertTrue(show.call_args.kwargs.get('blocking'), name + ' must run blocking')
         with mock.patch('whisper_key.fallback_window.FallbackWindow._run_window') as run:
             code = window_launcher.run_window(
                 'fallback', io.StringIO('{"transcript": "hi", "reason": "r", "allow_clipboard": false}'))
@@ -3609,6 +3570,25 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
         self.assertEqual(payload['transcript'], 'dictated text')
         self.assertFalse(payload['allow_clipboard'])
         self.assertTrue(payload['reason'], 'the default reason must travel with it')
+
+    # --settings / --history / --cheat-sheet open the dashboard in this process
+    # (a standalone CLI run owns the main thread pywebview needs).
+    def test_cli_flags_open_the_dashboard_on_their_page(self):
+        import unittest.mock as mock
+        from whisper_key import main as main_module
+        for flag, page in (('--settings', 'settings'), ('--history', 'history'),
+                           ('--cheat-sheet', 'about')):
+            with mock.patch('whisper_key.dashboard.run_dashboard', return_value=0) as run, \
+                 mock.patch.object(sys, 'argv', ['whisper-local', flag]):
+                with self.assertRaises(SystemExit) as raised:
+                    main_module.main()
+            self.assertEqual(raised.exception.code, 0, flag)
+            run.assert_called_once_with(page)
+
+    def test_removed_tk_windows_are_gone(self):
+        src_dir = ROOT / 'src' / 'whisper_key'
+        for removed in ('settings_ui.py', 'history_window.py'):
+            self.assertFalse((src_dir / removed).exists(), removed)
 
     def test_window_flag_choices_match_the_launcher(self):
         from whisper_key.window_launcher import WINDOW_NAMES
@@ -4107,13 +4087,6 @@ class ReleaseReviewFixTests(unittest.TestCase):
         body = source[source.index('def _build_audio_array'):source.index('def _parse_whisper_mode')]
         self.assertLess(body.index('_trim_trailing_silence(audio_array)'), body.index('boost_quiet_audio('),
                         'a boosted noise floor would defeat the anti-hallucination trims')
-
-    def test_settings_window_tolerates_non_mapping_sections(self):
-        source = (ROOT / 'src' / 'whisper_key' / 'settings_ui.py').read_text(encoding='utf-8')
-        self.assertIn("wm = wm if isinstance(wm, dict) else {}", source)
-        # The Settings window no longer reads `backtrack` itself (the cleanup
-        # level covers it), so there is nothing left there to guard.
-        self.assertNotIn("bt.get('enabled'", source)
 
     def test_bad_numeric_hotkey_setting_falls_back(self):
         source = (ROOT / 'src' / 'whisper_key' / 'main.py').read_text(encoding='utf-8')
@@ -4778,13 +4751,6 @@ class OctoberReviewTests(unittest.TestCase):
         self.assertEqual(postprocess('I like it, you know, um, a lot', self._cfg()),
                          'I like it, you know, a lot')
 
-    def test_settings_window_offers_the_level_not_the_pinning_toggles(self):
-        ui = self._source('settings_ui.py')
-        self.assertIn("'postprocess.cleanup'", ui)
-        for pinned in ('postprocess.strip_filler_words', 'postprocess.voice_editing',
-                       'postprocess.backtrack.enabled', 'postprocess.smart_formatting.times'):
-            self.assertNotIn(f"'{pinned}'", ui, f'a checkbox for {pinned} would pin it')
-
     # --- history retention ---
     def _journal(self, tmp, entries):
         import json
@@ -4836,11 +4802,10 @@ class OctoberReviewTests(unittest.TestCase):
                          'both delivery paths must honour history.retention_days')
 
     # --- tray and windows ---
-    def test_tray_offers_pause_and_opens_tk_windows_without_a_console(self):
+    def test_tray_opens_the_dashboard_and_relaunches_like_autostart(self):
         tray = self._source('system_tray.py')
-        self.assertIn('"Pause hotkeys"', tray)
-        self.assertIn("self._run_module_in_window('--settings', windowless=True)", tray)
-        self.assertIn("self._run_module_in_window('--history', windowless=True)", tray)
+        self.assertIn('window_launcher.open_dashboard(page, on_app_command=self._handle_dashboard_command)', tray)
+        self.assertNotIn('_run_module_in_window', tray)
         self.assertIn('build_relaunch_command', tray,
                       'the tray must relaunch the way autostart and Restart do')
         self.assertIn('"Microphone"', tray)
@@ -4962,19 +4927,6 @@ class OctoberReviewTests(unittest.TestCase):
         from whisper_key.bundle_logs import _redact
         self.assertEqual(_redact('file:///C:/Users/rohit/.cache/x'), 'file:///C:/Users/<USER>/.cache/x')
         self.assertEqual(_redact(r'C:\Users\rohit\AppData'), r'C:\Users\<USER>\AppData')
-
-    def test_settings_styles_the_readonly_combobox_state(self):
-        ui = self._source('settings_ui.py')
-        self.assertIn("fieldbackground=[('readonly', BG2)", ui)
-        self.assertIn("foreground=[('readonly', FG)", ui)
-
-    def test_cheat_sheet_is_wide_enough_for_its_descriptions(self):
-        import re
-        src = self._source('cheat_sheet.py')
-        width = int(re.search(r'root\.geometry\("(\d+)x', src).group(1))
-        wrap = int(re.search(r'wraplength=(\d+)', src).group(1))
-        # label column (~190) + widest badge (~150) + padding (40) + the wrap.
-        self.assertGreaterEqual(width, 190 + 150 + 40 + wrap)
 
     # --- stutter removal runs on everyone now: it must keep real doubles ---
     def test_stutter_removal_keeps_emphasis_and_names(self):
@@ -5248,18 +5200,9 @@ class WisprOctoberFeatureTests(unittest.TestCase):
         self.assertIn('Speaking German?', sm.system_tray.notify.call_args[0][0])
 
     def test_settings_saves_languages_as_a_list(self):
-        try:
-            import tkinter as tk
-            root = tk.Tk(); root.withdraw()
-        except Exception as e:
-            self.skipTest(f'no Tk: {e}')
-        try:
-            from whisper_key.settings_ui import _coerce
-            var = tk.StringVar(master=root, value='en, fr')
-            self.assertEqual(_coerce(var, 'en, fr', 'whisper.languages'), ['en', 'fr'])
-            self.assertEqual(_coerce(var, '', 'whisper.languages'), [])
-        finally:
-            root.destroy()
+        from whisper_key.settings_store import coerce_setting_value as coerce
+        self.assertEqual(coerce('en, fr', 'whisper.languages'), ['en', 'fr'])
+        self.assertEqual(coerce('', 'whisper.languages'), [])
 
     def test_whisper_cpp_engine_mirrors_the_language_api(self):
         src = (ROOT / 'src' / 'whisper_key' / 'whisper_engine_cpp.py').read_text(encoding='utf-8')
@@ -5290,11 +5233,6 @@ class WisprOctoberFeatureTests(unittest.TestCase):
         self.assertEqual(sm.fallback_window.show.call_args[0][0], 'hello there')
         sm.clipboard_manager.copy_text.assert_called_once_with('hello there')
         self.assertFalse(sm.is_processing, 'must release the busy flag')
-
-    def test_tray_offers_retry(self):
-        src = (ROOT / 'src' / 'whisper_key' / 'system_tray.py').read_text(encoding='utf-8')
-        self.assertIn('"Retry last dictation"', src)
-        self.assertIn('has_last_recording()', src)
 
     def test_pipeline_keeps_the_last_recording_in_memory_only(self):
         src = (ROOT / 'src' / 'whisper_key' / 'state_manager.py').read_text(encoding='utf-8')

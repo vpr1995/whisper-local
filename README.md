@@ -33,8 +33,8 @@ No cloud. No subscription. No telemetry. Powered by [OpenAI Whisper](https://git
 
 <p align="center">
   <img src="docs/screenshots/welcome.png" width="32%" alt="First launch: a welcome window with a box to try dictation in">
-  <img src="docs/screenshots/settings.png" width="32%" alt="The Settings window: model, cleanup level, writing style, hotkeys">
-  <img src="docs/screenshots/cheat-sheet.png" width="32%" alt="The hotkey cheat sheet, showing your current bindings">
+  <img src="docs/screenshots/settings.png" width="32%" alt="The dashboard's Settings page: model, cleanup level, writing style, hotkeys">
+  <img src="docs/screenshots/cheat-sheet.png" width="32%" alt="The hotkey list on the dashboard, showing your current bindings">
 </p>
 
 <sub>Want a real screen-recording demo here? See [`docs/demo-recording.md`](docs/demo-recording.md) — drop a `docs/demo.gif` in and uncomment the line below.</sub>
@@ -96,7 +96,7 @@ This is a **community tool**, not a product. There's no support SLA, no roadmap 
 - 📝 **Inline voice formatting** — say "comma", "period", "question mark", "new paragraph", "open quote", etc. mid-sentence. **Fully customizable** for any language via `postprocess.inline_formatting_replacements` (e.g. map Polish phrases to punctuation, or "arrow" → →)
 - 🌍 **Languages you speak** — list them (`whisper.languages: [en, fr]`) and auto-detection picks only from those, so a short or accented clip is never transcribed as a language you don't speak. Speak one that isn't on the list and it asks whether to add it
 - 🔇 **Silent-mic warning while you talk** — if the microphone delivers no sound at all (muted, blocked by a permission, unplugged), you're told one second in, not after you've finished speaking
-- 🔁 **Retry last dictation** — tray → *Retry last dictation* re-transcribes your last recording with the current model, e.g. after a failure, or after switching to a bigger model because it came out wrong. The audio is kept in memory only, never written to disk
+- 🔁 **Retry last dictation** — dashboard → About → *Retry* re-transcribes your last recording with the current model, e.g. after a failure, or after switching to a bigger model because it came out wrong. The audio is kept in memory only, never written to disk
 - 🧽 **One cleanup setting** — `none` / `light` / `medium` / `high` decides how much gets tidied: stutters and "um" go by default, "scratch that" and "meet at 2, actually 3" from `medium` up. See [Smart editing](#️-smart-editing)
 - 🧾 **Spoken lists** — "first, milk. second, eggs" becomes a numbered or bulleted list (`postprocess.list_formatting`, opt-in)
 - ✨ **Snippets** — say "my signature" (or any trigger you define) mid-dictation and the full text is typed, with `${date}` / `${time}` / `${clipboard}` filled in
@@ -106,10 +106,10 @@ This is a **community tool**, not a product. There's no support SLA, no roadmap 
 - 🤫 **Whisper mode** — boosts quiet speech so you can dictate in an open office (`audio.whisper_mode`, opt-in)
 - 🔢 **Smart formatting** — deterministic, offline: "3 p.m." → "3 PM", "john at example dot com" → "john@example.com" (`postprocess.smart_formatting`, each toggle opt-in)
 - 🤖 **AI rephrase** — dedicated `Ctrl+Shift+Win` hotkey: select text, hold, speak your instruction, release — local Ollama rewrites it in place
-- 🌐 **Translation mode** — speak any language, get English; tray → Profile → Translate
+- 🌐 **Translation mode** — speak any language, get English; dashboard → Style → Profiles → Translate
 - 🔁 **Continuous dictation mode** — for long-form notes, the app auto-restarts recording after each delivery
 - 📋 **Fallback window** — if no text field is focused, the transcript appears in a small window (pre-selected, copy button, already on clipboard)
-- ⏸ **Pause-all hotkey** — `Ctrl+Alt+Win` (or the tray's **Pause hotkeys**) disables every Whisper Local hotkey until you press it again
+- ⏸ **Pause-all hotkey** — `Ctrl+Alt+Win` (or **Pause / resume** on the dashboard's About page) disables every Whisper Local hotkey until you press it again
 - 🗓️ **History retention** — keep your dictation history for N days, or store none at all (`history.retention_days`)
 - 📋 **Auto-paste at cursor** — transcript lands wherever you're typing, optionally followed by Enter (auto-send)
 - 🔒 **100 % local & private** — no network calls during use; Whisper models cached on disk
@@ -117,26 +117,26 @@ This is a **community tool**, not a product. There's no support SLA, no roadmap 
 - 🗣️ **Voice commands** — say a trigger phrase to send a hotkey, type pre-written text, or run a shell command
 - 🔁 **Hot-reload** — edit `commands.yaml` and your change applies on the next transcription, no restart
 - 🩺 **Built-in diagnostics** — `whisper-local --doctor` checks audio devices, model cache, hotkeys, and recent errors
-- 🎛️ **Profiles** — switch between Dictation / Chat / Code / Notes presets from the tray
+- 🎛️ **Profiles** — switch between Dictation / Chat / Code / Notes presets on the dashboard's Style page
 - 🪟 **Per-app rules** — different behaviour *and* formatting per foreground app: auto-send in Slack, copy-only + verbatim (no auto-caps/periods) in VS Code, full sentences in email, suppress in 1Password
 - ⌨️ **Type-as-you-speak** *(experimental, opt-in)* — `streaming.deliver_to_cursor` commits finalized phrases to the cursor live, Wispr-Flow style (trades full-Whisper accuracy for latency; see [docs/streaming.md](docs/streaming.md))
 - 🧹 **Optional LLM cleanup** — pipe transcripts through a local [Ollama](https://ollama.ai) model for punctuation / capitalisation polish (off by default, fully local)
-- 📜 **Recent transcriptions** — last 10 results in the tray menu, click to copy back
+- 📜 **Recent transcriptions** — the dashboard's Home page lists your latest results, with a Copy button
 - 🔧 **Settings backup/restore** — `--export-settings` / `--import-settings` for portability
-- 🖥️ **Settings UI** — `whisper-local --settings` opens a GUI settings window (no YAML editing required)
-- 📜 **Transcript history** — `whisper-local --history` opens a searchable log of everything you've dictated
+- 🖥️ **Dashboard** — `whisper-local --settings` opens the dashboard on its Settings page (no YAML editing required). The sidebar also holds Home, History, Models, Vocabulary, Style and About
+- 📜 **Transcript history** — `whisper-local --history` opens the dashboard's History page, a searchable log of everything you've dictated
 - 📖 **Vocabulary corrections** — map one canonical spelling to every way Whisper mishears it (`CAPEX: [cap x, copics]`), applied in a single pass with longest-match-wins
-- 🧠 **Self-improving accuracy** — from the history window, turn any misrecognition into a permanent correction ("Fix this everywhere…"), or let it mine your own history for names to add to your dictionary ("Suggest hotwords"). All offline; corrections apply on your next dictation, no restart
+- 🧠 **Self-improving accuracy** — from the dashboard's History page, turn any misrecognition into a permanent correction ("Fix this everywhere…"), or let it mine your own history for names to add to your dictionary ("Suggest hotwords"). All offline; corrections apply on your next dictation, no restart
 - 🔊 **System-audio capture** *(experimental)* — `whisper-local --transcribe-system` transcribes what you *hear* (meetings, videos), not just the mic (`pip install 'whisper-local[loopback]'`, Windows-first)
 - 🔔 **Opt-in update notifications** — daily GitHub release check, fully offline by default (`update_check.enabled: true` to opt in)
 - 🎚️ **Noise suppression** — spectral gating via `noisereduce`, off by default (`pip install 'whisper-local[noise]'`)
 - 🩺 **`--selftest`** — one-command sanity check (mic, model, transcription, clipboard) — perfect for first-launch
-- 🎯 **Hotkey cheat sheet** — `whisper-local --cheat-sheet` or tray menu — shows your *current* configured hotkeys at a glance
+- 🎯 **Hotkey cheat sheet** — `whisper-local --cheat-sheet` or the dashboard's Home page — shows your *current* configured hotkeys at a glance
 - 📦 **`--bundle-logs`** — zip up redacted logs + diagnostics for bug reports with one command
 - 🌐 **Local OpenAI-compatible API** — `whisper-local --serve` exposes `POST /v1/audio/transcriptions` on `localhost:7777` for Cursor, Open WebUI, anything that speaks OpenAI Whisper API
 - 🛡️ **Auto-recovery** — silently reconnects when a USB mic is unplugged mid-recording
 - 🛡️ **Crash reports** — uncaught errors write a self-contained dump to disk
-- 🪟 **System tray UI** — model selection, mic selection, profile switch, diagnostics
+- 🪟 **System tray** — status, start/stop dictation, model, microphone and auto-paste. Everything else is in the dashboard window (Open Whisper Local…)
 - 🍎 **Cross-platform** — Windows 10+, macOS
 
 ---
@@ -174,7 +174,7 @@ pip install -e .
 |---|---|
 | **Terminal** | `whisper-local` (or `wl` for short) |
 | **Double-click** | `whisper-local.cmd` (Windows) |
-| **Start on login** | Tick **Start on login** in the tray menu (or the first-run welcome), or run `whisper-local --enable-autostart`. Disable anytime the same way. |
+| **Start on login** | Tick **Start on login** on the dashboard's Settings page (or the first-run welcome), or run `whisper-local --enable-autostart`. Disable anytime the same way. |
 
 First launch picks a model for your computer and your language, and downloads it into your HuggingFace cache. A progress line shows the download. After that, **everything runs offline**.
 
@@ -311,7 +311,7 @@ Same Whisper model you use for dictation. Same GPU. No API key. No rate limit. N
 
 ## 🎛️ Profiles
 
-Switch between presets from the tray icon → **Profile**:
+Switch between presets on the dashboard's **Style** page:
 
 | Profile | Behaviour |
 |---|---|
@@ -421,9 +421,9 @@ whisper-local --export-settings DIR        # Back up user_settings + commands
 whisper-local --import-settings DIR        # Restore from a backup
 whisper-local --export-transcripts FILE    # Dump history (.txt/.md/.csv)
 whisper-local --import-vocab FOLDER        # Mine a folder for hotwords
-whisper-local --settings           # Open the settings GUI (no YAML editing required)
-whisper-local --history            # Browse and search transcript history
-whisper-local --cheat-sheet        # Show your currently configured hotkeys
+whisper-local --settings           # Open the dashboard on Settings (no YAML editing required)
+whisper-local --history            # Open the dashboard on History (search past dictations)
+whisper-local --cheat-sheet        # Open the dashboard on About (your configured hotkeys)
 whisper-local --selftest           # Run an automated self-test (mic, model, transcription)
 whisper-local --bundle-logs        # Create a redacted diagnostic zip for bug reports
 whisper-local --serve              # Run a local OpenAI-compatible Whisper API on :7777
@@ -473,7 +473,7 @@ During dictation, **zero network traffic**. Every entry point is in [`onboarding
 
 ## 📦 Tech stack
 
-`faster-whisper` · `ctranslate2` · `sounddevice` · `ten-vad` · `pyperclip` · `pystray` · `ruamel.yaml` · `playsound3`
+`faster-whisper` · `ctranslate2` · `sounddevice` · `ten-vad` · `pyperclip` · `pystray` · `pywebview` · `ruamel.yaml` · `playsound3`
 **Windows-only:** `global-hotkeys` · `pywin32` · ctypes `SendInput`
 **macOS-only:** `pyobjc-framework-Quartz` · `pyobjc-framework-ApplicationServices`
 

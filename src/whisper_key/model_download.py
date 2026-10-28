@@ -18,10 +18,15 @@ POLL_SECONDS = 0.5
 
 # Downloads a HuggingFace snapshot into the shared cache, printing one
 # updating line ("45% · 300/670 MB"). Returns the snapshot folder; raises on failure.
-def download_snapshot(repo_id: str, label: str, allow_patterns: Optional[list] = None) -> str:
+# A caller with its own UI (the dashboard) passes `on_progress(done_bytes,
+# total_bytes)` instead: nothing is printed then, and total_bytes is 0 when the
+# Hub could not be asked for the size.
+def download_snapshot(repo_id: str, label: str, allow_patterns: Optional[list] = None,
+                      on_progress=None) -> str:
     from huggingface_hub import snapshot_download
     from huggingface_hub.constants import HF_HUB_CACHE
 
+    report = on_progress or (lambda done, total: _report(label, done, total))
     total_bytes = _expected_bytes(repo_id, allow_patterns)
     repo_folder = os.path.join(HF_HUB_CACHE, "models--" + repo_id.replace("/", "--"))
 
@@ -48,7 +53,7 @@ def download_snapshot(repo_id: str, label: str, allow_patterns: Optional[list] =
         while worker.is_alive():
             # Counts files already cached, so a resumed download starts part-way.
             done = _folder_bytes(repo_folder)
-            _report(label, min(done, total_bytes) if total_bytes else done, total_bytes)
+            report(min(done, total_bytes) if total_bytes else done, total_bytes)
             worker.join(POLL_SECONDS)
     finally:
         hub_logger.setLevel(previous_level)
@@ -56,10 +61,12 @@ def download_snapshot(repo_id: str, label: str, allow_patterns: Optional[list] =
             enable_progress_bars()
 
     if "error" in result:
-        print()
+        if not on_progress:
+            print()
         raise result["error"]
-    _report(label, total_bytes, total_bytes)
-    print()
+    report(total_bytes, total_bytes)
+    if not on_progress:
+        print()
     return result["path"]
 
 

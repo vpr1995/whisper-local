@@ -574,7 +574,7 @@ postprocess: # Transcription post-processing pipeline
     # Post-transcription corrections: literal, whole-word, case-insensitive text
     # fixes applied after Whisper and before any Ollama step. Use this for
     # consistent misrecognitions ("see translate two" → "CTranslate2"). The
-    # history window can append here for you via "Fix this everywhere...".
+    # History page can append here for you via "Fix this everywhere...".
     # Each entry: from (required), to, whole_word (default true),
     # case_sensitive (default false), regex (default false — advanced).
     # Example:
@@ -685,10 +685,10 @@ postprocess: # Transcription post-processing pipeline
 
             {text}
 
-history: # Transcript history (the --history window and the tray's Recent list)
+history: # Transcript history (the History page, --history, and the tray's Recent list)
     # How long to keep the text of past dictations on this machine, in days.
     #   null = keep them (the newest 2000)
-    #   0    = don't store them at all; the history window stays empty
+    #   0    = don't store them at all; the History page stays empty
     #   7    = drop anything older than a week, and so on
     # Usage stats (counts and durations, never text) are kept regardless.
     retention_days: null

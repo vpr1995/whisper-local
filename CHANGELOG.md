@@ -5,6 +5,23 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 ## [Unreleased]
 
 ### Added
+- **A dashboard window.** `Open Whisper Local…` in the tray opens one window
+  with a sidebar: **Home** (status, recent transcriptions, your hotkeys),
+  **History** (search your past dictations, copy or fix one everywhere),
+  **Models**, **Vocabulary** (your dictionary), **Style** (profiles, writing
+  style, clean-up level, AI transforms, per-app rules), **Settings**, and
+  **About** (restart, retry last dictation, pause hotkeys, config folder,
+  hotkey cheat sheet). It runs in its own window, so it never blocks the
+  tray.
+  Models and Style use tiles: you pick a model or a profile with one click.
+  The settings for the model, language and CPU/GPU moved from Settings to
+  Models. The AI polish (Ollama) settings moved to Style.
+- **The dashboard status bar shows the app state.** A green dot shows
+  **Ready** (the model is loaded). A moon shows **Sleeping** (the idle
+  timeout unloaded the model). It also shows **Listening…** and
+  **Transcribing…**. The status bar and the tray icon use the same source.
+- **A new logo and colour.** The app icon, the tray icons and the dashboard
+  use the new "voice to cursor" mark. The dashboard accent colour is mint.
 - **`whisper.model: auto` is the new default.** The app picks the model for
   your computer. With a set-up GPU it uses `large-v3-turbo`. When all the
   languages you speak are in Parakeet's 25, it uses `parakeet-v3`. Otherwise
@@ -27,8 +44,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   and it does not use `beam_size` or `initial_prompt`. It uses
   `whisper.hotwords` (your dictionary): names it gets wrong without them
   ("Pradvi") come out right ("Prudhvi"). The download is 670 MB, on first use.
-- **Dictionary words apply without a restart.** A word you add in Settings,
-  in the add-word dialog or with `--add-word` applies to your next
+- **Dictionary words apply without a restart.** A word you add on the
+  dashboard's Vocabulary page or with `--add-word` applies to your next
   dictation, with every backend.
 - **The floating pill now works on macOS.** It is a native panel, not a Tk
   window: blurred, rounded and dark, and it never takes focus from the text
@@ -47,6 +64,26 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   Zipformer is still available as `zipformer.tiny.en`.
 - **The pill keeps the whole recording in view.** Earlier phrases no longer
   vanish after a pause; the newest words stay visible at the end.
+
+### Changed
+- **A shorter tray menu.** It now shows the status, Start/Stop dictation,
+  Model (downloaded models only), Microphone, Auto-paste, Open Whisper
+  Local…, Settings… and Quit. Profiles, history, retry, pause, restart,
+  the config folder and the cheat sheet moved to the dashboard.
+- **Command-line flags.** `--settings`, `--history` and `--cheat-sheet` open
+  the dashboard on the Settings, History and About pages. `--window` accepts
+  only `fallback` and `dashboard`. It is an internal flag, so no user
+  command needs changing.
+- **New dependency: `pywebview` (6.2 or later).** On Windows the dashboard
+  uses the WebView2 runtime, which comes with Windows 10 and 11 when Microsoft
+  Edge is installed.
+
+### Removed
+- **The Tk Settings window** (`--settings`, `settings_ui.py`) and **the Tk
+  History window** (`--history`, `history_window.py`). Their jobs are on the
+  dashboard's Settings and History pages.
+- **The Tk add-word dialog.** Use the dashboard's Vocabulary page, or
+  `--add-word` in a terminal.
 
 ## [0.23.0]
 

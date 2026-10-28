@@ -21,7 +21,7 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Clipboard Operations** | `clipboard_manager.py` | Text copying & auto-paste functionality | pyperclip, ctypes SendInput (Win), Quartz (Mac) |
 | **Hotkey Detection** | `hotkey_listener.py` | Global hotkey monitoring | global-hotkeys (Win), NSEvent (Mac) |
 | **Configuration** | `config_manager.py` | YAML settings management & validation | ruamel.yaml |
-| **System Integration** | `system_tray.py` | System tray icon & menu interface | pystray, Pillow |
+| **System Integration** | `system_tray.py` | System tray icon with a short menu: status, Start/Stop dictation, Model, Microphone, Auto-paste, Open Whisper Local, Settings, Quit. Everything else lives in the dashboard | pystray, Pillow |
 | **Instance Management** | `instance_manager.py` | Single instance enforcement | win32event (Win), fcntl (Mac) |
 | **Voice Commands** | `voice_commands.py` | Trigger matching & command execution | subprocess |
 | **Platform Abstraction** | `platform/` | OS-specific implementations | pywin32 (Win), pyobjc (Mac) |
@@ -33,16 +33,16 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Self-Test** | `selftest.py` | `--selftest` automated mic/model/transcribe/clipboard check | sounddevice |
 | **Log Bundler** | `bundle_logs.py` | `--bundle-logs` redacted diagnostic zip for bug reports | zipfile, re |
 | **Local API Server** | `local_server.py` | `--serve` OpenAI-compatible Whisper HTTP endpoint | http.server |
-| **Settings GUI** | `settings_ui.py` | `--settings` Tkinter settings editor with search | tkinter |
-| **Transcript History** | `history_window.py` + `transcript_log.py` | `--history` searchable journal of past transcriptions | tkinter, json |
-| **Hotkey Cheat Sheet** | `cheat_sheet.py` | Window listing currently configured hotkeys | tkinter |
-| **Window Launcher** | `window_launcher.py` | Opens Tk windows in a child process where Tk needs the main thread (macOS) | subprocess, json |
+| **Dashboard** | `dashboard/` | One pywebview window with a sidebar: Home, History, Models, Vocabulary, Style, Settings, About. Vanilla HTML/CSS/JS in `dashboard/web/`, no build step. Always runs in a child process (`--window dashboard`, opened via `window_launcher.open_dashboard(page)`). Python API per area in `dashboard/api/` (`shell.py` is shared); one `web/pages/<page>.js` per page | pywebview |
+| **Transcript History** | `transcript_log.py` + dashboard History page | Journal of past transcriptions: stored log plus the search and "Fix this everywhere" actions | json |
+| **Hotkey Cheat Sheet** | `cheat_sheet.py` | Pure builder of the configured-hotkey rows shown on the dashboard's Home and About pages. No UI | - |
+| **Window Launcher** | `window_launcher.py` | Runs the dashboard (always) and the Tk fallback window (macOS) in child processes. The dashboard talks to the app over stdin/stdout JSON: the app sends `navigate` and the dashboard sends back `retry_last_dictation`, `toggle_pause_hotkeys` and `restart` | subprocess, json |
 | **First-Run Welcome** | `first_run.py` | One-time onboarding window on first launch | tkinter |
 | **Terminal Title** | `terminal_title.py` | Animated terminal tab title reflecting app state | - |
 | **Floating Overlay** | `platform/*/overlay.py` | Floating pill: level meter, timer, streaming text. Native AppKit panel on macOS, Tk `level_overlay.py` on Windows | pyobjc / tkinter |
 | **Fallback Window** | `fallback_window.py` | Capture window when no text field is focused | tkinter |
 | **Transforms** | `transforms.py` | Wispr-style AI text transforms via Ollama | ruamel.yaml |
-| **Dictionary** | `dictionary.py` | Hotword add/remove/list + add-word dialog | tkinter, ruamel.yaml |
+| **Dictionary** | `dictionary.py` | Hotword add/remove/list (`--add-word`, `--remove-word`, `--list-dictionary`) and history mining. The dashboard Vocabulary page is the GUI | ruamel.yaml |
 | **Profiles** | `profiles.py` | Dictation/Chat/Code/Notes/Translate presets | ruamel.yaml |
 | **Per-App Rules** | `app_rules.py` | Foreground-app-specific behaviour overrides | ruamel.yaml |
 | **Layered Defaults** | `defaults_merge.py` | Loads shipped defaults under the user's app_rules/commands/transforms/profiles, and migrates pre-0.21 full copies | ruamel.yaml |
@@ -62,6 +62,7 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Update Check** | `update_check.py` | Opt-in daily GitHub release check | urllib |
 | **Uninstall** | `uninstall.py` | `--uninstall` removes settings/data/autostart, models opt-in | shutil |
 | **Settings I/O** | `settings_io.py` | `--export-settings` / `--import-settings` | shutil |
+| **Settings Store** | `settings_store.py` | Pure helpers for the dashboard Settings page: coerce form values, write them to `user_settings.yaml`, reset to defaults. No UI | ruamel.yaml |
 | **Offline Models** | `model_transfer.py` | `--export-model` / `--import-model` for HF-blocked networks | shutil, ruamel.yaml |
 | **Vocab Import** | `vocab_import.py` | `--import-vocab` hotword mining from a folder | - |
 | **Setup Wizard** | `setup_wizard.py` | `--setup` interactive first-time configuration | - |
@@ -111,9 +112,11 @@ whisper-local/
 │       ├── hotkey_listener.py         # Global hotkey detection
 │       ├── instance_manager.py        # Single instance enforcement
 │       ├── model_registry.py          # Whisper model registry & caching
+│       ├── dashboard/                 # Dashboard window (pywebview): api/ + web/
 │       ├── onboarding.py              # GPU setup prompt & installation
+│       ├── settings_store.py          # Dashboard Settings page: value coercion & writes
 │       ├── state_manager.py           # Component coordination & workflow
-│       ├── system_tray.py             # System tray icon & menu
+│       ├── system_tray.py             # System tray icon & short menu
 │       ├── utils.py                   # Common utility functions
 │       ├── voice_activity_detection.py # Voice activity detection
 │       ├── voice_commands.py          # Voice command matching & execution
@@ -138,4 +141,4 @@ whisper-local/
 
 ---
 
-*Last Updated: 2026-10-07 | Project Status: Active Development*
+*Last Updated: 2026-10-28 | Project Status: Active Development*

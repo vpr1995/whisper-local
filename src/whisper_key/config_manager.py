@@ -366,7 +366,7 @@ class ConfigManager:
                 fresh = resolved.get(section)
                 if fresh is not None:
                     self.config[section] = fresh
-            # Dictionary words too: Settings, the add-word dialog and
+            # Dictionary words too: Settings, the dashboard and
             # --add-word all write the file while the app runs.
             self.config.setdefault('whisper', {})['hotwords'] = \
                 (resolved.get('whisper') or {}).get('hotwords') or []

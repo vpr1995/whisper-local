@@ -1,0 +1,50 @@
+/* pages/history.css: styles used only by the history page. Shared components live in styles.css. */
+
+/* Toolbar: search grows, Export stays compact */
+.history-toolbar { display: flex; gap: 10px; align-items: center; }
+.history-list { margin-top: 14px; }
+.history-status { margin: 8px 2px 0; font-size: 12.5px; color: var(--fg-secondary); min-height: 1.2em; }
+
+/* Text input shared by the search box and the inline fix form */
+.history-input {
+  font: inherit; color: var(--fg); background: var(--bg-control);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-control);
+  padding: 7px 11px; min-width: 0; outline: none;
+  box-shadow: var(--shadow-control);
+}
+.history-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.history-input::placeholder { color: var(--fg-secondary); }
+.history-search { flex: 1; }
+
+/* Rows */
+.history-row { padding: 12px 16px 6px; }
+.history-row + .history-row { border-top: 1px solid var(--border); }
+.history-text { line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.history-text.clamped {
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer;
+}
+.history-mark { background: var(--highlight); color: inherit; border-radius: 3px; padding: 0 1px; }
+
+.history-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.history-meta { font-size: 12px; color: var(--fg-secondary); }
+.history-actions { display: flex; gap: 2px; margin-right: -8px; }
+/* Actions stay out of sight until the row is hovered or something inside it has
+   keyboard focus. Hidden by opacity (not display) so Tab can still reach them,
+   and the row keeps its height so nothing jumps on hover. */
+.history-actions { opacity: 0; transition: opacity 0.12s; }
+.history-row:hover .history-actions,
+.history-row:focus-within .history-actions { opacity: 1; }
+.history-actions .button { padding: 3px 8px; font-size: 12.5px; }
+.history-delete { color: var(--fg-secondary); }
+.history-delete:hover { color: var(--danger); background: transparent; }
+
+/* Inline "Fix this everywhere" form */
+.history-fix { margin: 8px 0 8px; padding: 12px; border-radius: var(--radius-control); background: var(--bg-hover); }
+.history-fix-fields { display: flex; align-items: center; gap: 8px; }
+.history-fix-fields .history-input { flex: 1; }
+.history-fix-arrow { color: var(--fg-secondary); }
+.history-fix-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+.history-fix-hint { margin-right: auto; font-size: 12px; color: var(--fg-secondary); }
+
+.history-more { display: flex; justify-content: center; margin-top: 16px; }
+.history-empty-action { margin-top: 14px; }

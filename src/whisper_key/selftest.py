@@ -19,21 +19,10 @@ def run_selftest() -> int:
     print("\n🔬 Whisper Local — self-test\n" + "─" * 50)
     failures = []
 
-    print("\n[1/4] Audio capture")
-    ok, msg = _test_audio_capture()
-    _report(ok, msg, failures, "audio-capture")
-
-    print("\n[2/4] Whisper model loadable")
-    ok, msg = _test_model_loadable()
-    _report(ok, msg, failures, "model-load")
-
-    print("\n[3/4] End-to-end transcription (2-second silence)")
-    ok, msg = _test_end_to_end()
-    _report(ok, msg, failures, "transcribe")
-
-    print("\n[4/4] Clipboard read/write")
-    ok, msg = _test_clipboard()
-    _report(ok, msg, failures, "clipboard")
+    for index, (name, title, run_stage) in enumerate(STAGES, start=1):
+        print(f"\n[{index}/{len(STAGES)}] {title}")
+        ok, msg = run_stage()
+        _report(ok, msg, failures, name)
 
     print("\n" + "─" * 50)
     if not failures:
@@ -184,6 +173,16 @@ def _test_clipboard():
     except Exception as e:
         return False, (f"Clipboard error: {e}",
                        "Check no clipboard manager is blocking access")
+
+
+# (name, console title, stage function) in run order. Public so the dashboard can
+# run the same stages one by one and show each result as it lands.
+STAGES = [
+    ("audio-capture", "Audio capture", _test_audio_capture),
+    ("model-load", "Whisper model loadable", _test_model_loadable),
+    ("transcribe", "End-to-end transcription (2-second silence)", _test_end_to_end),
+    ("clipboard", "Clipboard read/write", _test_clipboard),
+]
 
 
 if __name__ == "__main__":

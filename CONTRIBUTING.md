@@ -29,7 +29,7 @@ To run the app from source while developing:
 ```bash
 python -m whisper_key.main          # or `whisper-local` after pip install -e .
 python -m whisper_key.main --doctor
-python -m whisper_key.main --settings
+python -m whisper_key.main --settings   # opens the dashboard on Settings
 ```
 
 ## Reporting bugs

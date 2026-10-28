@@ -113,11 +113,12 @@ def _run_welcome(on_close, hotkey_label, shutdown_event=None):
     items = [
         ("1.", f"Hold {hotkey_label} anywhere, speak, release.",
          "Your words appear at the cursor in any app — chat, code, browser, terminal."),
-        ("2.", "The tray icon shows status & settings.",
+        ("2.", "The tray icon is a quick control; the rest lives in the dashboard.",
+         "Choose Open Whisper Local… for history, models, vocabulary, style and settings. "
          "On Windows the tray hides icons by default — click the ^ arrow on the taskbar "
          "and drag the Whisper Local icon out for one-click access."),
-        ("3.", "If something's off, the tray icon can diagnose it.",
-         "Right-click it → Help & diagnostics → Run diagnostics. It checks the mic, "
+        ("3.", "If something's off, the dashboard can diagnose it.",
+         "Open Whisper Local… → About → diagnostics. It checks the mic, "
          "permissions, the model and the hotkeys and says what to fix."),
     ]
 

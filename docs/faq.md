@@ -26,7 +26,7 @@ Yes. After the first model download, Whisper Local works with zero network conne
 
 ### Are my transcripts stored anywhere?
 Locally only, by default:
-- `transcripts.jsonl` — last 2000 entries, opens in **Transcript history** in the tray menu
+- `transcripts.jsonl` — last 2000 entries, shown on the dashboard's **History** page
 - `stats.jsonl` — metadata only (char count, app name, duration), never the text itself
 - `app.log` — only if `logging.log_transcriptions: true` (default: false)
 
@@ -73,7 +73,7 @@ On CPU with the same `medium` model: 2–6 seconds. The first transcription afte
 Supported via ROCm on Linux/Windows. Run `whisper-local --setup` and accept the GPU install prompt; we use [PinW/ctranslate2-rocm-wheels](https://github.com/PinW/ctranslate2-rocm-wheels). Apple Silicon Macs should use the `whisper_cpp` backend (`pip install 'whisper-local[whispercpp]'`) for best performance.
 
 ### How do I make hotwords work?
-`whisper-local --add-word "MyJargon"` or the **Add word to dictionary...** tray item. The app gives these words to the model as `hotwords` (Whisper and Parakeet). Names, technical terms, codenames work best. For bulk import: `whisper-local --import-vocab FOLDER` scans a folder of text files and merges the top hotwords automatically.
+`whisper-local --add-word "MyJargon"` or the dashboard's **Vocabulary** page. The app gives these words to the model as `hotwords` (Whisper and Parakeet). Names, technical terms, codenames work best. For bulk import: `whisper-local --import-vocab FOLDER` scans a folder of text files and merges the top hotwords automatically.
 
 ### Can I use this as a server / API?
 Yes! `whisper-local --serve` starts a **local OpenAI-compatible HTTP server** on `http://127.0.0.1:7777`. Drop-in for any tool that expects `POST /v1/audio/transcriptions` (Cursor, VS Code Continue, Open WebUI, etc.) — point them at your local server with a dummy API key. Fully offline, runs the same model you use for dictation.
@@ -84,7 +84,7 @@ Yes! `whisper-local --serve` starts a **local OpenAI-compatible HTTP server** on
 Windows 10/11 hides tray icons by default. Click the `^` arrow on the right of the taskbar and **drag** the Whisper Local icon out into the visible tray area to pin it.
 
 ### How do I autostart on login?
-It's built in (since v0.11.0). Tick **Start on login** in the tray menu, check the box on the first-run welcome window, or run `whisper-local --enable-autostart` (`--disable-autostart` to undo). It launches windowless — no console window at boot. On Windows this uses an `HKCU\…\Run` entry.
+It's built in (since v0.11.0). Tick **Start on login** on the dashboard's Settings page, check the box on the first-run welcome window, or run `whisper-local --enable-autostart` (`--disable-autostart` to undo). It launches windowless — no console window at boot. On Windows this uses an `HKCU\…\Run` entry.
 
 On macOS it's a LaunchAgent that starts the app through a small helper, `~/Library/Application Support/Whisper Local/Whisper Local.app`. At the first login after you turn it on, macOS asks you to allow "Whisper Local" under Accessibility, and later under Microphone. The app starts as soon as you allow it, or after a minute either way. Building the helper needs Apple's Command Line Tools (`xcode-select --install`). Without them, the LaunchAgent runs Python directly and macOS asks about Python instead.
 

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Whisper Local app icon: voice (rising mint bars) becomes text (white I-beam cursor).
+       824 px graphite squircle centred on a 1024 canvas (macOS icon grid). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0" stop-color="#4b5364"/><stop offset="1" stop-color="#14171f"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.16"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="mint" gradientUnits="userSpaceOnUse" x1="0" y1="250" x2="0" y2="780">
+      <stop offset="0" stop-color="#9ffbe6"/><stop offset="1" stop-color="#28c9a8"/>
+    </linearGradient>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="135%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <filter id="glow" x="-60%" y="-30%" width="220%" height="160%">
+      <feGaussianBlur stdDeviation="26"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#shadow)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+  <!-- brighter rim keeps the dark tile visible on dark backgrounds -->
+  <rect x="102" y="102" width="820" height="820" rx="183" fill="none" stroke="#fff" stroke-opacity="0.3" stroke-width="4"/>
+  <!-- soft mint glow behind the cursor: the "ready to type" moment -->
+  <rect x="718" y="262" width="60" height="500" rx="30" fill="#3ee8c4" opacity="0.6" filter="url(#glow)"/>
+  <!-- bars ramp up toward the caret -->
+  <g fill="url(#mint)">
+    <rect x="208" y="412" width="78" height="220" rx="39" opacity="0.72"/>
+    <rect x="346" y="337" width="78" height="360" rx="39" opacity="0.88"/>
+    <rect x="484" y="262" width="78" height="500" rx="39"/>
+  </g>
+  <!-- I-beam text cursor: heavy stem and serifs -->
+  <g fill="#ffffff">
+    <rect x="716" y="252" width="64" height="520" rx="32"/>
+    <rect x="646" y="236" width="204" height="64" rx="32"/>
+    <rect x="646" y="724" width="204" height="64" rx="32"/>
+  </g>
+</svg>

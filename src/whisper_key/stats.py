@@ -316,3 +316,49 @@ def _compute_streaks(active_days: set, today: datetime.date) -> tuple:
                 break
         return cs, longest
     return 0, longest
+
+
+# ── Structured summary (dashboard Home page) ─────────────────────────────────
+
+# Every parsable line of stats.jsonl, oldest first. Empty when the file is
+# missing; malformed lines are skipped so one bad write can't hide the rest.
+def load_entries() -> list:
+    path = Path(get_user_app_data_path()) / STATS_FILE
+    entries = []
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                try:
+                    entries.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        pass
+    return entries
+
+
+# The headline numbers as a plain dict — the same maths show_stats() prints, in a
+# shape a UI can render. Words use the CHARS_PER_WORD convention used everywhere
+# else in this module, so the dashboard and `--stats` always agree.
+def summarize_usage(typing_wpm: float = DEFAULT_TYPING_WPM, today: Optional[datetime.date] = None) -> dict:
+    today = today or datetime.date.today()
+    entries = load_entries()
+
+    total_chars = sum(_safe_int(e.get('chars')) for e in entries)
+    total_seconds = sum(_safe_float(e.get('duration_s')) for e in entries)
+    today_prefix = today.isoformat()
+    today_chars = sum(_safe_int(e.get('chars')) for e in entries
+                      if str(e.get('ts', '')).startswith(today_prefix))
+    active_days = {str(e['ts'])[:10] for e in entries if e.get('ts')}
+    streak, longest_streak = _compute_streaks(active_days, today)
+
+    total_words = total_chars // CHARS_PER_WORD
+    return {
+        'sessions': len(entries),
+        'total_words': total_words,
+        'today_words': today_chars // CHARS_PER_WORD,
+        'active_days': len(active_days),
+        'streak_days': streak,
+        'longest_streak_days': longest_streak,
+        'minutes_saved': round(_minutes_saved(total_words, total_seconds, typing_wpm), 1),
+    }

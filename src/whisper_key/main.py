@@ -353,16 +353,17 @@ def main():
     parser.add_argument('--add-word', metavar='WORD', help='Add a word to your hotwords dictionary')
     parser.add_argument('--remove-word', metavar='WORD', help='Remove a word from your hotwords dictionary')
     parser.add_argument('--list-dictionary', action='store_true', help='Show all words in your hotwords dictionary')
-    parser.add_argument('--settings', action='store_true', help='Open the settings window')
-    parser.add_argument('--history', action='store_true', help='Browse transcript history')
-    # Internal: how window_launcher opens a Tk window in its own process where Tk
-    # must own the main thread (macOS). Not meant to be typed by users.
-    parser.add_argument('--window', choices=('cheat-sheet', 'add-word', 'fallback', 'history'),
+    parser.add_argument('--settings', action='store_true', help='Open the dashboard on the Settings page')
+    parser.add_argument('--history', action='store_true', help='Open the dashboard on the History page')
+    # Internal: how window_launcher opens a window in its own process (the
+    # dashboard everywhere; the Tk fallback window where Tk must own the main thread, macOS).
+    # Not meant to be typed by users.
+    parser.add_argument('--window', choices=('fallback', 'dashboard'),
                         help=argparse.SUPPRESS)
     parser.add_argument('--enable-autostart', action='store_true', help='Launch Whisper Local automatically at login')
     parser.add_argument('--disable-autostart', action='store_true', help='Stop launching at login')
     parser.add_argument('--selftest', action='store_true', help='Run automated self-test (mic, model, transcription, clipboard)')
-    parser.add_argument('--cheat-sheet', action='store_true', help='Show your currently configured hotkeys in a window')
+    parser.add_argument('--cheat-sheet', action='store_true', help='Open the dashboard on About, which lists your configured hotkeys')
     parser.add_argument('--bundle-logs', metavar='PATH', nargs='?', const='', help='Create a redacted diagnostic zip for bug reports')
     parser.add_argument('--serve', action='store_true', help='Run a local OpenAI-compatible Whisper API server')
     parser.add_argument('--serve-host', default='127.0.0.1', help='Server bind host (default: 127.0.0.1)')
@@ -450,22 +451,14 @@ def main():
         from .window_launcher import run_window
         sys.exit(run_window(args.window, sys.stdin))
 
-    if args.settings:
-        from .settings_ui import run_settings_window
-        run_settings_window()
-        sys.exit(0)
-
-    if args.history:
-        from .history_window import show_history
-        from .utils import tk_requires_main_thread
-        # Wait for the window to close. It runs on a daemon thread, so exiting
-        # here would kill it on the spot — the window opened and vanished
-        # immediately when launched from the tray (issue #10). On macOS Tk must
-        # own the main thread, so there it runs right here instead.
-        window = show_history(blocking=tk_requires_main_thread())
-        if window:
-            window.join()
-        sys.exit(0)
+    # Dashboard CLI shortcuts: no app is running here, so the dashboard takes
+    # this process's main thread directly (pywebview needs it) and blocks until
+    # the window closes.
+    dashboard_page = ('settings' if args.settings else 'history' if args.history
+                      else 'about' if args.cheat_sheet else None)
+    if dashboard_page:
+        from .dashboard import run_dashboard
+        sys.exit(run_dashboard(dashboard_page))
 
     if args.enable_autostart:
         from . import autostart
@@ -484,15 +477,6 @@ def main():
     if args.selftest:
         from .selftest import run_selftest
         sys.exit(run_selftest())
-
-    if args.cheat_sheet:
-        from .cheat_sheet import show_cheat_sheet
-        from .utils import tk_requires_main_thread
-        # Same daemon-thread trap (and macOS main-thread rule) as --history above.
-        window = show_cheat_sheet(blocking=tk_requires_main_thread())
-        if window:
-            window.join()
-        sys.exit(0)
 
     if args.bundle_logs is not None:
         from .bundle_logs import bundle_logs

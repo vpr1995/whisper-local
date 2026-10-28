@@ -162,7 +162,7 @@ def postprocess(text: str, config: dict) -> str:
     text = _apply_corrections(text, config.get('corrections'))
 
     # `replacements` is the per-entry form (whole_word / case_sensitive /
-    # regex) and is what the history window's "Fix this everywhere" writes.
+    # regex) and is what the History page's "Fix this everywhere" writes.
     replacements = config.get('replacements')
     if isinstance(replacements, (list, tuple)) and replacements:
         text = _apply_replacements(text, replacements)
@@ -415,7 +415,7 @@ def _apply_smart_formatting(text: str, cfg: dict) -> str:
 # ergonomic one when Whisper mangles the SAME term several different ways —
 # you write the correct spelling once and list what you actually hear back.
 # `replacements` stays the per-entry form (whole_word / case_sensitive / regex)
-# and is what the history window's "Fix this everywhere" writes.
+# and is what the History page's "Fix this everywhere" writes.
 #
 # Every variant compiles into ONE alternation applied in a single pass, so cost
 # is independent of how many corrections you define. Sorting longest-first

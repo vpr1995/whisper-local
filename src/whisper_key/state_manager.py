@@ -48,6 +48,7 @@ from .transcript_log import record_transcript
 from .platform import foreground, audio_endpoints
 from .platform import overlay as platform_overlay
 from .fallback_window import FallbackWindow
+from . import window_launcher
 
 class StateManager:
     def __init__(self,
@@ -250,6 +251,9 @@ class StateManager:
         if paused and self.audio_recorder.get_recording_status():
             self.cancel_active_recording()
         self.system_tray.notify("Hotkeys paused" if paused else "Hotkeys resumed")
+        # The tray's status line shows "Hotkeys paused"; the pause hotkey changes
+        # it behind the menu's back, so rebuild it here.
+        self.system_tray.refresh_menu()
 
     def start_rephrase_recording(self):
         if not self.can_start_recording():
@@ -639,7 +643,7 @@ class StateManager:
                 failure = getattr(self.whisper_engine, 'last_error', None)
                 if failure:
                     self.system_tray.notify(f"Transcription failed: {failure[:140]}. "
-                                            "Your audio is kept: tray > Retry last dictation.")
+                                            "Your audio is kept: Open Whisper Local > About > Retry last dictation.")
                     if self.level_overlay:
                         self.level_overlay.flash_failure("Transcription failed")
                 elif getattr(self.audio_recorder, 'last_recording_was_silent', False):
@@ -872,9 +876,10 @@ class StateManager:
             print(f"❌ Test failed: {e}")
 
     # Single place that fans a state change out to every status surface, so
-    # the tray icon and the terminal tab title can never drift apart. Both are
-    # OptionalComponent-wrapped: a disabled tray or a non-TTY terminal is a
-    # silent no-op rather than a branch at each call site.
+    # the tray icon, the terminal tab title and the dashboard's status bar can
+    # never drift apart. The tray and title are OptionalComponent-wrapped (a
+    # disabled tray or a non-TTY terminal is a silent no-op) and the dashboard
+    # push does nothing while no dashboard is open.
     def _update_ui_state(self, state: str):
         # Idle with the model unloaded (whisper.unload_after_minutes) is shown
         # as "sleeping", so the tray tells the user the next dictation reloads.
@@ -882,6 +887,7 @@ class StateManager:
             state = "sleeping"
         self.system_tray.update_state(state)
         self.terminal_title.update_state(state)
+        window_launcher.publish_app_state(state)
 
     # Engine callback after an idle unload or reload. Only repaints when the
     # app is idle: recording/processing art must not be overwritten.

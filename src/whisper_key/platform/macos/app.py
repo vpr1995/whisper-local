@@ -6,7 +6,9 @@
 from AppKit import NSApplication, NSApplicationActivationPolicyAccessory, NSEventMaskAny, NSDefaultRunLoopMode
 from Foundation import NSDate, NSObject, NSOperationQueue, NSThread
 
-class AppDelegate(NSObject):
+# Uniquely named: Objective-C class names are process-global, and pywebview (the
+# dashboard) defines its own "AppDelegate"; sharing the name aborts the import.
+class WhisperLocalAppDelegate(NSObject):
     def applicationSupportsSecureRestorableState_(self, app):
         return True
 
@@ -51,8 +53,34 @@ def setup():
     _preload_tk()  # must run before sharedApplication() below
     app = NSApplication.sharedApplication()
     app.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
-    _delegate = AppDelegate.alloc().init()
+    _delegate = WhisperLocalAppDelegate.alloc().init()
     app.setDelegate_(_delegate)
+
+# ── Process identity (dashboard child) ───────────────────────────────────────
+# A plain `python -m ...` process has no .app bundle, so macOS labels it with
+# the Python interpreter's bundle: rocket icon in the Dock, "Python" in the menu
+# bar. This patches what can be patched at runtime. Call it in the process that
+# owns a regular (Dock-visible) window, before the window is created.
+#
+# - Menu-bar app-menu title: AppKit builds it from CFBundleName in the main
+#   bundle's info dictionary, which is a mutable dict, so overriding it works.
+# - Dock icon: NSApplication.setApplicationIconImage_ overrides the interpreter's.
+# - Dock hover label and Cmd-Tab name: LaunchServices derives these from the
+#   on-disk bundle (the interpreter's "Python"), which cannot be changed at
+#   runtime; only a real .app bundle fixes those.
+def set_process_identity(app_name: str, icon_path: str):
+    from AppKit import NSImage
+    from Foundation import NSBundle, NSProcessInfo
+    info = NSBundle.mainBundle().infoDictionary()
+    if info is not None:
+        for key in ('CFBundleName', 'CFBundleDisplayName'):
+            info[key] = app_name
+    NSProcessInfo.processInfo().setProcessName_(app_name)
+    # Creating NSApp here is what pywebview would do next anyway (plain class).
+    app = NSApplication.sharedApplication()
+    icon_image = NSImage.alloc().initWithContentsOfFile_(icon_path)
+    if icon_image is not None:
+        app.setApplicationIconImage_(icon_image)
 
 def getch():
     import tty

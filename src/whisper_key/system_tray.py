@@ -1,18 +1,17 @@
 # system_tray.py
-# The always-visible control surface: tray icon, balloon notifications, and the
-# right-click menu that exposes almost every feature (profiles, language, model,
-# transforms, recent transcripts, diagnostics, restart/exit). The icon doubles as
-# a state indicator — it swaps art for idle/recording/processing so the user can
-# see what the app is doing at a glance. pystray/Pillow are imported defensively
-# so a machine without a usable tray still runs headless instead of crashing.
+# The always-visible control surface: tray icon, balloon notifications, and a
+# deliberately short right-click menu (status, start/stop dictation, model /
+# microphone / auto-paste quick pickers, open dashboard, quit). Everything else
+# lives in the dashboard window. The icon doubles as a state indicator — it
+# swaps art for idle/recording/processing so the user can see what the app is
+# doing at a glance. pystray/Pillow are imported defensively so a machine
+# without a usable tray still runs headless instead of crashing.
 
 import logging
 import os
 import signal
 from typing import Optional, TYPE_CHECKING
-from pathlib import Path
 
-from .utils import open_file
 from .platform import app as platform_app, permissions, icons, console
 
 try:
@@ -90,8 +89,10 @@ class SystemTray:
     def _build_model_menu_items(self, current_model: str, is_model_loading: bool) -> list:
         items = []
 
+        no_models_item = pystray.MenuItem("No downloaded models", None, enabled=False)
+
         if not self.model_registry:
-            return items
+            return [no_models_item]
 
         def make_model_selector(model_key):
             return lambda icon, item: self._select_model(model_key)
@@ -104,7 +105,11 @@ class SystemTray:
 
         first_group = True
         for group in self.model_registry.get_groups_ordered():
-            models = self.model_registry.get_models_by_group(group)
+            # Only downloaded models are offered (picking one would otherwise
+            # trigger a surprise multi-hundred-MB download); the current model
+            # always stays so the radio check never vanishes.
+            models = [m for m in self.model_registry.get_models_by_group(group)
+                      if m.key == current_model or self.model_registry.is_model_cached(m.key)]
             if not models:
                 continue
 
@@ -121,157 +126,101 @@ class SystemTray:
                     enabled=model_selection_enabled
                 ))
 
+        # pystray rejects an empty submenu; show a disabled hint instead.
+        if not items:
+            items.append(no_models_item)
+
         return items
 
-    LANGUAGES = [
-        ('auto', 'Auto-detect'), ('en', 'English'), ('es', 'Spanish'),
-        ('fr', 'French'), ('de', 'German'), ('it', 'Italian'),
-        ('pt', 'Portuguese'), ('nl', 'Dutch'), ('pl', 'Polish'),
-        ('ru', 'Russian'), ('ja', 'Japanese'), ('zh', 'Chinese'),
-        ('ko', 'Korean'), ('hi', 'Hindi'), ('ar', 'Arabic'),
-    ]
+    # ── Menu status + dictation toggle ────────────────────────────────────────
 
-    def _build_language_menu(self):
+    # One-line status for the disabled header row. Reads the lock-free
+    # get_application_state() flags (not get_current_state(), which takes the
+    # state lock) because pystray may evaluate this while the UI thread is
+    # being marshalled to by a thread that already holds that lock.
+    def _status_text(self, item=None) -> str:
         try:
-            current = self.state_manager.get_current_language()
-        except Exception:
-            current = 'auto'
+            app_state = self.state_manager.get_application_state()
+            if app_state.get('model_loading'):
+                return "Whisper Local: Loading model…"
+            if app_state.get('recording'):
+                return "Whisper Local: Listening…"
+            if app_state.get('processing'):
+                return "Whisper Local: Transcribing…"
+            if self.state_manager.is_hotkeys_paused():
+                return "Whisper Local: Hotkeys paused"
+        except Exception as e:
+            self.logger.debug(f"Could not read state for tray status: {e}")
+        return "Whisper Local: Ready"
 
-        def make_setter(code):
-            return lambda icon, item: self.state_manager.set_language(code)
+    # "Ctrl+Win" rather than the config's lowercase "ctrl+win" so the label
+    # reads like a keycap hint next to the action.
+    def _format_hotkey_label(self, hotkey_string: str) -> str:
+        return "+".join(part.strip().capitalize() for part in hotkey_string.split("+") if part.strip())
 
-        def make_is_current(code):
-            return lambda item: current == code
-
-        return [
-            pystray.MenuItem(label, make_setter(code), radio=True, checked=make_is_current(code))
-            for code, label in self.LANGUAGES
-        ]
-
-    OVERLAY_POSITIONS = [
-        ('bottom-center', 'Bottom Center'),
-        ('bottom-right', 'Bottom Right'),
-        ('bottom-left', 'Bottom Left'),
-        ('top-center', 'Top Center'),
-        ('top-right', 'Top Right'),
-        ('top-left', 'Top Left'),
-    ]
-
-    def _build_overlay_menu(self):
+    def _dictation_toggle_label(self, item=None) -> str:
         try:
-            current = self.state_manager.get_overlay_position()
+            if self.state_manager.get_application_state().get('recording'):
+                return "Stop dictation"
+            hotkey = self.config_manager.get_setting('hotkey', 'recording_hotkey')
         except Exception:
-            current = 'bottom-center'
+            return "Start dictation"
+        return f"Start dictation   {self._format_hotkey_label(hotkey)}" if hotkey else "Start dictation"
 
-        def make_setter(pos):
-            return lambda icon, item: self.state_manager.set_overlay_position(pos)
+    # Mouse equivalent of the record hotkey: calls the same state_manager entry
+    # points the hotkey listener does (start_recording / stop_recording). Run on
+    # its own thread, like a hotkey callback, because starting the mic and
+    # playing the start sound must not block the tray's UI thread.
+    def _toggle_dictation(self, icon=None, item=None):
+        import threading
 
-        def make_is_current(pos):
-            return lambda item: current == pos
+        def work():
+            try:
+                if self.state_manager.get_application_state().get('recording'):
+                    self.state_manager.stop_recording()
+                else:
+                    self.state_manager.start_recording()
+            except Exception as e:
+                self.logger.error(f"Failed to toggle dictation from tray: {e}")
+        threading.Thread(target=work, daemon=True, name='tray-dictation-toggle').start()
 
-        return [
-            pystray.MenuItem(label, make_setter(pos), radio=True, checked=make_is_current(pos))
-            for pos, label in self.OVERLAY_POSITIONS
-        ]
+    # Shows the dashboard on `page`; if it is already open it just navigates.
+    def _open_dashboard(self, page: str = "home", icon=None, item=None):
+        from . import window_launcher
+        window_launcher.open_dashboard(page, on_app_command=self._handle_dashboard_command)
 
-    def _build_transforms_menu(self):
-        try:
-            transforms = self.state_manager.list_transforms()
-        except Exception:
-            return []
-        if not transforms:
-            return []
+    # Runs the app-side half of a command the dashboard sent (the launcher has
+    # already checked it against its whitelist). Called on the launcher's reader
+    # thread, so it must not block for long. The menu refresh after a pause
+    # toggle happens in StateManager.set_paused.
+    def _handle_dashboard_command(self, command: str):
+        if command == 'restart':
+            self._restart_application_from_tray()
+        elif command == 'retry_last_dictation':
+            self.state_manager.retry_last_dictation()
+        elif command == 'toggle_pause_hotkeys':
+            self.state_manager.toggle_hotkeys_paused()
+        else:
+            self.logger.warning(f"Unhandled dashboard command: {command}")
 
-        def make_activator(name):
-            return lambda icon, item: self.state_manager.apply_transform(name)
-
-        items = []
-        for t in transforms:
-            name = t.get('name') or '?'
-            hotkey = t.get('hotkey')
-            label = name.title()
-            if hotkey:
-                label = f"{label}  ({hotkey.upper()})"
-            items.append(pystray.MenuItem(label, make_activator(name)))
-        return items
-
-    def _build_profile_menu(self):
-        try:
-            profiles = self.state_manager.list_profiles()
-            active = self.state_manager.get_active_profile()
-        except Exception:
-            return []
-        if not profiles:
-            return []
-
-        def make_activator(name):
-            return lambda icon, item: self.state_manager.activate_profile(name)
-
-        def make_is_active(name):
-            return lambda item: active == name
-
-        return [
-            pystray.MenuItem(name.title(), make_activator(name),
-                             radio=True, checked=make_is_active(name))
-            for name in profiles
-        ]
-
-    def _build_recent_transcriptions_menu(self):
-        try:
-            recent = self.state_manager.get_recent_transcriptions()
-        except Exception:
-            return []
-        if not recent:
-            return []
-
-        def make_recopy(idx):
-            return lambda icon, item: self.state_manager.recopy_recent_transcription(idx)
-
-        items = []
-        for i, text in enumerate(recent):
-            label = text if len(text) <= 50 else text[:47] + "..."
-            items.append(pystray.MenuItem(label, make_recopy(i)))
-        return items
+    # ── Menu construction ─────────────────────────────────────────────────────
 
     # Rebuilt from scratch on every refresh rather than mutated in place, because
-    # pystray menus are immutable once shown — this is how checkmarks, the model
-    # list, and recent transcripts stay current. Items are appended in a
-    # deliberate order (state → profiles/language/model → files → diagnostics →
-    # restart/exit); `None` entries are filtered out at the end so a disabled
-    # feature simply omits its row.
+    # pystray menus are immutable once shown — this is how checkmarks and the
+    # model list stay current. Deliberately short: status → dictation toggle →
+    # quick pickers (model / mic / auto-paste) → dashboard → quit. Everything
+    # else lives in the dashboard window.
     def _create_menu(self):
         try:
             app_state = self.state_manager.get_application_state()
             is_model_loading = app_state.get('model_loading', False)
 
-            auto_paste_enabled = self.config_manager.get_setting('clipboard', 'auto_paste')
             # With `auto` the config key isn't a menu item, so the check mark
             # follows the model the engine runs.
             configured_model = self.config_manager.get_setting('whisper', 'model')
             current_model = getattr(self.state_manager.whisper_engine, 'model_key', configured_model)
 
-            available_hosts = self.state_manager.get_available_audio_hosts()
             current_host = self.state_manager.get_current_audio_host()
-
-            def is_current_host(host_name):
-                return lambda item: current_host == host_name
-
-            def switch_host(host_name):
-                return lambda icon, item: self._select_audio_host(host_name)
-
-            audio_host_items = []
-            if available_hosts:
-                for host in available_hosts:
-                    host_name = host['name']
-                    audio_host_items.append(
-                        pystray.MenuItem(
-                            host_name,
-                            switch_host(host_name),
-                            radio=True,
-                            checked=is_current_host(host_name)
-                        )
-                    )
-
             available_devices = self.state_manager.get_available_audio_devices(current_host)
             current_device = self.state_manager.get_current_audio_device_id()
 
@@ -282,168 +231,69 @@ class SystemTray:
                 return lambda icon, item: self._select_audio_device(dev_id, dev_name)
 
             audio_device_items = []
-
-            if available_devices:
-                for device in available_devices:
-                    device_id = device['id']
-                    device_name = device['name']
-
-                    audio_device_items.append(
-                        pystray.MenuItem(
-                            device_name,
-                            switch_device(device_id, device['name']),
-                            radio=True,
-                            checked=is_current_device(device_id)
-                        )
+            for device in (available_devices or []):
+                audio_device_items.append(
+                    pystray.MenuItem(
+                        device['name'],
+                        switch_device(device['id'], device['name']),
+                        radio=True,
+                        checked=is_current_device(device['id'])
                     )
+                )
 
             model_sub_menu_items = self._build_model_menu_items(current_model, is_model_loading)
 
-            voice_commands_enabled = self.config_manager.get_setting('voice_commands', 'enabled')
-
             menu_items = []
 
-            if console.owns_console():
+            # Windows pyapp builds own a console; it is the double-click target
+            # there. Everywhere else double-click opens the dashboard.
+            owns_console = console.owns_console()
+            if owns_console:
                 menu_items.append(pystray.MenuItem("Show Console", self._show_console, default=True))
                 menu_items.append(pystray.Menu.SEPARATOR)
 
-            from . import autostart
             menu_items += [
-                pystray.MenuItem("Settings...", self._open_settings_window),
-                pystray.MenuItem("Hotkey cheat sheet...", self._open_cheat_sheet),
-                pystray.MenuItem("Transcript history...", self._open_history_window),
-                pystray.MenuItem("Retry last dictation", self._retry_last_dictation,
-                                 enabled=lambda item: self.state_manager.has_last_recording()),
-            ]
-            if autostart.is_supported():
-                menu_items.append(pystray.MenuItem(
-                    "Start on login",
-                    self._toggle_autostart,
-                    checked=lambda item: autostart.is_enabled(),
-                ))
-            # The pause hotkey's mouse equivalent, for a call or a game where
-            # the chord is needed by something else and nobody remembers the key.
-            menu_items.append(pystray.MenuItem(
-                "Pause hotkeys",
-                self._toggle_pause,
-                checked=lambda item: self.state_manager.is_hotkeys_paused(),
-            ))
-            menu_items += [
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Add word to dictionary...", self._open_add_word_dialog),
-                pystray.MenuItem("Edit settings file...", self._open_config_file),
-                pystray.MenuItem("Open config folder...", self._open_config_folder),
-                pystray.MenuItem("Open commands file...", self._open_commands_file) if voice_commands_enabled else None,
-                # Diagnostics folded into a submenu so the top level stays scannable.
-                pystray.MenuItem("Help & diagnostics", pystray.Menu(
-                    pystray.MenuItem("Run diagnostics...", self._run_doctor_in_window),
-                    pystray.MenuItem("Run self-test...", self._run_selftest_in_window),
-                    pystray.MenuItem("Bundle logs for bug report...", self._bundle_logs_action),
-                    pystray.MenuItem("View stats...", self._run_stats_in_window),
-                    pystray.MenuItem("Open log file...", self._open_log_file),
-                    pystray.MenuItem("Open model cache...", self._open_model_cache),
-                )),
-                pystray.Menu.SEPARATOR,
+                # Disabled row: text only, callable so it tracks live state.
+                pystray.MenuItem(self._status_text, None, enabled=False),
                 pystray.MenuItem(
-                    "Audio Host",
-                    pystray.Menu(*audio_host_items)
-                ) if audio_host_items else None,
-                pystray.MenuItem(
-                    "Microphone",
-                    pystray.Menu(*audio_device_items)
+                    self._dictation_toggle_label,
+                    self._toggle_dictation,
+                    enabled=not is_model_loading,
                 ),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Auto-paste", lambda icon, item: self._set_transcription_mode(True), radio=True, checked=lambda item: auto_paste_enabled),
-                pystray.MenuItem("Copy to clipboard", lambda icon, item: self._set_transcription_mode(False), radio=True, checked=lambda item: not auto_paste_enabled),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(f"Model: {current_model.title()}" + (" (auto)" if configured_model == 'auto' else ""), pystray.Menu(*model_sub_menu_items)),
                 pystray.MenuItem(
-                    f"Language: {self.state_manager.get_current_language()}",
-                    pystray.Menu(*self._build_language_menu())
+                    f"Model: {current_model.title()}" + (" (auto)" if configured_model == 'auto' else ""),
+                    pystray.Menu(*model_sub_menu_items)
                 ),
+                pystray.MenuItem("Microphone", pystray.Menu(*audio_device_items)),
+                # Single checkbox: unchecked means "copy to clipboard only".
+                # Reads config fresh so the box is right even if settings
+                # changed elsewhere since the menu was built.
+                pystray.MenuItem(
+                    "Auto-paste",
+                    lambda icon, item: self._set_transcription_mode(
+                        not self.config_manager.get_setting('clipboard', 'auto_paste')),
+                    checked=lambda item: bool(self.config_manager.get_setting('clipboard', 'auto_paste')),
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "Open Whisper Local…",
+                    lambda icon, item: self._open_dashboard(page="home"),
+                    default=not owns_console,
+                ),
+                pystray.MenuItem(
+                    "Settings…",
+                    lambda icon, item: self._open_dashboard(page="settings"),
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Quit Whisper Local", self._quit_application_from_tray),
             ]
 
-            profile_items = self._build_profile_menu()
-            if profile_items:
-                active_profile = self.state_manager.get_active_profile() or "—"
-                menu_items.append(pystray.MenuItem(
-                    f"Profile: {active_profile.title()}",
-                    pystray.Menu(*profile_items)
-                ))
+            return pystray.Menu(*menu_items)
 
-            menu_items.append(pystray.MenuItem(
-                "Overlay position",
-                pystray.Menu(*self._build_overlay_menu())
-            ))
-
-            transform_items = self._build_transforms_menu()
-            if transform_items:
-                transform_items = list(transform_items) + [
-                    pystray.Menu.SEPARATOR,
-                    pystray.MenuItem("Edit transforms.yaml...", self._open_transforms_file),
-                    pystray.MenuItem("Reload from file", self._reload_transforms),
-                ]
-                menu_items.append(pystray.MenuItem(
-                    "Transforms",
-                    pystray.Menu(*transform_items)
-                ))
-
-            recent_items = self._build_recent_transcriptions_menu()
-            if recent_items:
-                menu_items.append(pystray.Menu.SEPARATOR)
-                menu_items.append(pystray.MenuItem("Recent", pystray.Menu(*recent_items)))
-
-            menu_items.extend([
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Restart Whisper Local", self._restart_application_from_tray),
-                pystray.MenuItem("Exit", self._quit_application_from_tray)
-            ])
-
-            menu = pystray.Menu(*[item for item in menu_items if item is not None])
-
-            return menu 
-                
         except Exception as e:
             self.logger.error(f"Error in _create_menu: {e}")
             raise
-
-    def _open_config_folder(self, icon=None, item=None):
-        try:
-            config_dir = os.path.dirname(self.config_manager.user_settings_path)
-            open_file(config_dir)
-        except Exception as e:
-            self.logger.error(f"Failed to open config folder: {e}")
-
-    def _open_config_file(self, icon=None, item=None):
-        try:
-            open_file(self.config_manager.user_settings_path)
-        except Exception as e:
-            self.logger.error(f"Failed to open config file: {e}")
-
-    def _open_commands_file(self, icon=None, item=None):
-        try:
-            commands_path = os.path.join(
-                os.path.dirname(self.config_manager.user_settings_path),
-                "commands.yaml"
-            )
-            open_file(commands_path)
-        except Exception as e:
-            self.logger.error(f"Failed to open commands file: {e}")
-
-    def _open_log_file(self, icon=None, item=None):
-        try:
-            log_path = self.config_manager.get_log_file_path()
-            open_file(log_path)
-        except Exception as e:
-            self.logger.error(f"Failed to open log file: {e}")
-
-    def _open_model_cache(self, icon=None, item=None):
-        try:
-            cache_path = self.model_registry.get_hf_cache_path()
-            os.makedirs(cache_path, exist_ok=True)
-            open_file(cache_path)
-        except Exception as e:
-            self.logger.error(f"Failed to open model cache: {e}")
 
     def _set_transcription_mode(self, auto_paste: bool):
         # Paste needs Accessibility: show macOS's dialog; pasting starts
@@ -467,16 +317,6 @@ class SystemTray:
         except Exception as e:
             self.logger.error(f"Error selecting model {model_key}: {e}")
 
-    def _select_audio_host(self, host_name: str):
-        try:
-            success = self.state_manager.set_audio_host(host_name)
-            if success:
-                self._set_menu()
-            else:
-                self.logger.warning(f"Request to change audio host to {host_name} was not accepted")
-        except Exception as e:
-            self.logger.error(f"Error selecting audio host {host_name}: {e}")
-
     def _select_audio_device(self, device_id: int, device_name: str):
         success = self.state_manager.request_audio_device_change(device_id, device_name)
 
@@ -499,6 +339,8 @@ class SystemTray:
     def _quit_application_from_tray(self, icon=None, item=None):
         os.kill(os.getpid(), signal.SIGINT)
 
+    # Reached from the dashboard's About page ("Restart"), not the tray menu.
+    #
     # Relaunch, then quit this instance — the new one's single-instance guard
     # takes over the lock. The command comes from utils.build_relaunch_command,
     # the same builder autostart uses, so the two can't disagree.
@@ -524,117 +366,6 @@ class SystemTray:
             return
         os.kill(os.getpid(), signal.SIGINT)
 
-    def _run_doctor_in_window(self, icon=None, item=None):
-        self._run_module_in_window('--doctor')
-
-    def _run_stats_in_window(self, icon=None, item=None):
-        self._run_module_in_window('--stats')
-
-    def _open_settings_window(self, icon=None, item=None):
-        self._run_module_in_window('--settings', windowless=True)
-
-    def _open_history_window(self, icon=None, item=None):
-        self._run_module_in_window('--history', windowless=True)
-
-    def _retry_last_dictation(self, icon=None, item=None):
-        try:
-            self.state_manager.retry_last_dictation()
-        except Exception as e:
-            self.logger.error(f"Retry failed: {e}")
-
-    def _toggle_pause(self, icon=None, item=None):
-        try:
-            self.state_manager.toggle_hotkeys_paused()
-            self._set_menu()
-        except Exception as e:
-            self.logger.error(f"Failed to toggle pause: {e}")
-
-    def _toggle_autostart(self, icon=None, item=None):
-        try:
-            from . import autostart
-            now_on = autostart.toggle()
-            self.notify("Will start on login" if now_on else "Won't start on login")
-            self.refresh_menu()
-        except Exception as e:
-            self.logger.error(f"Failed to toggle autostart: {e}")
-
-    def _open_cheat_sheet(self, icon=None, item=None):
-        try:
-            from .window_launcher import open_in_child_process
-            if open_in_child_process('cheat-sheet'):
-                return
-            from .cheat_sheet import show_cheat_sheet
-            show_cheat_sheet(
-                config_manager=self.config_manager,
-                transforms_manager=getattr(self.state_manager, 'transforms_manager', None),
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to open cheat sheet: {e}")
-
-    def _run_selftest_in_window(self, icon=None, item=None):
-        self._run_module_in_window('--selftest')
-
-    def _bundle_logs_action(self, icon=None, item=None):
-        import threading
-
-        def work():
-            try:
-                from .bundle_logs import bundle_logs
-                import datetime
-                stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-                output = str(Path.home() / 'Desktop' / f'whisper-local-bundle-{stamp}.zip')
-                bundle_logs(output)
-                self.notify(f"Bundle saved to your Desktop: whisper-local-bundle-{stamp}.zip")
-            except Exception as e:
-                self.logger.error(f"Bundle logs failed: {e}")
-                self.notify(f"Bundle failed: {e}")
-        threading.Thread(target=work, daemon=True, name='bundle-logs').start()
-
-    def _open_add_word_dialog(self, icon=None, item=None):
-        try:
-            from .window_launcher import open_in_child_process
-            if open_in_child_process('add-word'):
-                return
-            from .dictionary import show_add_word_dialog
-            show_add_word_dialog()
-        except Exception as e:
-            self.logger.error(f"Failed to show add-word dialog: {e}")
-
-    def _open_transforms_file(self, icon=None, item=None):
-        try:
-            from .utils import get_user_app_data_path
-            path = Path(get_user_app_data_path()) / 'transforms.yaml'
-            open_file(str(path))
-        except Exception as e:
-            self.logger.error(f"Failed to open transforms.yaml: {e}")
-
-    def _reload_transforms(self, icon=None, item=None):
-        try:
-            changed = self.state_manager.reload_transforms()
-            if not changed:
-                self.notify("No changes to transforms.yaml")
-        except Exception as e:
-            self.logger.error(f"Failed to reload transforms: {e}")
-
-    # Console tools (--doctor, --stats) get a console of their own to print in.
-    # Tk windows (--settings, --history) get none: a black console popping up
-    # behind the Settings window is the single most-asked "is this broken?"
-    # about the tray. The command comes from build_relaunch_command, so a pip
-    # install, a venv and the standalone .exe all relaunch the right thing.
-    def _run_module_in_window(self, flag: str, windowless: bool = False):
-        import subprocess
-        from .utils import build_relaunch_command
-        try:
-            if windowless:
-                command = build_relaunch_command(windowless=True) + [flag]
-                creation_flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-            else:
-                command = build_relaunch_command() + [flag]
-                creation_flags = getattr(subprocess, 'CREATE_NEW_CONSOLE', 0)
-            subprocess.Popen(command, creationflags=creation_flags)
-        except Exception as e:
-            self.logger.error(f"Failed to launch {flag}: {e}")
-    
     # Every mutation of the tray object goes through here.
     #
     # On macOS these reach AppKit, which must only be touched from the main

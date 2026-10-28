@@ -1,6 +1,6 @@
 # transcript_log.py
 # Append-only journal of every successful transcription. Backs the
-# `--history` browser window so users can search their dictation history.
+# History page (`--history`) so users can search their dictation history.
 # Separate from `stats.jsonl` (which only stores metadata) — this file
 # contains the actual transcribed text and is auto-rotated to keep the
 # last ~2000 entries.
@@ -27,7 +27,7 @@ _write_lock = threading.Lock()
 
 # The history.retention_days setting as an int, or None for "keep". A
 # hand-edited value ("30 days", "") must not take the journal down with it.
-def _retention(value):
+def parse_retention_days(value):
     if value is None or value == '':
         return None
     try:
@@ -44,7 +44,7 @@ def _retention(value):
 def record_transcript(text: str, app: str = '', duration_s: float = 0.0, retention_days=None):
     if not text:
         return
-    days = _retention(retention_days)
+    days = parse_retention_days(retention_days)
     if days == 0:
         return
     entry = {
@@ -66,7 +66,7 @@ def record_transcript(text: str, app: str = '', duration_s: float = 0.0, retenti
 
 
 # Reads the journal back into a list of dicts, newest-first. Used by the
-# history window. Silently skips malformed lines so a single corrupted entry
+# History page. Silently skips malformed lines so a single corrupted entry
 # doesn't break the whole UI.
 def load_transcripts() -> list:
     path = Path(get_user_app_data_path()) / _LOG_FILE
@@ -88,6 +88,28 @@ def load_transcripts() -> list:
     except Exception as e:
         logger.warning(f"Failed to load transcripts: {e}")
     return list(reversed(entries))
+
+
+# Removes one journal entry (the history page's delete button). Entries have no
+# id, so a line matches on timestamp + text; only the first match goes, which is
+# enough because two identical dictations in the same second are interchangeable.
+def delete_transcript(timestamp: str, text: str) -> bool:
+    path = Path(get_user_app_data_path()) / _LOG_FILE
+    try:
+        with _write_lock:
+            lines = path.read_text(encoding='utf-8').splitlines()
+            for index, line in enumerate(lines):
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if entry.get('timestamp') == timestamp and entry.get('text') == text:
+                    del lines[index]
+                    path.write_text(('\n'.join(lines) + '\n') if lines else '', encoding='utf-8')
+                    return True
+    except OSError as e:
+        logger.warning(f"Could not delete transcript: {e}")
+    return False
 
 
 # An entry's timestamp for the age cut-off. A malformed line reads as the

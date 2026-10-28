@@ -1,0 +1,36 @@
+/* pages/about.css: styles used only by the about page. Shared components live in styles.css. */
+
+/* Identity card */
+.about-identity { display: flex; align-items: center; gap: 16px; padding: 18px 16px; }
+/* The app logo (brand.svg) at hero size. */
+.about-mark { width: 64px; height: 64px; flex: none; border-radius: 15px; }
+.about-name { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.about-links { display: flex; flex-wrap: wrap; gap: 2px 4px; margin: 6px 0 0 -12px; }
+
+/* Diagnostics output */
+.result-block .section-header { margin-top: 20px; }
+.doctor-summary { display: flex; align-items: center; gap: 10px; }
+.doctor-summary .setting-caption { margin: 0 0 0 auto; }
+
+.check-section { border-top: 1px solid var(--border); }
+.check-section summary {
+  padding: 9px 16px; cursor: pointer; font-weight: 600; font-size: 12.5px; color: var(--fg-secondary);
+}
+.check-section summary:hover { background: var(--bg-hover); }
+.check-row { display: flex; align-items: baseline; gap: 10px; padding: 5px 16px 5px 20px; }
+.check-row:last-child { padding-bottom: 10px; }
+.check-name { flex: none; }
+.check-detail {
+  flex: 1; min-width: 0; text-align: right; white-space: pre-line; overflow-wrap: anywhere;
+  font-size: 12.5px; color: var(--fg-secondary);
+}
+.selftest-row { padding-top: 10px; padding-bottom: 10px; border-top: 1px solid var(--border); }
+.selftest-row:first-child { border-top: 0; }
+
+/* Status dots shared by doctor and self-test rows */
+.status-mark { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--border-strong); align-self: center; }
+.status-mark-ok { background: var(--success); }
+.status-mark-warn { background: var(--warning); }
+.status-mark-fail { background: var(--danger); }
+.status-mark-running { background: var(--accent); animation: status-pulse 0.9s ease-in-out infinite alternate; }
+@keyframes status-pulse { from { opacity: 0.3; } to { opacity: 1; } }
