@@ -93,6 +93,7 @@ class StateManager:
         # Re-entrant: a swap queued from the pipeline runs on the same thread.
         self._recorder_lock = threading.RLock()
         self._streaming_display_active = False
+        self._streaming_closed_text = ''  # finished phrases of the current recording
         # Commit-on-endpoint streaming delivery (opt-in). Active only for the
         # current recording when conditions are met; default off → zero impact.
         self._streaming_delivery_active = False
@@ -166,8 +167,21 @@ class StateManager:
             display_text = text if len(text) < 67 else "..." + text[-64:]
             print(f"\r   {display_text:<70}", end="", flush=True)
             self._streaming_display_active = True
-        if self.level_overlay and text:
-            self.level_overlay.set_streaming_text(text)
+        # The overlay shows the whole recording so far: closed phrases plus the
+        # one still being spoken, not just the current phrase.
+        if is_final:
+            self._streaming_closed_text = f"{self._streaming_closed_text} {text}".strip()
+            preview = self._streaming_closed_text
+        else:
+            preview = f"{self._streaming_closed_text} {text}".strip()
+        if self.level_overlay and preview:
+            self.level_overlay.set_streaming_text(preview)
+
+    # Every recording starts with an empty live preview.
+    def _show_recording_overlay(self):
+        self._streaming_closed_text = ''
+        if self.level_overlay:
+            self.level_overlay.show_recording()
 
     def _clear_streaming_display(self):
         if self._streaming_display_active:
@@ -277,8 +291,7 @@ class StateManager:
         if started:
             self.audio_feedback.play_start_sound()
             self._update_ui_state("recording")
-            if self.level_overlay:
-                self.level_overlay.show_recording()
+            self._show_recording_overlay()
             self._schedule_silent_mic_check()
 
     def start_command_recording(self):
@@ -299,8 +312,7 @@ class StateManager:
             self.config_manager.print_command_stop_instructions()
             self.audio_feedback.play_start_sound()
             self._update_ui_state("recording")
-            if self.level_overlay:
-                self.level_overlay.show_recording()
+            self._show_recording_overlay()
             self._schedule_silent_mic_check()
 
     def _begin_recording(self):
@@ -318,8 +330,7 @@ class StateManager:
             self.config_manager.print_stop_instructions_based_on_config()
             self.audio_feedback.play_start_sound()
             self._update_ui_state("recording")
-            if self.level_overlay:
-                self.level_overlay.show_recording()
+            self._show_recording_overlay()
             self._schedule_silent_mic_check()
 
     # Decide whether this (plain dictation) recording should stream finalized

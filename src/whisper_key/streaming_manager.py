@@ -7,6 +7,7 @@ import logging
 import threading
 from typing import TYPE_CHECKING, Optional, Callable
 
+from .rolling_recognizer import RollingRecognizer
 from .streaming_recognizer import StreamingRecognizer
 
 if TYPE_CHECKING:
@@ -76,7 +77,7 @@ class StreamingManager:
         self.streaming_enabled = streaming_enabled
         self.streaming_model = streaming_model
         self.model_registry = model_registry
-        self.recognizer: Optional[StreamingRecognizer] = None
+        self.recognizer = None  # StreamingRecognizer or RollingRecognizer
         self._model_loaded = False
         self.logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ class StreamingManager:
         if self._model_loaded:
             return True
 
-        self.recognizer = StreamingRecognizer(
+        self.recognizer = self._recognizer_class()(
             model_type=self.streaming_model,
             model_registry=self.model_registry
         )
@@ -106,6 +107,13 @@ class StreamingManager:
             self.logger.warning("Streaming STT model failed to load")
 
         return success
+
+    # Offline models (Moonshine) re-decode the phrase live; transducers stream.
+    def _recognizer_class(self):
+        model = self.model_registry.streaming_models.get(self.streaming_model) if self.model_registry else None
+        if model and model.engine == "moonshine_v2":
+            return RollingRecognizer
+        return StreamingRecognizer
 
     def is_available(self) -> bool:
         return self.streaming_enabled and self._model_loaded and self.recognizer is not None

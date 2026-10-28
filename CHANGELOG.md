@@ -13,6 +13,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   It turns amber while Whisper transcribes and green when the text is
   delivered. `overlay.position` and `overlay.click_through` apply as on
   Windows.
+- **Live preview runs on Moonshine v2.** `streaming.streaming_model` now
+  defaults to `moonshine.base.en` (140 MB, or `moonshine.tiny.en`, 44 MB): an
+  offline model re-decoded about three times a second, and a pause closes the
+  phrase. On fast speech it gets the words right where the 20 MB Zipformer
+  guessed ("pilf", "parrakeet"), and it adds capitals and punctuation. A
+  20-second phrase decodes in about half a second on an M-series CPU. The
+  Zipformer is still available as `zipformer.tiny.en`.
+- **The pill keeps the whole recording in view.** Earlier phrases no longer
+  vanish after a pause; the newest words stay visible at the end.
 
 ## [0.23.0]
 

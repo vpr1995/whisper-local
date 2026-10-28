@@ -149,13 +149,32 @@ streaming: # Real-time STT (Experimental)
     # command/rephrase modes and copy-only/suppressed apps are unaffected.
     deliver_to_cursor: false
 
-    # Streaming model type
-    streaming_model: zipformer.tiny.en
+    # Streaming model type. Moonshine models are offline models re-decoded
+    # live: much better on fast speech than the tiny streaming Zipformer, and
+    # they add punctuation. English only; the final pasted text is still Whisper.
+    streaming_model: moonshine.base.en
 
     # Available streaming models
     # Requires sherpa-onnx streaming transducer models (e.g., Zipformer)
     # Browse models: https://k2-fsa.github.io/sherpa/onnx/pretrained_models/index.html
+    #   engine: transducer (default, true streaming) | moonshine_v2 (re-decoded live)
     models:
+        moonshine.base.en:
+            source: csukuangfj2/sherpa-onnx-moonshine-base-en-quantized-2026-02-27
+            label: "Moonshine v2 English Base (140MB)"
+            engine: moonshine_v2
+            files:
+                encoder: encoder_model.ort
+                decoder: decoder_model_merged.ort
+                tokens: tokens.txt
+        moonshine.tiny.en:
+            source: csukuangfj2/sherpa-onnx-moonshine-tiny-en-quantized-2026-02-27
+            label: "Moonshine v2 English Tiny (44MB)"
+            engine: moonshine_v2
+            files:
+                encoder: encoder_model.ort
+                decoder: decoder_model_merged.ort
+                tokens: tokens.txt
         zipformer.tiny.en:
             source: csukuangfj/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17
             label: "Zipformer English Tiny (20MB)"

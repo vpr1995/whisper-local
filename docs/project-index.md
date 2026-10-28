@@ -53,7 +53,7 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Whisper Mode** | `audio_gain.py` | Boosts quiet recordings before transcription | numpy |
 | **Corrections** | `corrections.py` | Persist post-transcription replacements (history "Fix this everywhere") | ruamel.yaml |
 | **System Audio** | `system_audio.py` | `--transcribe-system` loopback capture (experimental, opt-in) | soundcard |
-| **Streaming** | `streaming_manager.py` + `streaming_recognizer.py` | Real-time partial transcription (experimental) | sherpa-onnx |
+| **Streaming** | `streaming_manager.py` + `streaming_recognizer.py` + `rolling_recognizer.py` | Real-time partial transcription (experimental): Moonshine v2 re-decoded live (default) or a streaming Zipformer | sherpa-onnx |
 | **Noise Suppression** | `noise_suppression.py` | Optional spectral-gating noise reduction | noisereduce |
 | **Stats** | `stats.py` | Usage stats, streaks, daily summary | json |
 | **Audit Log** | `audit_log.py` | Optional append-only delivery audit trail | - |

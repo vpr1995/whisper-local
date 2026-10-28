@@ -138,6 +138,9 @@ class ModelDefinition:
         self.group = config.get("group", "custom")
         self.enabled = config.get("enabled", True)
         self.files = config.get("files", {})
+        # Streaming models only: "transducer" (true streaming, sherpa-onnx
+        # OnlineRecognizer) or "moonshine_v2" (offline model re-decoded live).
+        self.engine = config.get("engine", "transducer")
         self.is_local_path = self._check_is_local_path()
         self.cache_folder = self._derive_cache_folder()
 
