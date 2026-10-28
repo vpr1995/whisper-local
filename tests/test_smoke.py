@@ -5052,7 +5052,7 @@ class StandaloneExeTests(unittest.TestCase):
     def test_users_are_told_how_to_verify_a_download(self):
         for rel in ('README.md', 'docs/faq.md', 'docs/troubleshooting.md'):
             text = (ROOT / rel).read_text(encoding='utf-8')
-            self.assertIn('gh attestation verify whisper-local.exe --repo drajb/whisper-local', text, rel)
+            self.assertIn('gh attestation verify whisper-local.exe --repo vpr1995/whisper-local', text, rel)
 
 
 # ── Windows on ARM (#32) ─────────────────────────────────────────────────────

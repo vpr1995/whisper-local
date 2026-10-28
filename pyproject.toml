@@ -9,10 +9,11 @@ description = "Free, open-source, fully offline AI dictation for Windows and mac
 readme = "README.md"
 license = "MIT"
 authors = [
-    {name = "Rohit Burani", email = "50279000+drajb@users.noreply.github.com"}
+    {name = "Prudhvi Reddy Vemireddy", email = "12946197+vpr1995@users.noreply.github.com"},
+    {name = "Rohit Burani"},
 ]
 maintainers = [
-    {name = "Rohit Burani", email = "50279000+drajb@users.noreply.github.com"}
+    {name = "Prudhvi Reddy Vemireddy", email = "12946197+vpr1995@users.noreply.github.com"}
 ]
 keywords = [
     "dictation", "speech-to-text", "whisper", "voice-typing",
@@ -82,13 +83,13 @@ whisper-local = "whisper_key.main:main"
 wl = "whisper_key.main:main"
 
 [project.urls]
-Homepage = "https://github.com/drajb/whisper-local"
-Repository = "https://github.com/drajb/whisper-local"
-Documentation = "https://github.com/drajb/whisper-local#readme"
-Issues = "https://github.com/drajb/whisper-local/issues"
-Discussions = "https://github.com/drajb/whisper-local/discussions"
-Changelog = "https://github.com/drajb/whisper-local/blob/master/CHANGELOG.md"
-"Author" = "https://gekro.com"
+Homepage = "https://github.com/vpr1995/whisper-local"
+Repository = "https://github.com/vpr1995/whisper-local"
+Documentation = "https://github.com/vpr1995/whisper-local#readme"
+Issues = "https://github.com/vpr1995/whisper-local/issues"
+Discussions = "https://github.com/vpr1995/whisper-local/discussions"
+Changelog = "https://github.com/vpr1995/whisper-local/blob/main/CHANGELOG.md"
+"Author" = "https://github.com/vpr1995"
 
 [tool.setuptools.packages.find]
 where = ["src"]

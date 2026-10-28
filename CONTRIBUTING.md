@@ -2,7 +2,7 @@
 
 Thank you for wanting to make this better! **All contributions are welcome** — bug reports, fixes, new features, docs, tests, even just sharing how you use it.
 
-This project is maintained by **Rohit Burani** ([@drajb](https://github.com/drajb)) on a best-effort basis. Whisper Local is **provided to anyone who wants it** as a free, open-source MIT-licensed project — see [`AUTHORS.md`](AUTHORS.md) for the full credit list.
+This project is maintained by **Prudhvi Reddy Vemireddy** ([@vpr1995](https://github.com/vpr1995)) on a best-effort basis. Whisper Local is **provided to anyone who wants it** as a free, open-source MIT-licensed project — see [`AUTHORS.md`](AUTHORS.md) for the full credit list.
 
 ## Ground rules
 
@@ -16,7 +16,7 @@ This project is maintained by **Rohit Burani** ([@drajb](https://github.com/draj
 ## Getting started
 
 ```bash
-git clone https://github.com/drajb/whisper-local.git
+git clone https://github.com/vpr1995/whisper-local.git
 cd whisper-local
 pip install -e .
 python -m unittest tests.test_smoke
@@ -34,7 +34,7 @@ python -m whisper_key.main --settings   # opens the dashboard on Settings
 
 ## Reporting bugs
 
-Use the [Bug report template](https://github.com/drajb/whisper-local/issues/new?template=bug_report.yml). Please include:
+Use the [Bug report template](https://github.com/vpr1995/whisper-local/issues/new?template=bug_report.yml). Please include:
 
 1. What you expected to happen
 2. What actually happened
@@ -44,7 +44,7 @@ Use the [Bug report template](https://github.com/drajb/whisper-local/issues/new?
 
 ## Feature requests
 
-Use the [Feature request template](https://github.com/drajb/whisper-local/issues/new?template=feature_request.yml). The simpler and more self-contained the proposed feature, the more likely it lands. For larger changes, please **open an issue or discussion first** so we can align on direction before you spend time on code.
+Use the [Feature request template](https://github.com/vpr1995/whisper-local/issues/new?template=feature_request.yml). The simpler and more self-contained the proposed feature, the more likely it lands. For larger changes, please **open an issue or discussion first** so we can align on direction before you spend time on code.
 
 ## Security vulnerabilities
 
@@ -73,7 +73,7 @@ Use the [Feature request template](https://github.com/drajb/whisper-local/issues
 
 Thank you again — see you in the PR queue!
 
-— Rohit ([@drajb](https://github.com/drajb))
+— Prudhvi ([@vpr1995](https://github.com/vpr1995))
 
 ---
 

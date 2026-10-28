@@ -1,6 +1,6 @@
 Local faster-whisper speech-to-text app with global hotkeys for Windows 10+ and macOS
 
-Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Internal Python module name remains `whisper_key`; the config directory remains `%APPDATA%\whisperkey` (`~/.whisperkey` on macOS).
+Open-source project maintained as `vpr1995/whisper-local` by Prudhvi Reddy Vemireddy (fork of Rohit Burani's whisper-local). Internal Python module name remains `whisper_key`; the config directory remains `%APPDATA%\whisperkey` (`~/.whisperkey` on macOS).
 
 - Start here: `state_manager.py` coordinates all components workflow
 

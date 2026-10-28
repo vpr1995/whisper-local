@@ -31,7 +31,7 @@ whisper: # Whisper AI Model Settings
 
     # Transcription device
     # Options: cpu, cuda (for both NVIDIA and AMD)
-    # For GPU setup, see https://github.com/drajb/whisper-local/blob/master/docs/gpu-setup.md
+    # For GPU setup, see https://github.com/vpr1995/whisper-local/blob/main/docs/gpu-setup.md
     device: cpu
 
     # Compute Precision

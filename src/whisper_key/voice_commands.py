@@ -45,7 +45,7 @@ USER_FILE_HEADER = """\
 #     - trigger: "show desktop"
 #       disabled: true
 #
-# Full documentation: https://github.com/drajb/whisper-local/blob/master/docs/voice-commands.md
+# Full documentation: https://github.com/vpr1995/whisper-local/blob/main/docs/voice-commands.md
 
 """
 

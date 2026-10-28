@@ -7,8 +7,8 @@
 **Press a hotkey. Speak. Your words appear at the cursor.**
 No cloud. No subscription. No telemetry. Powered by [OpenAI Whisper](https://github.com/openai/whisper).
 
-[![Tests](https://github.com/drajb/whisper-local/actions/workflows/test.yml/badge.svg)](https://github.com/drajb/whisper-local/actions/workflows/test.yml)
-[![Release](https://github.com/drajb/whisper-local/actions/workflows/release.yml/badge.svg)](https://github.com/drajb/whisper-local/actions/workflows/release.yml)
+[![Tests](https://github.com/vpr1995/whisper-local/actions/workflows/test.yml/badge.svg)](https://github.com/vpr1995/whisper-local/actions/workflows/test.yml)
+[![Release](https://github.com/vpr1995/whisper-local/actions/workflows/release.yml/badge.svg)](https://github.com/vpr1995/whisper-local/actions/workflows/release.yml)
 [![PyPI](https://img.shields.io/pypi/v/whisper-local.svg)](https://pypi.org/project/whisper-local/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -23,11 +23,11 @@ No cloud. No subscription. No telemetry. Powered by [OpenAI Whisper](https://git
 
 <div align="center">
 
-### [⬇&nbsp; Download for Windows](https://github.com/drajb/whisper-local/releases/latest/download/whisper-local.exe)
+### [⬇&nbsp; Download for Windows](https://github.com/vpr1995/whisper-local/releases/latest/download/whisper-local.exe)
 
 **macOS, or Python on either:** `pipx install whisper-local` &nbsp;then&nbsp; `whisper-local`
 
-<sub>Windows 10+ · macOS · nothing to sign up for · first launch downloads one model (141–670 MB), then it is offline for good · [all releases](https://github.com/drajb/whisper-local/releases)</sub>
+<sub>Windows 10+ · macOS · nothing to sign up for · first launch downloads one model (141–670 MB), then it is offline for good · [all releases](https://github.com/vpr1995/whisper-local/releases)</sub>
 
 </div>
 
@@ -61,9 +61,9 @@ Whisper Local exists because **you shouldn't have to choose between accuracy and
 
 This is a **community tool**, not a product. There's no support SLA, no roadmap committee, no marketing. If it's useful to you, great. If something's broken, PRs are welcome.
 
-> **A note from the maintainer:** I built this for myself, then realised it might help others. So I'm releasing it **for anyone who wants it** — no strings attached. Use it. Fork it. Rebrand it. Ship your own version. The only thing I ask is that you keep the LICENSE notice intact. If you build something cool on top of it, I'd love to hear about it via a [Discussion](https://github.com/drajb/whisper-local/discussions) — but you don't owe anyone anything.
+> **A note from the original author:** I built this for myself, then realised it might help others. So I'm releasing it **for anyone who wants it** — no strings attached. Use it. Fork it. Rebrand it. Ship your own version. The only thing I ask is that you keep the LICENSE notice intact. If you build something cool on top of it, I'd love to hear about it via a [Discussion](https://github.com/vpr1995/whisper-local/discussions) — but you don't owe anyone anything.
 >
-> — **Rohit Burani**
+> — **Rohit Burani**, author of the original whisper-local
 
 ---
 
@@ -145,11 +145,11 @@ This is a **community tool**, not a product. There's no support SLA, no roadmap 
 
 ### Option 1 — Standalone Windows app (no Python needed)
 
-1. Download **`whisper-local.exe`** from the [latest release](https://github.com/drajb/whisper-local/releases/latest).
+1. Download **`whisper-local.exe`** from the [latest release](https://github.com/vpr1995/whisper-local/releases/latest).
 2. Double-click it. Windows SmartScreen will warn because the app isn't code-signed (a paid certificate) — click **More info → Run anyway**. The source is fully open if you'd rather audit first.
 3. First launch takes a few minutes: Python is built in, so it installs the app's libraries from PyPI and downloads the Whisper model. Every launch after that is instant.
 
-Every `.exe` is built by GitHub Actions from this repository and carries a signed [build-provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations). To confirm a download is genuine, run `gh attestation verify whisper-local.exe --repo drajb/whisper-local`, or compare its SHA-256 with the `.sha256` file on the release page.
+Every `.exe` is built by GitHub Actions from this repository and carries a signed [build-provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations). To confirm a download is genuine, run `gh attestation verify whisper-local.exe --repo vpr1995/whisper-local`, or compare its SHA-256 with the `.sha256` file on the release page.
 
 ### Option 2 — pipx / pip (Windows / macOS, Python 3.11–3.13)
 
@@ -163,7 +163,7 @@ Plain `pip install whisper-local` works too. `pipx` (or `uv tool`) gives the app
 ### Option 3 — from source
 
 ```bash
-git clone https://github.com/drajb/whisper-local.git
+git clone https://github.com/vpr1995/whisper-local.git
 cd whisper-local
 pip install -e .
 ```
@@ -518,14 +518,14 @@ Hit a wall? Run `whisper-local --doctor` or `whisper-local --selftest` first —
 Contributions of all kinds are welcome — bug fixes, new features, docs improvements, or just opening an issue with a clear reproduction. This project is maintained on a best-effort basis with no SLA; please be patient with response times.
 
 ```bash
-git clone https://github.com/drajb/whisper-local.git
+git clone https://github.com/vpr1995/whisper-local.git
 pip install -e .
 python -m unittest tests.test_smoke   # smoke suite — should report OK
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards. By contributing you agree your code will be MIT licensed. Found a security issue? See [SECURITY.md](SECURITY.md) — please don't open a public issue.
 
-Good first issues are tagged [here](https://github.com/drajb/whisper-local/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). The full credit list is in [AUTHORS.md](AUTHORS.md).
+Good first issues are tagged [here](https://github.com/vpr1995/whisper-local/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). The full credit list is in [AUTHORS.md](AUTHORS.md).
 
 ---
 
@@ -547,11 +547,12 @@ MIT licensed; see [`LICENSE`](LICENSE).
 
 <div align="center">
 
-### ⭐ If you find this useful, please [star the repo](https://github.com/drajb/whisper-local) — it helps others discover it.
+### ⭐ If you find this useful, please [star the repo](https://github.com/vpr1995/whisper-local) — it helps others discover it.
 
-**Maintained by [Rohit Burani](https://gekro.com) ([@drajb](https://github.com/drajb))**
+**Maintained by [Prudhvi Reddy Vemireddy](https://github.com/vpr1995) ([@vpr1995](https://github.com/vpr1995))**  
+<sub>Fork of drajb/whisper-local by Rohit Burani, itself based on whisper-key-local by Pin Wang.</sub>
 
-[Website](https://gekro.com) · [GitHub](https://github.com/drajb) · [Discussions](https://github.com/drajb/whisper-local/discussions) · [Report a bug](https://github.com/drajb/whisper-local/issues/new?template=bug_report.yml) · [Request a feature](https://github.com/drajb/whisper-local/issues/new?template=feature_request.yml)
+[GitHub](https://github.com/vpr1995) · [Discussions](https://github.com/vpr1995/whisper-local/discussions) · [Report a bug](https://github.com/vpr1995/whisper-local/issues/new?template=bug_report.yml) · [Request a feature](https://github.com/vpr1995/whisper-local/issues/new?template=feature_request.yml)
 
 <sub>Tags: whisper · dictation · speech-to-text · voice-typing · transcription · ai-dictation · local-ai · offline · push-to-talk · voice-recognition · accessibility · faster-whisper · privacy · self-hosted · wispr-flow-alternative · dragon-naturallyspeaking-alternative · otter-alternative · ollama · voice-commands · windows · macos · python</sub>
 

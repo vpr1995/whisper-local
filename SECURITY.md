@@ -8,11 +8,11 @@ Whisper Local is a privacy-first tool. We take security reports seriously.
 
 Use GitHub's **Private Vulnerability Reporting** instead:
 
-1. Go to <https://github.com/drajb/whisper-local/security/advisories/new>
+1. Go to <https://github.com/vpr1995/whisper-local/security/advisories/new>
 2. Fill in the form with as much detail as you can — reproduction steps, affected versions, impact assessment
 3. We'll acknowledge the report and work with you on a fix and coordinated disclosure
 
-If for some reason you can't use Private Vulnerability Reporting, you can DM the maintainer ([@drajb](https://github.com/drajb)) on GitHub instead.
+If for some reason you can't use Private Vulnerability Reporting, you can DM the maintainer ([@vpr1995](https://github.com/vpr1995)) on GitHub instead.
 
 ## Scope
 

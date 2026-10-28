@@ -1,4 +1,4 @@
-https://github.com/drajb/whisper-local
+https://github.com/vpr1995/whisper-local
 
 @docs/project-index.md
 @docs/platform-abstraction.md

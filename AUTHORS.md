@@ -4,11 +4,16 @@ Whisper Local exists thanks to the people listed here.
 
 ## Maintainer
 
-- **Rohit Burani** ([@drajb](https://github.com/drajb)) — current maintainer of `whisper-local`
+- **Prudhvi Reddy Vemireddy** ([@vpr1995](https://github.com/vpr1995)) — maintainer of this fork
+
+## Original authors
+
+- **Rohit Burani** (drajb) — author of `whisper-local`, which this repository forks
+- **Pin Wang** — author of the original `whisper-key-local`
 
 ## Contributors
 
-Everyone whose pull requests have been merged. Add yourself here in your first PR! GitHub's automatic contributor list is also available at <https://github.com/drajb/whisper-local/graphs/contributors>.
+Everyone whose pull requests have been merged. Add yourself here in your first PR! GitHub's automatic contributor list is also available at <https://github.com/vpr1995/whisper-local/graphs/contributors>.
 
 <!-- Add your name here in alphabetical order when contributing. -->
 - **Chad DePue** ([@cbd](https://github.com/cbd))

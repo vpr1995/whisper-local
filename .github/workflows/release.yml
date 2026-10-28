@@ -204,7 +204,7 @@ jobs:
             **Verify the download.** Every `.exe` is built by GitHub Actions from
             this repository and carries a signed build-provenance attestation:
             ```bash
-            gh attestation verify whisper-local.exe --repo drajb/whisper-local
+            gh attestation verify whisper-local.exe --repo vpr1995/whisper-local
             ```
             or compare its SHA-256 with `whisper-local.exe.sha256`. An occasional
             single-vendor antivirus flag on an unsigned app is a heuristic; if

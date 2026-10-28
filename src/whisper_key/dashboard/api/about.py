@@ -15,7 +15,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-REPO_URL = "https://github.com/drajb/whisper-local"
+REPO_URL = "https://github.com/vpr1995/whisper-local"
 ABOUT_LINKS = {
     'github': REPO_URL,
     'issues': f"{REPO_URL}/issues",

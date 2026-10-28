@@ -16,7 +16,7 @@ Search the source for `urllib`, `requests`, `httpx`, `socket.connect` if you don
 Every release `.exe` is built by GitHub Actions straight from this repository, and the build signs a provenance attestation recording the exact file, commit and workflow. Check yours with the [GitHub CLI](https://cli.github.com/):
 
 ```bash
-gh attestation verify whisper-local.exe --repo drajb/whisper-local
+gh attestation verify whisper-local.exe --repo vpr1995/whisper-local
 ```
 
 That proves more than an antivirus score can. The `.exe` isn't code-signed (certificates cost money), and an occasional single engine on VirusTotal flags it by heuristic, usually because it unpacks a standard Python runtime. If the attestation verifies, the file is the one this repo built. You can also compare its SHA-256 with the `.sha256` file on the release page, or skip the `.exe` and `pip install whisper-local`.
@@ -142,14 +142,14 @@ Whisper Local always delivers to the **foreground** app at the moment delivery s
 
 ### I found a bug — how do I report it?
 1. Run `whisper-local --bundle-logs`
-2. Open a [new issue](https://github.com/drajb/whisper-local/issues/new?template=bug_report.yml) using the bug template
+2. Open a [new issue](https://github.com/vpr1995/whisper-local/issues/new?template=bug_report.yml) using the bug template
 3. Attach the bundle zip
 
 ### I want a feature
-Open a [feature request](https://github.com/drajb/whisper-local/issues/new?template=feature_request.yml). For larger changes, please open a [Discussion](https://github.com/drajb/whisper-local/discussions) first.
+Open a [feature request](https://github.com/vpr1995/whisper-local/issues/new?template=feature_request.yml). For larger changes, please open a [Discussion](https://github.com/vpr1995/whisper-local/discussions) first.
 
 ### Is there a Discord / support forum?
-GitHub Discussions for now: <https://github.com/drajb/whisper-local/discussions>
+GitHub Discussions for now: <https://github.com/vpr1995/whisper-local/discussions>
 
 ### Can I pay for support / priority?
 This is a community project maintained on a best-effort basis. No paid tier exists.

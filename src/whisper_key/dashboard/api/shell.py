@@ -8,7 +8,7 @@ import webbrowser
 logger = logging.getLogger(__name__)
 
 # Fallback when pyproject.toml has no Changelog URL (e.g. an installed wheel).
-DEFAULT_CHANGELOG_URL = "https://github.com/drajb/whisper-local/blob/master/CHANGELOG.md"
+DEFAULT_CHANGELOG_URL = "https://github.com/vpr1995/whisper-local/blob/main/CHANGELOG.md"
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

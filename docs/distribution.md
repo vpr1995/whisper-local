@@ -34,7 +34,7 @@ git tag v0.10.1
 git push origin master --tags
 ```
 
-Watch it run at `https://github.com/drajb/whisper-local/actions`.
+Watch it run at `https://github.com/vpr1995/whisper-local/actions`.
 
 > Tip: there's a `/bump` skill in this repo that automates the version bump + tag + push.
 
@@ -48,7 +48,7 @@ You do this **once**:
 1. Create an account at <https://pypi.org>.
 2. Go to <https://pypi.org/manage/account/publishing/> → **Add a pending publisher**:
    - PyPI project name: `whisper-local`
-   - Owner: `drajb`
+   - Owner: `vpr1995`
    - Repository: `whisper-local`
    - Workflow filename: `release.yml`
    - Environment name: `pypi`
@@ -104,12 +104,12 @@ After a release exists (so the `.exe` URL and its SHA256 are live):
 1. Install the helper: `winget install wingetcreate`.
 2. Run:
    ```
-   wingetcreate new https://github.com/drajb/whisper-local/releases/download/v0.10.1/whisper-local.exe
+   wingetcreate new https://github.com/vpr1995/whisper-local/releases/download/v0.10.1/whisper-local.exe
    ```
    It will prompt for metadata and auto-compute the SHA256. Use
-   `PackageIdentifier: drajb.WhisperLocal`, installer type `portable`.
+   `PackageIdentifier: vpr1995.WhisperLocal`, installer type `portable`.
 3. It opens a PR against [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs).
-   Once merged, users can `winget install drajb.WhisperLocal`.
+   Once merged, users can `winget install vpr1995.WhisperLocal`.
 
 A reference manifest is in `packaging/winget/whisper-local.installer.yaml`
 (the SHA256 there is a placeholder — `wingetcreate` fills the real one in).
@@ -127,7 +127,7 @@ a **personal tap** (your own mini Homebrew repo):
    `curl -sL <pypi-sdist-url> | shasum -a 256`).
 4. Commit + push. Users then:
    ```bash
-   brew tap drajb/tap
+   brew tap vpr1995/tap
    brew install whisper-local
    ```
 
