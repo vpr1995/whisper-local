@@ -1,5 +1,9 @@
 # FAQ
 
+Answers to common questions about privacy, models and daily use. [Back to the README](../README.md). This fork is validated on macOS only. Windows answers are marked "not validated yet".
+
+**Contents**: [Privacy and data](#privacy--data) · [Comparison](#comparison) · [Technical](#technical) · [App behavior](#app-behaviour) · [Support](#support)
+
 ## Privacy & data
 
 ### Is my audio sent anywhere?
@@ -10,16 +14,16 @@
 3. **Optional update check** — once a day, only if you opt in with `update_check.enabled: true`. Only sends the app version in the User-Agent header.
 4. **Optional Ollama post-processing** — only if you point it at an Ollama server you control (defaults to `localhost`). Apple Intelligence runs on your Mac and makes no network call.
 
-Search the source for `urllib`, `requests`, `httpx`, `socket.connect` if you don't believe us. Every entry point is gated.
+Search the source for `urllib`, `requests`, `httpx`, `socket.connect` if you don't believe us. Every entry point is gated. [Privacy](privacy.md) has the full list.
 
-### How do I know the `.exe` I downloaded is genuine?
-Every release `.exe` is built by GitHub Actions straight from this repository, and the build signs a provenance attestation recording the exact file, commit and workflow. Check yours with the [GitHub CLI](https://cli.github.com/):
+### How do I know the `.exe` I downloaded is genuine? (Windows, not validated yet)
+This fork has no releases yet, so there is no `.exe` to download. The text below describes the build process that the project inherited. Every release `.exe` is built by GitHub Actions straight from this repository, and the build signs a provenance attestation recording the exact file, commit and workflow. Check yours with the [GitHub CLI](https://cli.github.com/):
 
 ```bash
 gh attestation verify whisper-local.exe --repo vpr1995/whisper-local
 ```
 
-That proves more than an antivirus score can. The `.exe` isn't code-signed (certificates cost money), and an occasional single engine on VirusTotal flags it by heuristic, usually because it unpacks a standard Python runtime. If the attestation verifies, the file is the one this repo built. You can also compare its SHA-256 with the `.sha256` file on the release page, or skip the `.exe` and `pip install whisper-local`.
+That proves more than an antivirus score can. The `.exe` isn't code-signed (certificates cost money), and an occasional single engine on VirusTotal flags it by heuristic, usually because it unpacks a standard Python runtime. If the attestation verifies, the file is the one this repo built. You can also compare its SHA-256 with the `.sha256` file on the release page, or skip the `.exe` and install from source (see [Getting started](getting-started.md)).
 
 ### Can it run on a plane / fully offline?
 Yes. After the first model download, Whisper Local works with zero network connectivity. This is why most of our power users love it.
@@ -30,23 +34,23 @@ Locally only, by default:
 - `stats.jsonl` — metadata only (char count, app name, duration), never the text itself
 - `app.log` — only if `logging.log_transcriptions: true` (default: false)
 
-Delete the files in `%APPDATA%\whisperkey\` (Windows) or `~/.whisperkey/` (macOS) any time. To keep history short, or not keep it at all, set `history.retention_days` (Settings → General → "Keep history for"): `7` keeps a week, `0` stores nothing.
+Delete the files in `~/.whisperkey/` (macOS) or `%APPDATA%\whisperkey\` (Windows, not validated yet) any time. To keep history short, or not keep it at all, set `history.retention_days` (Settings > App > More > "Keep history for"): `7` keeps a week, `0` stores nothing.
 
 ## Comparison
 
 ### How is this different from Whisper.cpp directly?
-`whisper.cpp` is the inference runtime. Whisper Local is the full **desktop dictation app** wrapped around it — global hotkeys, push-to-talk, voice commands, transforms, system tray, audio capture with pre-roll buffer, fallback window, profile switching, per-app rules, AI rephrase via Ollama, and more. You *can* swap our default `faster-whisper` backend for `whisper.cpp` with `pip install 'whisper-local[whispercpp]'` and `whisper.backend: whisper_cpp`.
+`whisper.cpp` is the inference runtime. Whisper Local is the full **desktop dictation app** wrapped around it — global hotkeys, push-to-talk, voice commands, transforms, system tray, audio capture with pre-roll buffer, fallback window, profile switching, per-app rules, AI rephrase (Apple Intelligence or Ollama), and more. You *can* swap our default `faster-whisper` backend for `whisper.cpp`: run `pip install -e '.[whispercpp]'` in your clone and set `whisper.backend: whisper_cpp`.
 
-### How is this different from Windows Speech Recognition?
+### How is this different from Windows Speech Recognition? (Windows, not validated yet)
 WSR uses an old Microsoft engine that's significantly less accurate than Whisper. Whisper Local is built on **modern AI transcription** (the same OpenAI Whisper model that powers most cloud dictation services), runs on your GPU, supports 99 languages, and has voice commands + transforms.
 
 ### How is this different from Wispr Flow?
 Wispr Flow is closed-source, transcribes your audio in the cloud (on its own speech model, Canto), and caps its free tier. Whisper Local is open-source, MIT-licensed, runs **100% on your machine** on OpenAI's Whisper, and is free without limits.
 
-On the dictation itself, we track Wispr's changelog and build what works offline. Matched today: push-to-talk and hands-free (double-tap) recording, auto-cleanup levels, per-app writing styles, backtrack ("at 2, actually 3"), snippets, a personal dictionary, AI transforms (via a local Ollama), paste-last, dictation languages with a "speaking a different language?" prompt, a warning while you talk when the mic hears nothing, retrying a dictation, history with retention, and usage stats. Not matched: Wispr's meeting Notetaker, its mobile apps and keyboard, cloud sync across devices, and team features. Wispr's strength is polish and its own model; ours is privacy, no limits and hackability.
+On the dictation itself, we track Wispr's changelog and build what works offline. Matched today: push-to-talk and hands-free (double-tap) recording, auto-cleanup levels, per-app writing styles, backtrack ("at 2, actually 3"), snippets, a personal dictionary, AI transforms (Apple Intelligence or a local Ollama), paste-last, dictation languages with a "speaking a different language?" prompt, a warning while you talk when the mic hears nothing, retrying a dictation, history with retention, and usage stats. Not matched: Wispr's meeting Notetaker, its mobile apps and keyboard, cloud sync across devices, and team features. Wispr's strength is polish and its own model; ours is privacy, no limits and hackability.
 
 ### How is this different from Dragon NaturallySpeaking?
-Dragon is a paid product (~$500 perpetual or subscription), Windows-only, with great accuracy on its own engine. Whisper Local is free, cross-platform (Windows + macOS), uses Whisper, and is open-source. Dragon has decades of dictation-specific UX (Read That Back, training profiles); we have voice commands + transforms + Ollama integration.
+Dragon is a paid product (~$500 perpetual or subscription), Windows-only, with great accuracy on its own engine. Whisper Local is free, uses Whisper, and is open-source. This fork is validated on macOS. Windows support exists in the code and is not validated yet. Dragon has decades of dictation-specific UX (Read That Back, training profiles); we have voice commands + transforms + Ollama integration.
 
 ## Technical
 
@@ -59,7 +63,7 @@ Dragon is a paid product (~$500 perpetual or subscription), Windows-only, with g
 - **`medium` (~1.4 GB)** — recommended for GPUs. Excellent accuracy.
 - **`large-v3` (~2.9 GB)** — best, GPU strongly recommended.
 
-Change in Settings → General → Model, or `whisper.model` in `user_settings.yaml`.
+Change it on the dashboard's Models page, or set `whisper.model` in `user_settings.yaml`.
 
 ### Does GPU acceleration matter?
 A lot. With a modern NVIDIA GPU (`device: cuda`, `compute_type: float16`):
@@ -70,7 +74,7 @@ A lot. With a modern NVIDIA GPU (`device: cuda`, `compute_type: float16`):
 On CPU with the same `medium` model: 2–6 seconds. The first transcription after launch is always slower due to model warmup.
 
 ### What about AMD GPUs?
-Supported via ROCm on Linux/Windows. Run `whisper-local --setup` and accept the GPU install prompt; we use [PinW/ctranslate2-rocm-wheels](https://github.com/PinW/ctranslate2-rocm-wheels). Apple Silicon Macs should use the `whisper_cpp` backend (`pip install 'whisper-local[whispercpp]'`) for best performance.
+Supported via ROCm on Linux/Windows (not validated yet in this fork). Run `whisper-local --setup` and accept the GPU install prompt; we use [PinW/ctranslate2-rocm-wheels](https://github.com/PinW/ctranslate2-rocm-wheels). Apple silicon Macs have no CUDA or ROCm. The default model runs on the CPU. The opt-in `whisper_cpp` backend (`pip install -e '.[whispercpp]'`) can be faster there, according to the config notes. See [Models](models.md).
 
 ### How do I make hotwords work?
 `whisper-local --add-word "MyJargon"` or the dashboard's **Vocabulary** page. The app gives these words to the model as `hotwords` (Whisper and Parakeet). Names, technical terms, codenames work best. For bulk import: `whisper-local --import-vocab FOLDER` scans a folder of text files and merges the top hotwords automatically.
@@ -80,11 +84,11 @@ Yes! `whisper-local --serve` starts a **local OpenAI-compatible HTTP server** on
 
 ## App behaviour
 
-### Why does the tray icon disappear on Windows?
+### Why does the tray icon disappear on Windows? (not validated yet)
 Windows 10/11 hides tray icons by default. Click the `^` arrow on the right of the taskbar and **drag** the Whisper Local icon out into the visible tray area to pin it.
 
 ### How do I autostart on login?
-It's built in (since v0.11.0). Tick **Start on login** on the dashboard's Settings page, check the box on the first-run welcome window, or run `whisper-local --enable-autostart` (`--disable-autostart` to undo). It launches windowless — no console window at boot. On Windows this uses an `HKCU\…\Run` entry.
+It's built in (since v0.11.0). Tick **Start on login** on the dashboard's Settings page, check the box on the first-run welcome window, or run `whisper-local --enable-autostart` (`--disable-autostart` to undo). It launches windowless — no console window at boot. On Windows (not validated yet) this uses an `HKCU\…\Run` entry.
 
 On macOS it's a LaunchAgent that starts the app through a small helper, `~/Library/Application Support/Whisper Local/Whisper Local.app`. At the first login after you turn it on, macOS asks you to allow "Whisper Local" under Accessibility, and later under Microphone. The app starts as soon as you allow it, or after a minute either way. Building the helper needs Apple's Command Line Tools (`xcode-select --install`). Without them, the LaunchAgent runs Python directly and macOS asks about Python instead.
 
@@ -130,7 +134,7 @@ postprocess:
 `Hello, and welcome → Common greeting.`
 
 ### Can I customize hotkeys?
-Yes — Settings → Hotkeys. Or edit `hotkey.*` in `user_settings.yaml` directly. Changes take effect on next app restart.
+Yes. Use Settings > Shortcuts (and **More shortcuts**), or edit `hotkey.*` in `user_settings.yaml`. Changes take effect on the next app restart. See [Hotkeys](hotkeys.md).
 
 ### Does it work with games / fullscreen apps?
 Mostly yes — hotkeys are registered globally. Some fullscreen-exclusive games (especially anti-cheat-protected) might suppress all global hotkeys. Switch to windowed fullscreen if you hit this.

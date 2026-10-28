@@ -1,5 +1,7 @@
 # Using Whisper Local without HuggingFace access
 
+[Back to the README](../README.md) · [Models](models.md) · [Privacy](privacy.md)
+
 Whisper Local downloads its speech model once, from `huggingface.co`. After that
 it never touches the network again — transcription is fully local.
 

@@ -1,5 +1,7 @@
 # Real-time streaming preview (experimental)
 
+[Back to the README](../README.md) · [Models](models.md)
+
 Whisper Local can show your words **in the overlay as you speak**, before the
 final transcription lands — the Wispr-style live feedback. This page explains
 what it does, how to turn it on, and an important design decision about *where*
@@ -7,8 +9,8 @@ streamed text goes.
 
 ## What it does
 
-When enabled, a small streaming speech model ([sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
-Zipformer) runs alongside your recording and feeds partial words into the
+When enabled, a small speech model ([sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx);
+Moonshine v2 by default, or a streaming Zipformer) runs alongside your recording and feeds partial words into the
 floating overlay pill in real time. When you stop, the **accurate** Whisper model
 still does the actual transcription that gets delivered to your cursor.
 
@@ -16,16 +18,16 @@ So you get the best of both: instant visual feedback *and* high-quality final te
 
 ## How to turn it on
 
-In `user_settings.yaml`:
+Turn it on in the dashboard: **Settings > App > More > Live preview (experimental)**. Or edit `user_settings.yaml`:
 
 ```yaml
 streaming:
     streaming_enabled: true
-    streaming_model: zipformer.tiny.en   # ~20 MB, English
+    streaming_model: moonshine.base.en   # the default, ~140 MB, English. Or zipformer.tiny.en (~20 MB)
 ```
 
 The streaming model downloads automatically on first use (separate from the
-Whisper model). It's English-only by default; other sherpa-onnx streaming
+Whisper model). Both built-in choices are English-only. Moonshine re-decodes the audio as it grows and adds punctuation. It handles fast speech better than the tiny Zipformer. Other sherpa-onnx streaming
 transducers can be added under `streaming.models` — browse them at
 <https://k2-fsa.github.io/sherpa/onnx/pretrained_models/index.html>.
 

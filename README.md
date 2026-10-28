@@ -2,558 +2,112 @@
 
 # Whisper Local
 
-### Free, Open-Source, **100% Offline** AI Dictation for Windows & macOS
+### Offline AI dictation for your Mac
 
-**Press a hotkey. Speak. Your words appear at the cursor.**
-No cloud. No subscription. No telemetry. Powered by [OpenAI Whisper](https://github.com/openai/whisper).
+**Hold a key. Speak. Your words appear at the cursor.**
+Your voice stays on your computer. No account. No cloud. No telemetry.
 
 [![Tests](https://github.com/vpr1995/whisper-local/actions/workflows/test.yml/badge.svg)](https://github.com/vpr1995/whisper-local/actions/workflows/test.yml)
-[![Release](https://github.com/vpr1995/whisper-local/actions/workflows/release.yml/badge.svg)](https://github.com/vpr1995/whisper-local/actions/workflows/release.yml)
-[![PyPI](https://img.shields.io/pypi/v/whisper-local.svg)](https://pypi.org/project/whisper-local/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)](#-quick-start)
+[![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](docs/getting-started.md)
 [![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
-
-[**Quick Start**](#-quick-start) · [**Features**](#-features) · [**vs. Wispr Flow / Dragon**](#-why-whisper-local) · [**Voice Commands**](#-voice-commands) · [**Contributing**](#-contributing)
-
-</div>
-
-![Whisper Local — press, speak, type](docs/hero.svg)
-
-<div align="center">
-
-### [⬇&nbsp; Download for Windows](https://github.com/vpr1995/whisper-local/releases/latest/download/whisper-local.exe)
-
-**macOS, or Python on either:** `pipx install whisper-local` &nbsp;then&nbsp; `whisper-local`
-
-<sub>Windows 10+ · macOS · nothing to sign up for · first launch downloads one model (141–670 MB), then it is offline for good · [all releases](https://github.com/vpr1995/whisper-local/releases)</sub>
 
 </div>
 
 <p align="center">
-  <img src="docs/screenshots/welcome.png" width="32%" alt="First launch: a welcome window with a box to try dictation in">
-  <img src="docs/screenshots/settings.png" width="32%" alt="The dashboard's Settings page: model, cleanup level, writing style, hotkeys">
-  <img src="docs/screenshots/cheat-sheet.png" width="32%" alt="The hotkey list on the dashboard, showing your current bindings">
+  <img src="docs/screenshots/dashboard-home.png" width="49%" alt="The Home page: your dictation shortcut, usage numbers and recent dictations">
+  <img src="docs/screenshots/dashboard-history.png" width="49%" alt="The History page: search of past dictations, grouped by day">
+</p>
+<p align="center">
+  <img src="docs/screenshots/style-ai.png" width="49%" alt="The Style page: AI provider, polish per app type, AI transforms and per-app rules">
+  <img src="docs/screenshots/dashboard-about.png" width="49%" alt="The About page: a checklist of what Whisper Local needs, all items ready">
 </p>
 
-<sub>Want a real screen-recording demo here? See [`docs/demo-recording.md`](docs/demo-recording.md) — drop a `docs/demo.gif` in and uncomment the line below.</sub>
-<!-- ![Demo](docs/demo.gif) -->
+Whisper Local turns speech into text in any app. You hold a shortcut, you talk, and the text appears where your cursor is. A speech model runs on your Mac to do this. It uses [Whisper](https://github.com/openai/whisper) through [faster-whisper](https://github.com/SYSTRAN/faster-whisper), or NVIDIA Parakeet.
 
+## Platform status
 
-Whisper Local is a **free, open-source, fully offline alternative to Wispr Flow, Dragon, and Otter** for power users who want **AI dictation without sending audio to the cloud**. Built on [`faster-whisper`](https://github.com/SYSTRAN/faster-whisper) (CTranslate2), it delivers **push-to-talk speech-to-text in any application** — chat apps, code editors, browsers, terminals, design tools, anywhere a cursor blinks. Self-hosted, hackable, MIT-licensed.
+> **This fork is validated on macOS only.** Tested on Apple silicon with macOS 26. Apple Intelligence needs macOS 26. The other features do not need it, but no other macOS version is tested.
+> The code has Windows support. **It is not validated yet.** The maintainer will test it on a Windows PC later. Windows notes in the docs are marked "not validated yet".
+> This fork has no releases yet. Install it from source (see below).
 
-**Looking for:** *Wispr Flow alternative*, *offline voice typing*, *local Whisper dictation*, *free Dragon NaturallySpeaking alternative*, *privacy-first speech-to-text*, *Windows voice dictation without cloud*, *macOS push-to-talk transcription*. You found it.
+## Install
 
----
-
-## 🌟 Why this exists
-
-Most AI dictation tools are great — until you check the privacy policy. Your audio goes to a server, gets processed, and (sometimes) stored. You pay a monthly fee or get cut off.
-
-Whisper Local exists because **you shouldn't have to choose between accuracy and privacy.**
-
-- 🔒 Your voice never leaves your machine — not even metadata
-- 🆓 Free forever — no account, no API key, no subscription
-- 🔌 Works offline, air-gapped, after the internet is gone
-- 🛠️ Fork it, hack it, ship your own version — MIT licensed
-- 💡 Same Whisper model quality as cloud services, running on your own GPU
-
-This is a **community tool**, not a product. There's no support SLA, no roadmap committee, no marketing. If it's useful to you, great. If something's broken, PRs are welcome.
-
-> **A note from the original author:** I built this for myself, then realised it might help others. So I'm releasing it **for anyone who wants it** — no strings attached. Use it. Fork it. Rebrand it. Ship your own version. The only thing I ask is that you keep the LICENSE notice intact. If you build something cool on top of it, I'd love to hear about it via a [Discussion](https://github.com/vpr1995/whisper-local/discussions) — but you don't owe anyone anything.
->
-> — **Rohit Burani**, author of the original whisper-local
-
----
-
-## ✨ Why Whisper Local?
-
-| Feature | **Whisper Local** | Wispr Flow | Dragon / Dragon Anywhere | Otter.ai | Windows Speech Recognition (deprecated) |
-|---|:---:|:---:|:---:|:---:|:---:|
-| **Runs 100% offline** | ✅ | ❌ | ❌ (Anywhere) | ❌ | ✅ |
-| **Audio never leaves your machine** | ✅ | ❌ | ❌ | ❌ | partial |
-| **Free, with no usage cap** | ✅ | ❌ (free tier is capped) | ❌ ($$$/yr) | ❌ ($$/mo) | ✅ |
-| **Open source** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Modern AI speech recognition** | ✅ (Whisper) | ✅ (its own Canto model) | partial | ✅ | ❌ |
-| **Auto-cleanup levels, per-app styles, snippets, backtrack** | ✅ | ✅ | partial | ❌ | ❌ |
-| **Works in any app via hotkey** | ✅ | ✅ | partial | ❌ | partial |
-| **Customisable voice commands** | ✅ | partial | ✅ | ❌ | ❌ |
-| **Push-to-talk + auto-paste + auto-send** | ✅ | ✅ | partial | ❌ | ❌ |
-| **GPU acceleration (NVIDIA & AMD)** | ✅ | n/a | n/a | n/a | ❌ |
-| **AI rephrase / transforms (Apple Intelligence or Ollama)** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Hackable / MIT licensed** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **No account required** | ✅ | ❌ | ❌ | ❌ | ✅ |
-
----
-
-## 🎯 Features
-
-- 🎙️ **Global push-to-talk hotkey** — start recording from any app with `Ctrl+Win` (Windows) or `Fn+Ctrl` (macOS)
-- ⚡ **Pre-roll buffer + warmup** — captures the 500 ms before you press the key *and* pre-loads Whisper at boot, so the first word is never clipped and the first recording feels instant
-- 🏷️ **Terminal tab title status** — the tab shows what the app is doing (idle / recording / processing), handy when the tray icon is hidden in the overflow area
-- 🔵 **Floating level overlay** — a small pill at the screen edge shows you're being heard, with the transcript appearing next to the level bar (Wispr Flow–style). Optional [real-time streaming preview](docs/streaming.md) shows words *as you speak*. *(Windows; the macOS menu-bar icon shows status instead.)*
-- 📝 **Inline voice formatting** — say "comma", "period", "question mark", "new paragraph", "open quote", etc. mid-sentence. **Fully customizable** for any language via `postprocess.inline_formatting_replacements` (e.g. map Polish phrases to punctuation, or "arrow" → →)
-- 🌍 **Languages you speak** — list them (`whisper.languages: [en, fr]`) and auto-detection picks only from those, so a short or accented clip is never transcribed as a language you don't speak. Speak one that isn't on the list and it asks whether to add it
-- 🔇 **Silent-mic warning while you talk** — if the microphone delivers no sound at all (muted, blocked by a permission, unplugged), you're told one second in, not after you've finished speaking
-- 🔁 **Retry last dictation** — dashboard → About → *Retry* re-transcribes your last recording with the current model, e.g. after a failure, or after switching to a bigger model because it came out wrong. The audio is kept in memory only, never written to disk
-- 🧽 **One cleanup setting** — `none` / `light` / `medium` / `high` decides how much gets tidied: stutters and "um" go by default, "scratch that" and "meet at 2, actually 3" from `medium` up. See [Smart editing](#️-smart-editing)
-- 🧾 **Spoken lists** — "first, milk. second, eggs" becomes a numbered or bulleted list (`postprocess.list_formatting`, opt-in)
-- ✨ **Snippets** — say "my signature" (or any trigger you define) mid-dictation and the full text is typed, with `${date}` / `${time}` / `${clipboard}` filled in
-- 🎨 **Writing styles** — formal, casual, very casual or verbatim, globally or per app (email formal, chat casual, code verbatim out of the box)
-- 📌 **Paste last dictation** — `Alt+Shift+Z` types your last dictation again when it landed in the wrong window
-- 🙌 **Hands-free lock** — double-tap the record hotkey to keep recording without holding it; tap again to stop (`hotkey.double_tap_to_lock`, opt-in)
-- 🤫 **Whisper mode** — boosts quiet speech so you can dictate in an open office (`audio.whisper_mode`, opt-in)
-- 🔢 **Smart formatting** — deterministic, offline: "3 p.m." → "3 PM", "john at example dot com" → "john@example.com" (`postprocess.smart_formatting`, each toggle opt-in)
-- 🤖 **AI rephrase** — dedicated `Ctrl+Shift+Win` hotkey: select text, hold, speak your instruction, release — Apple Intelligence (macOS 26+) or local Ollama rewrites it in place
-- 🌐 **Translation mode** — speak any language, get English; dashboard → Style → Profiles → Translate
-- 🔁 **Continuous dictation mode** — for long-form notes, the app auto-restarts recording after each delivery
-- 📋 **Fallback window** — if no text field is focused, the transcript appears in a small window (pre-selected, copy button, already on clipboard)
-- ⏸ **Pause-all hotkey** — `Ctrl+Alt+Win` (or **Pause / resume** on the dashboard's About page) disables every Whisper Local hotkey until you press it again
-- 🗓️ **History retention** — keep your dictation history for N days, or store none at all (`history.retention_days`)
-- 📋 **Auto-paste at cursor** — transcript lands wherever you're typing, optionally followed by Enter (auto-send)
-- 🔒 **100 % local & private** — no network calls during use; Whisper models cached on disk
-- 🚀 **GPU acceleration** — NVIDIA CUDA and AMD ROCm supported, CPU works out of the box
-- 🗣️ **Voice commands** — say a trigger phrase to send a hotkey, type pre-written text, or run a shell command
-- 🔁 **Hot-reload** — edit `commands.yaml` and your change applies on the next transcription, no restart
-- 🩺 **Built-in diagnostics** — `whisper-local --doctor` checks audio devices, model cache, hotkeys, and recent errors
-- 🎛️ **Profiles** — switch between Dictation / Chat / Code / Notes presets on the dashboard's Style page
-- 🪟 **Per-app rules** — different behaviour *and* formatting per foreground app: auto-send in Slack, copy-only + verbatim (no auto-caps/periods) in VS Code, full sentences in email, suppress in 1Password
-- ⌨️ **Type-as-you-speak** *(experimental, opt-in)* — `streaming.deliver_to_cursor` commits finalized phrases to the cursor live, Wispr-Flow style (trades full-Whisper accuracy for latency; see [docs/streaming.md](docs/streaming.md))
-- 🧹 **Optional AI polish** — a local model fixes punctuation / capitalisation: Apple Intelligence on a Mac with macOS 26+, otherwise [Ollama](https://ollama.ai). Off by default, fully local
-- 📜 **Recent transcriptions** — the dashboard's Home page lists your latest results, with a Copy button
-- 🔧 **Settings backup/restore** — `--export-settings` / `--import-settings` for portability
-- 🖥️ **Dashboard** — `whisper-local --settings` opens the dashboard on its Settings page (no YAML editing required). The sidebar also holds Home, History, Models, Vocabulary, Style and About
-- 📜 **Transcript history** — `whisper-local --history` opens the dashboard's History page, a searchable log of everything you've dictated
-- 📖 **Vocabulary corrections** — map one canonical spelling to every way Whisper mishears it (`CAPEX: [cap x, copics]`), applied in a single pass with longest-match-wins
-- 🧠 **Self-improving accuracy** — from the dashboard's History page, turn any misrecognition into a permanent correction ("Fix this everywhere…"), or let it mine your own history for names to add to your dictionary ("Suggest hotwords"). All offline; corrections apply on your next dictation, no restart
-- 🔊 **System-audio capture** *(experimental)* — `whisper-local --transcribe-system` transcribes what you *hear* (meetings, videos), not just the mic (`pip install 'whisper-local[loopback]'`, Windows-first)
-- 🔔 **Opt-in update notifications** — daily GitHub release check, fully offline by default (`update_check.enabled: true` to opt in)
-- 🎚️ **Noise suppression** — spectral gating via `noisereduce`, off by default (`pip install 'whisper-local[noise]'`)
-- 🩺 **`--selftest`** — one-command sanity check (mic, model, transcription, clipboard) — perfect for first-launch
-- 🎯 **Hotkey cheat sheet** — `whisper-local --cheat-sheet` or the dashboard's Home page — shows your *current* configured hotkeys at a glance
-- 📦 **`--bundle-logs`** — zip up redacted logs + diagnostics for bug reports with one command
-- 🌐 **Local OpenAI-compatible API** — `whisper-local --serve` exposes `POST /v1/audio/transcriptions` on `localhost:7777` for Cursor, Open WebUI, anything that speaks OpenAI Whisper API
-- 🛡️ **Auto-recovery** — silently reconnects when a USB mic is unplugged mid-recording
-- 🛡️ **Crash reports** — uncaught errors write a self-contained dump to disk
-- 🪟 **System tray** — status, start/stop dictation, model, microphone and auto-paste. Everything else is in the dashboard window (Open Whisper Local…)
-- 🍎 **Cross-platform** — Windows 10+, macOS
-
----
-
-## 🚀 Quick Start
-
-### Option 1 — Standalone Windows app (no Python needed)
-
-1. Download **`whisper-local.exe`** from the [latest release](https://github.com/vpr1995/whisper-local/releases/latest).
-2. Double-click it. Windows SmartScreen will warn because the app isn't code-signed (a paid certificate) — click **More info → Run anyway**. The source is fully open if you'd rather audit first.
-3. First launch takes a few minutes: Python is built in, so it installs the app's libraries from PyPI and downloads the Whisper model. Every launch after that is instant.
-
-Every `.exe` is built by GitHub Actions from this repository and carries a signed [build-provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations). To confirm a download is genuine, run `gh attestation verify whisper-local.exe --repo vpr1995/whisper-local`, or compare its SHA-256 with the `.sha256` file on the release page.
-
-### Option 2 — pipx / pip (Windows / macOS, Python 3.11–3.13)
-
-```bash
-pipx install whisper-local        # or: uv tool install whisper-local
-whisper-local
-```
-
-Plain `pip install whisper-local` works too. `pipx` (or `uv tool`) gives the app its own environment, which keeps it clear of whatever else is installed; a PyTorch install in a shared environment, for example, is the usual reason a Python app takes a minute to start.
-
-### Option 3 — from source
+Needs Python 3.11, 3.12 or 3.13.
 
 ```bash
 git clone https://github.com/vpr1995/whisper-local.git
 cd whisper-local
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
+whisper-local            # or the short name: wl
 ```
 
-### Launch
+Or install the command with pipx:
 
-| | |
+```bash
+pipx install git+https://github.com/vpr1995/whisper-local
+whisper-local
+```
+
+On the first start the app downloads one speech model, then works offline. macOS asks for Accessibility and Microphone access. [Getting started](docs/getting-started.md) shows every step.
+
+## What it does
+
+- **Dictate in any app.** Hold `fn+ctrl`, talk, release. Cancel with `shift`. [Hotkeys](docs/hotkeys.md)
+- **A dashboard window.** Home, History, Models, Vocabulary, Style, Settings and About, with a live status bar. [Dashboard tour](docs/dashboard.md)
+- **Picks a speech model for you.** Parakeet v3 for English and 24 other European languages, Whisper `large-v3-turbo` on a GPU, Whisper `base` for other languages. [Models](docs/models.md)
+- **Clean text.** Stutters and "um" go. "Scratch that" and "at 2, actually 3" work. Spoken lists, times and emails get formatted. [Configuration](docs/configuration.md)
+- **AI polish, transforms and rephrase.** They run on Apple Intelligence on your Mac, or on Ollama. Polish is on for email apps by default. [AI polish](docs/ai-polish.md)
+- **Different behavior per app.** Casual in chat, formal in email, auto-send in Slack. Profiles and writing styles. [Per-app rules](docs/per-app-rules.md)
+- **Searchable history.** Search, copy, delete many at once, and fix a misheard word everywhere. [History and vocabulary](docs/history-and-vocabulary.md)
+- **Your own words.** Hotwords, replacements and snippets. [History and vocabulary](docs/history-and-vocabulary.md)
+- **Voice commands.** Say a phrase to press a shortcut, type text or run a command. [Voice commands](docs/voice-commands.md)
+- **Live preview.** See words in the floating pill while you speak (experimental). [Streaming](docs/streaming.md)
+- **A local Whisper API.** `whisper-local --serve` gives an OpenAI-style endpoint on your machine. [Local API](docs/local-api.md)
+- **Checks and logs.** `--doctor`, `--selftest` and `--bundle-logs` find problems fast. [Troubleshooting](docs/troubleshooting.md)
+
+## Documentation
+
+| Page | What it covers |
 |---|---|
-| **Terminal** | `whisper-local` (or `wl` for short) |
-| **Double-click** | `whisper-local.cmd` (Windows) |
-| **Start on login** | Tick **Start on login** on the dashboard's Settings page (or the first-run welcome), or run `whisper-local --enable-autostart`. Disable anytime the same way. |
+| [Getting started](docs/getting-started.md) | Install, first run, macOS permissions, checks |
+| [Dashboard](docs/dashboard.md) | A tour of every dashboard page |
+| [Hotkeys](docs/hotkeys.md) | Every shortcut and its default |
+| [Models](docs/models.md) | Model choice, GPU, idle unload, live preview |
+| [AI polish](docs/ai-polish.md) | Apple Intelligence, Ollama, transforms, rephrase |
+| [History and vocabulary](docs/history-and-vocabulary.md) | History, hotwords, replacements, snippets |
+| [Per-app rules](docs/per-app-rules.md) | Profiles, per-app behavior, writing styles |
+| [Voice commands](docs/voice-commands.md) | The `commands.yaml` format |
+| [Configuration](docs/configuration.md) | Config files, key settings, command-line flags |
+| [Local API](docs/local-api.md) | The OpenAI-style server |
+| [Privacy](docs/privacy.md) | Every network call the app can make |
+| [FAQ](docs/faq.md) and [Troubleshooting](docs/troubleshooting.md) | Questions and fixes |
+| [GPU setup](docs/gpu-setup.md), [Streaming](docs/streaming.md), [Offline models](docs/offline-models.md) | Special setups |
+| [CHANGELOG](CHANGELOG.md) | Release notes |
 
-First launch picks a model for your computer and your language, and downloads it into your HuggingFace cache. A progress line shows the download. After that, **everything runs offline**.
+For maintainers: [distribution](docs/distribution.md), [publishing to PyPI](docs/publishing-to-pypi.md), [project index](docs/project-index.md), [CONTRIBUTING](CONTRIBUTING.md).
 
-- Your language is English or another European language: [Parakeet V3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) (~670 MB). It is fast on any modern CPU.
-- You set up a GPU: Whisper `large-v3-turbo` (~1.5 GB).
-- Other languages: Whisper [`base`](https://huggingface.co/Systran/faster-whisper-base) (~141 MB).
+## Privacy
 
-To choose a model yourself, set `whisper.model` (for example `tiny`, ~75 MB).
+Your audio never leaves your computer. During dictation the app makes no network call. The only calls are the one-time model download and a few opt-in features. [Privacy](docs/privacy.md) lists all of them.
 
-> **`huggingface.co` blocked at work?** Common on corporate networks. Export the
-> model from a machine that has internet and import it on the one that doesn't —
-> no admin rights needed:
-> ```bash
-> whisper-local --export-model            # machine WITH internet — writes to your Desktop
-> whisper-local --import-model "<the folder you copied over>"   # the offline machine
-> ```
-> Pass a path to `--export-model` (a USB drive, say) to put it somewhere else.
-> Network-share and internal-mirror setups are covered in
-> **[docs/offline-models.md](docs/offline-models.md)**.
+## Contributing
 
-### Use it
+Bug reports, fixes and docs are welcome. This project has no support SLA. See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md). All contributions are MIT licensed.
 
-| Action | Windows | macOS |
-|---|---|---|
-| Hold to record | `Ctrl+Win` | `Fn+Ctrl` |
-| Stop & paste | release key (push-to-talk) or `Ctrl` | release or `Fn` |
-| Stop & auto-send (Enter) | `Alt` | `Option` |
-| Stop & polish with the AI | off (`hotkey.stop_polish_key`) | off (`hotkey.stop_polish_key`) |
-| Cancel | `Esc` | `Shift` |
-| Voice command mode | `Alt+Win` | `Fn+Command` |
+## Credit
 
-### Verify everything works
-
-```bash
-whisper-local --doctor
-```
-
-Runs through Python version, dependencies, config validation, audio devices, model cache, hotkey backend, and recent log errors. Exit 0 = clean.
-
----
-
-## ✍️ Smart editing
-
-Say it naturally; it gets typed the way you'd have written it. Everything runs offline, with no LLM. One setting, **Cleanup** (Settings → Post-process, or `postprocess.cleanup`), picks how much gets tidied:
-
-| Cleanup | What changes |
-|---|---|
-| `none` | exactly what Whisper heard |
-| `light` **(default)** | stutters ("I I think") and "um" / "uh" are dropped |
-| `medium` | light, plus "scratch that" and "at 2, actually 3" |
-| `high` | medium, plus spoken times, emails and web addresses |
-
-| You say | You get | Needs |
-|---|---|---|
-| "I I think we we should go" | I think we should go | `light` |
-| "Let's meet at 2, actually 3" | Let's meet at 3 | `medium` |
-| "Ship it Tuesday, no wait, Wednesday" | Ship it Wednesday | `medium` |
-| "book the flight, scratch that, cancel it" | cancel it | `medium` |
-| "john at example dot com at 3 pm" | john@example.com at 3 PM | `high` |
-| "Groceries: first, milk. Second, eggs." | Groceries:<br>1. Milk<br>2. Eggs | `postprocess.list_formatting` |
-| "Thanks for your help. My signature." | Thanks for your help. Best,<br>Rohit | `postprocess.snippets` |
-
-Any single toggle can still be pinned on or off in `user_settings.yaml` regardless of the level. Backtrack only acts when a cue ("actually", "I mean", "no wait", "sorry", …) is followed by a number, time, weekday or month that replaces an earlier one in the same sentence, so everyday prose like "I actually like it" is never changed.
-
-**Snippets** are defined once:
-
-```yaml
-postprocess:
-  snippets:
-    - trigger: my signature
-      expansion: "Best,\nRohit"
-    - trigger: my address          # mode: alone = only when it's the whole dictation
-      expansion: "1 Main St, Dallas, TX 75201"
-      mode: alone
-```
-
-**Styles** set capitalization and punctuation in one choice: `formal` (full sentences), `casual` (no trailing period), `very_casual` (all lowercase except acronyms and your own terms) and `verbatim` (no automatic capitals, periods or lists). Set `postprocess.style` globally, or `style:` on a rule in `app_rules.yaml`. The shipped rules make email formal, chat casual, and code editors and terminals verbatim.
-
----
-
-## 🗣️ Voice Commands
-
-Speak a trigger to run keyboard shortcuts, type snippets, or launch programs. Defined in:
-
-- **Windows:** `%APPDATA%\whisperkey\commands.yaml`
-- **macOS:** `~/.whisperkey/commands.yaml`
-
-```yaml
-commands:
-  # Send a keyboard shortcut
-  - trigger: "undo"
-    hotkey: "ctrl+z"
-
-  # Deliver pre-written text
-  - trigger: "my email"
-    type: "user@example.com"
-
-  # Run a shell command
-  - trigger: "open notepad"
-    run: 'notepad.exe'
-```
-
-Edits hot-reload — no app restart required. See **[docs/voice-commands.md](docs/voice-commands.md)** for the full guide.
-
-> ⚠️ Voice commands with `run:` execute through your system shell with your user privileges. Only add commands you trust.
-
----
-
-## ⚡ GPU Acceleration
-
-On first launch, Whisper Local detects your GPU and offers one-press install of the required runtime libraries. Supports **NVIDIA CUDA** and **AMD ROCm**.
-
-For manual setup or AMD RDNA 1, see **[docs/gpu-setup.md](docs/gpu-setup.md)**.
-
----
-
-## 🌐 Local OpenAI-Compatible API
-
-Whisper Local doubles as a **drop-in local replacement for the OpenAI Whisper API** — fully offline. Point any tool that speaks `POST /v1/audio/transcriptions` at it (Cursor, VS Code Continue, Open WebUI, n8n, custom scripts, anything else).
-
-```bash
-whisper-local --serve            # listens on http://127.0.0.1:7777
-whisper-local --serve --serve-port 8080
-```
-
-```bash
-# Drop-in compatible with the OpenAI SDK:
-curl -X POST http://127.0.0.1:7777/v1/audio/transcriptions \
-  -F file=@audio.wav -F model=whisper-1 -F response_format=text
-```
-
-Same Whisper model you use for dictation. Same GPU. No API key. No rate limit. No outgoing traffic.
-
----
-
-## 🎛️ Profiles
-
-Switch between presets on the dashboard's **Style** page:
-
-| Profile | Behaviour |
-|---|---|
-| **Dictation** | General-purpose voice typing, auto-paste on |
-| **Chat** | Push-to-talk, auto-paste + auto-send via `Alt` |
-| **Code** | Copy-only mode for editors, never auto-sends |
-| **Notes** | Quiet copy-to-clipboard, voice commands disabled |
-
-Edit or add new profiles in `%APPDATA%\whisperkey\profiles.yaml`.
-
----
-
-## 🪟 Per-app rules
-
-Different apps want different behaviour. Whisper Local detects the
-foreground window before delivering each transcription and matches it
-against rules in `%APPDATA%\whisperkey\app_rules.yaml`:
-
-```yaml
-rules:
-  # Chat apps: send the message immediately
-  - match: ["slack.exe", "discord.exe"]
-    auto_send: true
-
-  # Code editors: copy only, and keep it verbatim (no auto-caps or trailing period)
-  - match: ["code.exe", "cursor.exe"]
-    auto_paste: false
-    capitalize_first: false
-    ensure_punctuation: false
-
-  # Password managers: skip delivery entirely
-  - match: ["1password.exe", "bitwarden.exe"]
-    suppress: true
-```
-
-A rule can override delivery (`auto_send`, `auto_paste`, `suppress`), Whisper
-context (`initial_prompt`, `language`, `task`), **and** formatting
-(`capitalize_first`, `ensure_punctuation`, `strip_trailing_period`,
-`inline_formatting`). Hot-reloads — edit and the next transcription picks it up.
-
-## 🧹 Optional AI polish, transforms and rephrase
-
-Three features use a local AI model: **polish** (fixes punctuation and
-capitalisation of each dictation), the **AI transforms** and **rephrase
-selection**. All three use one provider, chosen by `postprocess.ai.provider`
-(or dashboard → Style → AI):
-
-- `auto` (default): **Apple Intelligence** when it is available, otherwise Ollama.
-- `apple_intelligence`: Apple Intelligence, with Ollama as the fallback.
-- `ollama`: always [Ollama](https://ollama.ai).
-
-Apple Intelligence runs on this Mac, offline. It needs a Mac with Apple
-silicon, macOS 26 or later, Apple Intelligence turned on in System Settings,
-and Apple's Command Line Tools (`xcode-select --install`). The app compiles a
-small helper once, in the background. Windows always uses Ollama.
-
-Polish is **off by default**. It adds about a second. If the model changes
-your words or answers them, Whisper Local types your original text instead.
-Dictations over 1200 characters are not polished. On the Style page you can
-switch polish on for email apps, chat apps, or everywhere else. Code editors
-and terminals never polish.
-
-```yaml
-postprocess:
-  capitalize_first: true        # works without any AI
-  ensure_punctuation: true      # works without any AI
-  strip_filler_words: true      # works without any AI
-  ai:
-    provider: auto             # auto | apple_intelligence | ollama
-    polish: false              # set true to polish every dictation
-  ollama:                      # used when Ollama answers
-    endpoint: http://localhost:11434
-    model: llama3.2
-    timeout: 5
-```
-
-To polish only in some apps, add `polish: true | false` to a rule in
-`app_rules.yaml`.
-
-## ⚙️ Configuration
-
-Local settings live at:
-
-- **Windows:** `%APPDATA%\whisperkey\user_settings.yaml`
-- **macOS:** `~/.whisperkey/user_settings.yaml`
-
-Delete the file and restart to reset to defaults. Highlights:
-
-| Option | Default | Notes |
-|---|---|---|
-| `whisper.model` | `base` | Any model from `whisper.models`. `tiny` = smallest/fastest, larger = more accurate/slower |
-| `whisper.device` | `cpu` | `cpu` or `cuda` (NVIDIA/AMD) |
-| `whisper.compute_type` | `int8` | `int8`/`float16`/`float32` |
-| `whisper.language` | `auto` | Auto-detect or specific language code |
-| `whisper.hotwords` | `[]` | Words the model should favour — names, jargon |
-| `whisper.languages` | `[]` | The languages you dictate in, e.g. `[en, fr]`: auto-detection picks only from these |
-| `hotkey.recording_hotkey` | `ctrl+win` | Configurable |
-| `hotkey.recording_mode` | `push_to_talk` | `push_to_talk` (hold to talk) or `toggle` |
-| `hotkey.double_tap_to_lock` | `false` | Double-tap the record hotkey for hands-free recording |
-| `hotkey.paste_last_hotkey` | `alt+shift+z` | Type your last dictation again (`ctrl+option+v` on macOS) |
-| `postprocess.cleanup` | `light` | `none` / `light` / `medium` / `high`: how much of what you said gets tidied |
-| `postprocess.style` | `""` | `formal` / `casual` / `very_casual` / `verbatim`, or per app in `app_rules.yaml` |
-| `history.retention_days` | `null` | `0` stores no history at all; `7` keeps a week |
-| `stats.typing_wpm` | `40` | Your typing speed, used for the "minutes saved" estimate |
-| `postprocess.snippets` | `[]` | Spoken shortcuts expanded inline |
-| `audio.whisper_mode.enabled` | `false` | Boost quiet speech before transcription |
-| `vad.vad_realtime_enabled` | `true` | Auto-stop on silence |
-| `clipboard.auto_paste` | `true` | `false` = copy only |
-| `clipboard.delivery_method` | `paste` | `paste` (Ctrl+V) or `type` (direct injection) |
-| `voice_commands.enabled` | `true` | Enable command mode |
-| `audio.host` | `null` | `WASAPI` recommended on Windows for low latency |
-
-Full reference: [`config.defaults.yaml`](src/whisper_key/config.defaults.yaml).
-
----
-
-## 🛠️ CLI Reference
-
-```bash
-whisper-local                      # Run the app (or use `wl`)
-whisper-local --setup              # Interactive setup wizard (model, mode, mic)
-whisper-local --doctor             # Run diagnostics
-whisper-local --stats              # Transcription history & time saved
-whisper-local --version            # Print version
-whisper-local --quit               # Stop the running instance
-whisper-local --export-settings DIR        # Back up user_settings + commands
-whisper-local --import-settings DIR        # Restore from a backup
-whisper-local --export-transcripts FILE    # Dump history (.txt/.md/.csv)
-whisper-local --import-vocab FOLDER        # Mine a folder for hotwords
-whisper-local --settings           # Open the dashboard on Settings (no YAML editing required)
-whisper-local --history            # Open the dashboard on History (search past dictations)
-whisper-local --cheat-sheet        # Open the dashboard on About (your configured hotkeys)
-whisper-local --selftest           # Run an automated self-test (mic, model, transcription)
-whisper-local --bundle-logs        # Create a redacted diagnostic zip for bug reports
-whisper-local --serve              # Run a local OpenAI-compatible Whisper API on :7777
-whisper-local --enable-autostart   # Launch automatically at login (--disable-autostart to undo)
-whisper-local --test               # Run a separate test instance (own mutex)
-```
-
-Launching while an instance is already running **takes over** — the old one is replaced cleanly, no manual quit needed.
-
----
-
-## 🏗️ How it works
-
-```
-┌─────────────────────┐  ┌──────────────────┐  ┌─────────────────────┐
-│  global-hotkeys /   │  │   sounddevice +  │  │  faster-whisper /   │
-│  NSEvent (macOS)    │─▶│  500ms ring buf  │─▶│  ctranslate2 (GPU)  │
-└─────────────────────┘  │  + TEN VAD       │  └──────────┬──────────┘
-                         └──────────────────┘             │
-                                                          ▼
-                         ┌──────────────────┐  ┌─────────────────────┐
-                         │  Voice command   │◀─│  Transcribed text   │
-                         │  matcher         │  │                     │
-                         └──────────────────┘  └──────────┬──────────┘
-                                                          ▼
-                                                ┌─────────────────────┐
-                                                │  ctypes SendInput / │
-                                                │  Quartz CGEvent     │
-                                                │  → cursor           │
-                                                └─────────────────────┘
-```
-
----
-
-## 🔒 Privacy pledge
-
-Whisper Local makes the following network calls and **no others**:
-
-1. **First launch only:** downloads the Whisper model from `huggingface.co` into your local cache.
-2. **GPU onboarding (opt-in):** if you accept the GPU setup prompt, `pip install` pulls CUDA / ROCm runtime packages from PyPI / `repo.radeon.com`.
-3. **Update check (opt-in, off by default):** once a day asks `api.github.com` for the latest release tag. Nothing but the app version leaves the machine.
-4. **Ollama (opt-in, off by default):** text goes to whatever Ollama endpoint you configure, `localhost` unless you change it. Apple Intelligence makes no network call: it runs on your Mac.
-
-During dictation, **zero network traffic**. Every entry point is in [`onboarding.py`](src/whisper_key/onboarding.py), [`update_check.py`](src/whisper_key/update_check.py) and [`text_postprocess.py`](src/whisper_key/text_postprocess.py), and each is gated behind an explicit setting or prompt. Search the source for `urllib` if you'd rather check.
-
----
-
-## 📦 Tech stack
-
-`faster-whisper` · `ctranslate2` · `sounddevice` · `ten-vad` · `pyperclip` · `pystray` · `pywebview` · `ruamel.yaml` · `playsound3`
-**Windows-only:** `global-hotkeys` · `pywin32` · ctypes `SendInput`
-**macOS-only:** `pyobjc-framework-Quartz` · `pyobjc-framework-ApplicationServices`
-
----
-
-## 📚 Documentation
-
-- **[docs/troubleshooting.md](docs/troubleshooting.md)** — symptom → cause → fix table for the most common issues
-- **[docs/faq.md](docs/faq.md)** — privacy, comparisons (Whisper.cpp / WSR / Wispr Flow / Dragon), model picks, GPU notes
-- **[docs/distribution.md](docs/distribution.md)** — how releases work (standalone `.exe`, PyPI, winget, Homebrew) and how to ship one
-- **[docs/voice-commands.md](docs/voice-commands.md)** — the full voice command DSL
-- **[docs/gpu-setup.md](docs/gpu-setup.md)** — manual GPU setup for NVIDIA / AMD
-- **[CHANGELOG.md](CHANGELOG.md)** — release notes
-
-Hit a wall? Run `whisper-local --doctor` or `whisper-local --selftest` first — they catch 90% of issues.
-
----
-
-## 🤝 Contributing
-
-Contributions of all kinds are welcome — bug fixes, new features, docs improvements, or just opening an issue with a clear reproduction. This project is maintained on a best-effort basis with no SLA; please be patient with response times.
-
-```bash
-git clone https://github.com/vpr1995/whisper-local.git
-pip install -e .
-python -m unittest tests.test_smoke   # smoke suite — should report OK
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards. By contributing you agree your code will be MIT licensed. Found a security issue? See [SECURITY.md](SECURITY.md) — please don't open a public issue.
-
-Good first issues are tagged [here](https://github.com/vpr1995/whisper-local/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). The full credit list is in [AUTHORS.md](AUTHORS.md).
-
----
-
-## ☕ Support
-
-Whisper Local is free and always will be. If it saves you time or a monthly subscription, consider starring the repo and sharing it with people who'd find it useful — it helps the project grow.
-
-No pressure. Starring the repo and sharing it with people who'd find it useful is just as helpful.
-
----
-
-## 🙏 Credit
-
-Whisper Local builds on a lot of excellent open-source work. The full list is in [`AUTHORS.md`](AUTHORS.md).
-
-MIT licensed; see [`LICENSE`](LICENSE).
+Whisper Local builds on a lot of open-source work. The full list is in [AUTHORS.md](AUTHORS.md). MIT licensed, see [LICENSE](LICENSE).
 
 ---
 
 <div align="center">
 
-### ⭐ If you find this useful, please [star the repo](https://github.com/vpr1995/whisper-local) — it helps others discover it.
-
-**Maintained by [Prudhvi Reddy Vemireddy](https://github.com/vpr1995) ([@vpr1995](https://github.com/vpr1995))**  
+**Maintained by [Prudhvi Reddy Vemireddy](https://github.com/vpr1995) ([@vpr1995](https://github.com/vpr1995))**
 <sub>Fork of drajb/whisper-local by Rohit Burani, itself based on whisper-key-local by Pin Wang.</sub>
 
 [GitHub](https://github.com/vpr1995) · [Discussions](https://github.com/vpr1995/whisper-local/discussions) · [Report a bug](https://github.com/vpr1995/whisper-local/issues/new?template=bug_report.yml) · [Request a feature](https://github.com/vpr1995/whisper-local/issues/new?template=feature_request.yml)
-
-<sub>Tags: whisper · dictation · speech-to-text · voice-typing · transcription · ai-dictation · local-ai · offline · push-to-talk · voice-recognition · accessibility · faster-whisper · privacy · self-hosted · wispr-flow-alternative · dragon-naturallyspeaking-alternative · otter-alternative · ollama · voice-commands · windows · macos · python</sub>
 
 </div>

@@ -314,7 +314,7 @@ repo's convention after scripted edits so the diff shows only real changes.
 ## Round 7 (0.16.2) — first external bug report (2026-08)
 
 - **BUG-2 (High, feature completely broken on the .exe)** — reported as
-  [#2](https://github.com/drajb/whisper-local/issues/2) by @asherwin86: enabling
+  upstream issue #2 by @asherwin86: enabling
   "start on login" on Windows 11 opened a Python terminal at boot and the app
   never started. Root cause: `autostart._launch_command()` treated a truthy
   `$PYAPP` as "sys.executable IS the launcher", but pyapp unpacks a private

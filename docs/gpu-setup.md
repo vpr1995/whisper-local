@@ -1,5 +1,7 @@
 # GPU Acceleration Setup
 
+> **Platform status.** A Mac has no CUDA or ROCm GPU path, so Mac users can skip this page and stay on the CPU. NVIDIA and AMD setup is for Windows and Linux. It is **not validated yet** in this fork. [Back to the README](../README.md) · [Models](models.md)
+
 GPU acceleration lets you run bigger Whisper models with faster transcription. On CPU, `tiny` and `base` models work well. With a GPU, you can comfortably run `medium`, `large`, and `large-v3-turbo` for significantly better accuracy.
 
 ## Automatic Setup (Recommended)
@@ -32,7 +34,7 @@ On first launch, Whisper Local detects your GPU and offers to install the requir
 
 If you prefer to install GPU dependencies yourself, have an [AMD RDNA 1 GPU](#amd--rdna-1-rocm-62), or need to troubleshoot, follow the instructions below.
 
-To enable GPU mode, set these in your [user settings](../README.md#️-configuration):
+To enable GPU mode, set these in your [user settings](configuration.md#edit-and-reset-settings):
 ```yaml
 whisper:
   device: cuda
