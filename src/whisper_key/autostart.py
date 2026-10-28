@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 _WIN_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 _WIN_VALUE_NAME = "WhisperLocal"
-_MAC_LABEL = "com.drajb.whisper-local"
+_MAC_LABEL = "com.vpr1995.whisper-local"
 
 
 def is_supported() -> bool:

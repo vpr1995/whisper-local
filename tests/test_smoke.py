@@ -2082,7 +2082,7 @@ class AutostartTests(unittest.TestCase):
                 self.assertTrue(autostart._mac_is_enabled())
                 content = p.read_text(encoding='utf-8')
                 self.assertIn('RunAtLoad', content)
-                self.assertIn('com.drajb.whisper-local', content)
+                self.assertIn('com.vpr1995.whisper-local', content)
                 autostart._mac_disable()
                 self.assertFalse(autostart._mac_is_enabled())
 
@@ -2912,7 +2912,7 @@ class UninstallSafetyTests(unittest.TestCase):
     def test_models_need_their_own_confirmation(self):
         # Never touch the real login item: run_uninstall() calls the live
         # autostart module, and on a Mac with Start on login on this test
-        # used to delete ~/Library/LaunchAgents/com.drajb.whisper-local.plist.
+        # used to delete ~/Library/LaunchAgents/com.vpr1995.whisper-local.plist.
         import unittest.mock as _mock
         self.enterContext(_mock.patch('whisper_key.autostart.is_enabled', return_value=False))
         self.enterContext(_mock.patch('whisper_key.autostart.disable'))
@@ -2938,7 +2938,7 @@ class UninstallSafetyTests(unittest.TestCase):
     def test_clean_machine_reports_nothing_to_do(self):
         # Never touch the real login item: run_uninstall() calls the live
         # autostart module, and on a Mac with Start on login on this test
-        # used to delete ~/Library/LaunchAgents/com.drajb.whisper-local.plist.
+        # used to delete ~/Library/LaunchAgents/com.vpr1995.whisper-local.plist.
         import unittest.mock as _mock
         self.enterContext(_mock.patch('whisper_key.autostart.is_enabled', return_value=False))
         self.enterContext(_mock.patch('whisper_key.autostart.disable'))
@@ -4519,10 +4519,10 @@ class LoginItemRepairTests(unittest.TestCase):
 
     def _home_with_agent(self, home, args):
         import plistlib
-        path = home / 'Library' / 'LaunchAgents' / 'com.drajb.whisper-local.plist'
+        path = home / 'Library' / 'LaunchAgents' / 'com.vpr1995.whisper-local.plist'
         path.parent.mkdir(parents=True)
         with open(path, 'wb') as f:
-            plistlib.dump({'Label': 'com.drajb.whisper-local', 'ProgramArguments': args}, f)
+            plistlib.dump({'Label': 'com.vpr1995.whisper-local', 'ProgramArguments': args}, f)
         return path
 
     def _repair(self, args=None, tools_present=True):
