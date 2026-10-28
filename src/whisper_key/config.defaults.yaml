@@ -13,6 +13,11 @@ whisper: # Whisper AI Model Settings
     # - faster_whisper (default): CTranslate2-based, GPU-friendly, mature
     # - whisper_cpp: opt-in via `pip install whisper-local[whispercpp]`.
     #   Better Apple Silicon perf, GGUF model format, lower memory.
+    # - parakeet (experimental): NVIDIA Parakeet TDT v3 via sherpa-onnx. About
+    #   3x faster than Whisper small on CPU, 7x on short dictations. Picks the
+    #   language itself from 25 European languages. It cannot translate and
+    #   ignores beam_size, initial_prompt and hotwords. Uses the parakeet-v3
+    #   model below when `model` names a Whisper model.
     backend: faster_whisper
 
     # Model selection
@@ -136,6 +141,19 @@ whisper: # Whisper AI Model Settings
             label: "Distil-Large-V3.5 (English, 1.4GB)"
             group: custom
             enabled: true
+
+        # Parakeet models: only loaded by `backend: parakeet` (sherpa-onnx files)
+        parakeet-v3:
+            source: csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8
+            label: "Parakeet V3 (25 European languages, 670MB)"
+            group: parakeet
+            backend: parakeet
+            enabled: true
+            files:
+                encoder: encoder.int8.onnx
+                decoder: decoder.int8.onnx
+                joiner: joiner.int8.onnx
+                tokens: tokens.txt
 
 streaming: # Real-time STT (Experimental)
     # Real-time streaming speech recognition using sherpa-onnx

@@ -89,7 +89,6 @@ def run_cli(seconds: int = 10) -> int:
         from .config_manager import ConfigManager
         from .model_registry import ModelRegistry
         from .voice_activity_detection import VadManager
-        from .whisper_engine import WhisperEngine
 
         cm = ConfigManager(quiet=True)
         whisper_cfg = cm.get_whisper_config()
@@ -104,20 +103,10 @@ def run_cli(seconds: int = 10) -> int:
         )
         # Honour the configured backend so we don't silently transcribe with
         # faster-whisper (and trigger a redundant model download) when the user
-        # chose whisper_cpp — mirrors selftest's end-to-end bootstrap.
-        engine_kwargs = dict(
-            model_key=whisper_cfg['model'], device=whisper_cfg['device'],
-            compute_type=whisper_cfg['compute_type'],
-            language=whisper_cfg.get('language', 'auto'),
-            beam_size=whisper_cfg.get('beam_size', 5), initial_prompt='',
-            hotwords=[], task='transcribe', vad_manager=vad_manager,
-            model_registry=registry,
-        )
-        if whisper_cfg.get('backend', 'faster_whisper') == 'whisper_cpp':
-            from .whisper_engine_cpp import WhisperEngineCpp
-            engine = WhisperEngineCpp(**engine_kwargs)
-        else:
-            engine = WhisperEngine(**engine_kwargs)
+        # chose another one — same factory as the dictation app.
+        from .engine_factory import create_engine
+        engine = create_engine(whisper_cfg, vad_manager, registry,
+                               initial_prompt='', hotwords=[], task='transcribe', languages=None)
     except Exception as e:
         print(f"Could not initialise transcription engine: {e}")
         return 1

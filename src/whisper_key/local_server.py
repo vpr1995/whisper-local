@@ -73,7 +73,6 @@ def _build_engine():
     from .config_manager import ConfigManager
     from .model_registry import ModelRegistry
     from .voice_activity_detection import VadManager
-    from .whisper_engine import WhisperEngine
 
     cm = ConfigManager(quiet=True)
     whisper_cfg = cm.get_whisper_config()
@@ -90,31 +89,10 @@ def _build_engine():
         vad_silence_timeout_seconds=999.0,
     )
 
+    from .engine_factory import create_engine
     backend = whisper_cfg.get('backend', 'faster_whisper')
-    if backend == 'whisper_cpp':
-        from .whisper_engine_cpp import WhisperEngineCpp
-        engine = WhisperEngineCpp(
-            model_key=whisper_cfg['model'], device=whisper_cfg['device'],
-            compute_type=whisper_cfg['compute_type'],
-            language=whisper_cfg.get('language', 'auto'),
-            beam_size=whisper_cfg.get('beam_size', 5),
-            initial_prompt=whisper_cfg.get('initial_prompt', ''),
-            hotwords=whisper_cfg.get('hotwords', []),
-            task=whisper_cfg.get('task', 'transcribe'),
-            vad_manager=vad_manager, model_registry=registry,
-        )
-    else:
-        engine = WhisperEngine(
-            model_key=whisper_cfg['model'], device=whisper_cfg['device'],
-            compute_type=whisper_cfg['compute_type'],
-            language=whisper_cfg.get('language', 'auto'),
-            beam_size=whisper_cfg.get('beam_size', 5),
-            initial_prompt=whisper_cfg.get('initial_prompt', ''),
-            hotwords=whisper_cfg.get('hotwords', []),
-            task=whisper_cfg.get('task', 'transcribe'),
-            vad_manager=vad_manager, model_registry=registry,
-        )
-    print(f"   Backend = {backend}  ·  model = {whisper_cfg['model']}  ·  device = {whisper_cfg['device']}")
+    engine = create_engine(whisper_cfg, vad_manager, registry, languages=None)
+    print(f"   Backend = {backend}  ·  model = {engine.model_key}  ·  device = {whisper_cfg['device']}")
     return engine
 
 

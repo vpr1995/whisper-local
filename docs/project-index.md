@@ -66,6 +66,8 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Autostart** | `autostart.py` | Opt-in launch-on-login (Windows Run key / macOS LaunchAgent) | winreg |
 | **Console Welcome** | `onboarding_tutorial.py` | One-time first-launch console welcome banner | - |
 | **Whisper.cpp Backend** | `whisper_engine_cpp.py` | Opt-in `whisper_cpp` backend mirroring WhisperEngine's API | pywhispercpp |
+| **Parakeet Backend** | `parakeet_engine.py` | Opt-in `parakeet` backend (NVIDIA Parakeet TDT v3) mirroring WhisperEngine's API | sherpa-onnx |
+| **Engine Factory** | `engine_factory.py` | Maps `whisper.backend` (or a Parakeet model) to an engine for the app, server, self-test and system audio | - |
 | **Foreground App** | `platform/*/foreground.py` | Detects the active window/app for per-app rules | pywin32 / pyobjc |
 | **Console Control** | `platform/windows/console.py` | Show/hide/own the console window (pyapp builds) | ctypes |
 

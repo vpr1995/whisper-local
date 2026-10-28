@@ -5,6 +5,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 ## [Unreleased]
 
 ### Added
+- **Parakeet backend (experimental).** Set `whisper.model: parakeet-v3`, or
+  `whisper.backend: parakeet`. It runs NVIDIA Parakeet TDT v3 through
+  sherpa-onnx, which is already installed. On an M1 Pro CPU it is about 3
+  times faster than Whisper `small.en` over a mix of clips, and about 7 times
+  faster on short dictations (0.14 s against 1.0 s for a 3.6 s phrase). It
+  picks the language itself from 25 European languages. It cannot translate,
+  and it does not use `beam_size`, `initial_prompt` or `hotwords`;
+  corrections still apply. The download is 670 MB, on first use.
 - **The floating pill now works on macOS.** It is a native panel, not a Tk
   window: blurred, rounded and dark, and it never takes focus from the text
   field the result goes into. It shows the recording state, a live level

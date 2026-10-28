@@ -104,18 +104,15 @@ def _test_model_loadable():
         whisper_cfg = cm.get_whisper_config()
         model_key = whisper_cfg.get('model', 'tiny')
 
-        backend = whisper_cfg.get('backend', 'faster_whisper')
-        if backend == 'whisper_cpp':
-            try:
-                import pywhispercpp  # noqa: F401
-            except ImportError:
-                return False, ("whisper_cpp backend selected but pywhispercpp not installed",
-                               "pip install 'whisper-local[whispercpp]'")
-
+        from .engine_factory import missing_backend_dependency, resolve_backend
         registry = ModelRegistry(
             whisper_models_config=whisper_cfg.get('models', {}),
             streaming_models_config={}
         )
+        backend, model_key = resolve_backend(whisper_cfg, registry)
+        missing = missing_backend_dependency(backend)
+        if missing:
+            return False, missing
         model_info = registry.get_model(model_key)
         if not model_info:
             return False, (f"Configured model '{model_key}' not in registry", "")
@@ -151,23 +148,10 @@ def _test_end_to_end():
             vad_silence_timeout_seconds=999.0,
         )
 
-        from .whisper_engine import WhisperEngine
-        backend = whisper_cfg.get('backend', 'faster_whisper')
-        if backend == 'whisper_cpp':
-            from .whisper_engine_cpp import WhisperEngineCpp
-            engine = WhisperEngineCpp(
-                model_key=whisper_cfg['model'], device=whisper_cfg['device'],
-                compute_type=whisper_cfg['compute_type'], language='en',
-                beam_size=1, initial_prompt='', hotwords=[], task='transcribe',
-                vad_manager=vad_manager, model_registry=registry,
-            )
-        else:
-            engine = WhisperEngine(
-                model_key=whisper_cfg['model'], device=whisper_cfg['device'],
-                compute_type=whisper_cfg['compute_type'], language='en',
-                beam_size=1, initial_prompt='', hotwords=[], task='transcribe',
-                vad_manager=vad_manager, model_registry=registry,
-            )
+        from .engine_factory import create_engine
+        engine = create_engine(whisper_cfg, vad_manager, registry,
+                               language='en', beam_size=1, initial_prompt='',
+                               hotwords=[], task='transcribe', languages=None)
 
         t0 = time.time()
         silence = np.zeros(2 * 16000, dtype=np.float32)

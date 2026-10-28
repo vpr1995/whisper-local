@@ -260,23 +260,23 @@ def _section_model() -> int:
         from .model_registry import ModelRegistry
         cfg = ConfigManager(quiet=True)
         whisper_cfg = cfg.get_whisper_config()
-        backend = whisper_cfg.get('backend', 'faster_whisper')
-        Check("Whisper backend").info(backend).print()
-        if backend == 'whisper_cpp':
-            try:
-                import pywhispercpp  # noqa
-                Check("pywhispercpp installed").ok(getattr(pywhispercpp, '__version__', '?')).print()
-            except ImportError:
-                Check("pywhispercpp installed").fail("missing — run: pip install 'whisper-local[whispercpp]'").print()
-                failures += 1
-        elif whisper_cfg.get('device') == 'cuda':
-            failures += _check_gpu_libraries()
         streaming_cfg = cfg.get_streaming_config()
         registry = ModelRegistry(
             whisper_models_config=whisper_cfg.get('models', {}),
             streaming_models_config=streaming_cfg.get('models', {}),
         )
-        model_key = whisper_cfg.get('model', 'tiny')
+        from .engine_factory import missing_backend_dependency, resolve_backend
+        backend, model_key = resolve_backend(whisper_cfg, registry)
+        Check("Whisper backend").info(backend).print()
+        missing = missing_backend_dependency(backend)
+        if missing:
+            problem, fix = missing
+            Check("Backend runtime").fail(f"{problem} — run: {fix}").print()
+            failures += 1
+        elif backend != 'faster_whisper':
+            Check("Backend runtime").ok("importable").print()
+        elif whisper_cfg.get('device') == 'cuda':
+            failures += _check_gpu_libraries()
         cached = registry.is_model_cached(model_key)
         if cached:
             Check(f"Model '{model_key}' cached").ok().print()

@@ -344,6 +344,165 @@ class WhisperCppIdleUnloadTests(unittest.TestCase):
         self.assertIn("disk gone", engine.last_error)
 
 
+class ParakeetEngineTests(unittest.TestCase):
+    # A stand-in for sherpa-onnx's OfflineRecognizer: records the audio each
+    # decode saw and returns fixed text. The registry is faked too, so these
+    # run without the model download or the ML stack.
+    def _make_engine(self, **engine_kwargs):
+        import contextlib
+        import io
+        import tempfile
+        import types
+        from unittest import mock
+        import numpy as np
+        quiet = contextlib.redirect_stdout(io.StringIO())
+        quiet.__enter__()
+        self.addCleanup(quiet.__exit__, None, None, None)
+
+        folder = tempfile.mkdtemp()
+        files = {role: f"{role}.onnx" for role in ('encoder', 'decoder', 'joiner', 'tokens')}
+        for name in files.values():
+            Path(folder, name).write_text("x")
+        registry = types.SimpleNamespace(get_model_files_path=lambda key: (folder, files))
+
+        decoded = []
+
+        class FakeStream:
+            def accept_waveform(self, rate, audio):
+                decoded.append(len(audio))
+                self.result = types.SimpleNamespace(text=" Bonjour, ensuite. ")
+
+        class FakeRecognizer:
+            @classmethod
+            def from_transducer(cls, **kwargs):
+                assert kwargs["model_type"] == "nemo_transducer"
+                return cls()
+
+            def create_stream(self):
+                return FakeStream()
+
+            def decode_stream(self, stream):
+                pass
+
+        fake_sherpa = types.ModuleType("sherpa_onnx")
+        fake_sherpa.OfflineRecognizer = FakeRecognizer
+        patcher = mock.patch.dict(sys.modules, {"sherpa_onnx": fake_sherpa})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        from whisper_key.parakeet_engine import ParakeetEngine
+        engine = ParakeetEngine(model_key="parakeet-v3", model_registry=registry, **engine_kwargs)
+        decoded.clear()  # drop the warmup decode
+        return engine, decoded, np.zeros(16000, dtype=np.float32)
+
+    def test_transcribes_and_strips_text(self):
+        engine, decoded, audio = self._make_engine()
+        self.assertEqual(engine.transcribe_audio(audio), "Bonjour, ensuite.")
+        self.assertEqual(decoded, [16000])
+
+    def test_translate_still_transcribes(self):
+        # Parakeet cannot translate; a translate profile must not break dictation
+        engine, _, audio = self._make_engine(task="translate")
+        self.assertEqual(engine.transcribe_audio(audio), "Bonjour, ensuite.")
+
+    def test_unload_then_transcribe_reloads(self):
+        engine, _, audio = self._make_engine()
+        self.assertTrue(engine.unload_if_idle(0))
+        self.assertFalse(engine.is_model_loaded)
+        self.assertEqual(engine.transcribe_audio(audio), "Bonjour, ensuite.")
+        self.assertTrue(engine.is_model_loaded)
+
+    def test_missing_model_files_fail_loudly(self):
+        import types
+        from whisper_key.parakeet_engine import ParakeetEngine
+        engine, _, _ = self._make_engine()
+        engine.registry = types.SimpleNamespace(get_model_files_path=lambda key: None)
+        with self.assertRaises(RuntimeError):
+            engine._create_model("parakeet-v3")
+
+
+class BackendSelectionTests(unittest.TestCase):
+    MODELS = {
+        'base': {'label': 'Base', 'group': 'official'},
+        'parakeet-v3': {'source': 'org/parakeet', 'label': 'Parakeet', 'group': 'parakeet',
+                        'backend': 'parakeet', 'files': {'encoder': 'e.onnx'}},
+    }
+
+    def _registry(self, backend="faster_whisper"):
+        try:
+            from whisper_key.model_registry import ModelRegistry
+        except Exception:
+            self.skipTest("model_registry not importable (faster_whisper absent)")
+        return ModelRegistry(whisper_models_config=self.MODELS, active_backend=backend)
+
+    def test_parakeet_model_selects_parakeet_backend(self):
+        # Picking the model in Settings is enough; whisper.backend need not change
+        self.assertEqual(self._registry().resolve('parakeet-v3', 'faster_whisper'),
+                         ('parakeet', 'parakeet-v3'))
+
+    def test_parakeet_backend_replaces_a_whisper_model(self):
+        self.assertEqual(self._registry().resolve('base', 'parakeet'), ('parakeet', 'parakeet-v3'))
+
+    def test_whisper_backends_keep_whisper_models(self):
+        registry = self._registry()
+        self.assertEqual(registry.resolve('base', 'whisper_cpp'), ('whisper_cpp', 'base'))
+        self.assertEqual(registry.resolve('base', 'faster_whisper'), ('faster_whisper', 'base'))
+
+    def test_model_menu_only_lists_loadable_models(self):
+        # The tray swaps models inside one engine, so it must not offer the other backend's
+        whisper_menu = self._registry("faster_whisper")
+        self.assertEqual([m.key for m in whisper_menu.get_models_by_group('parakeet')], [])
+        self.assertEqual([m.key for m in whisper_menu.get_models_by_group('official')], ['base'])
+        parakeet_menu = self._registry("parakeet")
+        self.assertEqual([m.key for m in parakeet_menu.get_models_by_group('official')], [])
+        self.assertEqual([m.key for m in parakeet_menu.get_models_by_group('parakeet')], ['parakeet-v3'])
+
+    def test_file_set_model_is_uncached_until_its_files_exist(self):
+        import tempfile
+        from unittest import mock
+        registry = self._registry()
+        with tempfile.TemporaryDirectory() as hub:
+            with mock.patch.object(registry, 'get_hf_cache_path', return_value=hub):
+                self.assertFalse(registry.is_model_cached('parakeet-v3'))
+                snapshot = Path(hub, 'models--org--parakeet', 'snapshots', 'abc')
+                snapshot.mkdir(parents=True)
+                (snapshot / 'e.onnx').write_text('x')
+                self.assertTrue(registry.is_model_cached('parakeet-v3'))
+
+    def test_factory_maps_every_backend_to_an_engine(self):
+        import types
+        from unittest import mock
+        from whisper_key import engine_factory
+        fake_cpp = types.ModuleType("pywhispercpp.model")
+        fake_cpp.Model = object
+        with mock.patch.dict(sys.modules, {"pywhispercpp": types.ModuleType("pywhispercpp"),
+                                           "pywhispercpp.model": fake_cpp}):
+            self.assertEqual(engine_factory.engine_class('whisper_cpp').__name__, 'WhisperEngineCpp')
+        self.assertEqual(engine_factory.engine_class('parakeet').__name__, 'ParakeetEngine')
+
+    def test_factory_applies_overrides(self):
+        from unittest import mock
+        from whisper_key import engine_factory
+        built = {}
+
+        class FakeEngine:
+            def __init__(self, **kwargs):
+                built.update(kwargs)
+
+        cfg = {'backend': 'parakeet', 'model': 'parakeet-v3', 'device': 'cpu',
+               'compute_type': 'int8', 'beam_size': 5}
+        with mock.patch.object(engine_factory, 'engine_class', return_value=FakeEngine):
+            engine_factory.create_engine(cfg, None, None, beam_size=1, language='en')
+        self.assertEqual((built['model_key'], built['beam_size'], built['language']),
+                         ('parakeet-v3', 1, 'en'))
+
+    def test_defaults_ship_a_parakeet_model(self):
+        from ruamel.yaml import YAML
+        with open(ROOT / "src" / "whisper_key" / "config.defaults.yaml", encoding="utf-8") as f:
+            model = YAML().load(f)["whisper"]["models"]["parakeet-v3"]
+        self.assertEqual(model["backend"], "parakeet")
+        self.assertEqual(set(model["files"]), {"encoder", "decoder", "joiner", "tokens"})
+
+
 class SleepingTrayStateTests(unittest.TestCase):
     # With the model unloaded after idle, "idle" is shown as "sleeping" in the
     # tray and terminal title, and the engine's unload/reload callback repaints
@@ -2851,8 +3010,9 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
 
     def test_dll_path_is_set_up_before_the_ml_stack_imports(self):
         source = (ROOT / 'src' / 'whisper_key' / 'main.py').read_text(encoding='utf-8')
+        # Engines (and so the ML stack) are imported through engine_factory.
         self.assertLess(source.index('setup_nvidia_dll_path()'),
-                        source.index('from .whisper_engine import'))
+                        source.index('from .engine_factory import'))
 
     def _gpu_probe(self, loadable, compute_types=('float16',)):
         import types

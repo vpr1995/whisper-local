@@ -162,43 +162,14 @@ def setup_streaming(streaming_config, model_registry):
     )
 
 def setup_whisper_engine(whisper_config, vad_manager, model_registry, log_transcriptions=False, config_manager=None):
-    from .whisper_engine import WhisperEngine
-    backend = whisper_config.get('backend', 'faster_whisper')
-
-    if backend == 'whisper_cpp':
-        from .whisper_engine_cpp import WhisperEngineCpp
-        return WhisperEngineCpp(
-            model_key=whisper_config['model'],
-            device=whisper_config['device'],
-            compute_type=whisper_config['compute_type'],
-            language=whisper_config['language'],
-            beam_size=whisper_config['beam_size'],
-            initial_prompt=whisper_config.get('initial_prompt', ''),
-            hotwords=whisper_config.get('hotwords', []),
-            task=whisper_config.get('task', 'transcribe'),
-            vad_manager=vad_manager,
-            model_registry=model_registry,
-            log_transcriptions=log_transcriptions,
-            languages=whisper_config.get('languages'),
-        )
-
+    from .engine_factory import create_engine
     try:
-        return WhisperEngine(
-            model_key=whisper_config['model'],
-            device=whisper_config['device'],
-            compute_type=whisper_config['compute_type'],
-            language=whisper_config['language'],
-            beam_size=whisper_config['beam_size'],
-            initial_prompt=whisper_config.get('initial_prompt', ''),
-            hotwords=whisper_config.get('hotwords', []),
-            task=whisper_config.get('task', 'transcribe'),
-            vad_manager=vad_manager,
-            model_registry=model_registry,
-            log_transcriptions=log_transcriptions,
-            languages=whisper_config.get('languages'),
-        )
+        return create_engine(whisper_config, vad_manager, model_registry,
+                             log_transcriptions=log_transcriptions)
     except RuntimeError as e:
-        if whisper_config['device'] != 'cuda' or not config_manager:
+        # Only faster-whisper on cuda can fall back to CPU; anything else is fatal.
+        if (model_registry.active_backend != 'faster_whisper'
+                or whisper_config['device'] != 'cuda' or not config_manager):
             raise
         return _handle_gpu_failure(e, whisper_config, vad_manager, model_registry, log_transcriptions, config_manager)
 
@@ -588,8 +559,10 @@ def main():
         from .state_manager import StateManager
         model_registry = ModelRegistry(
             whisper_models_config=whisper_config.get('models', {}),
-            streaming_models_config=streaming_config.get('models', {})
+            streaming_models_config=streaming_config.get('models', {}),
         )
+        from .engine_factory import resolve_backend
+        model_registry.active_backend, _ = resolve_backend(whisper_config, model_registry)
         vad_manager = setup_vad(vad_config)
         streaming_manager = setup_streaming(streaming_config, model_registry)
         whisper_engine = setup_whisper_engine(whisper_config, vad_manager, model_registry, log_transcriptions, config_manager)
