@@ -5,6 +5,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 ## [Unreleased]
 
 ### Added
+- **Delete many dictations at once in History.** Click "Select", then click
+  the dictations to delete, or click "Select all". "Select all" includes the
+  dictations that are not loaded yet and follows your search. Click "Delete"
+  two times to confirm.
 - **"What Whisper Local needs" on the About page.** One list shows if the
   microphone, Accessibility, the speech model, Apple Intelligence and Ollama
   are ready. Each item that is missing has a button: open the correct System

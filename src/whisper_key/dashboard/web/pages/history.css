@@ -46,5 +46,21 @@
 .history-fix-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 10px; }
 .history-fix-hint { margin-right: auto; font-size: 12px; color: var(--fg-secondary); }
 
+/* Multi-select: the bar replaces the Select button; each row shows a checkbox */
+.history-selection-bar {
+  display: flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 8px 6px 14px;
+  border-radius: var(--radius-control); background: var(--accent-soft);
+}
+.history-selection-bar[hidden], .history-toolbar .button[hidden] { display: none; }
+.history-selection-count { font-size: 13px; font-weight: 500; }
+.history-selection-spacer { flex: 1; }
+.history-check { display: none; pointer-events: none; accent-color: var(--accent); margin: 3px 0 0; }
+.history-list.selecting .history-row { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; cursor: pointer; }
+.history-list.selecting .history-check { display: block; grid-row: 1 / span 2; }
+.history-list.selecting .history-text { cursor: pointer; }
+.history-list.selecting .history-actions { display: none; }
+.history-list.selecting .history-footer { grid-column: 2; }
+.history-row.selected { background: var(--accent-soft); }
+
 .history-more { display: flex; justify-content: center; margin-top: 16px; }
 .history-empty-action { margin-top: 14px; }

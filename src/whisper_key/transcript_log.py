@@ -90,26 +90,36 @@ def load_transcripts() -> list:
     return list(reversed(entries))
 
 
-# Removes one journal entry (the history page's delete button). Entries have no
-# id, so a line matches on timestamp + text; only the first match goes, which is
-# enough because two identical dictations in the same second are interchangeable.
-def delete_transcript(timestamp: str, text: str) -> bool:
+# Removes journal entries (the history page's Delete and multi-select delete).
+# Entries have no id, so a line matches on timestamp + text. Each requested pair
+# removes one line, so two identical dictations in the same second still delete
+# one at a time. Returns how many lines went.
+def delete_transcripts(entries: list) -> int:
+    from collections import Counter
+    pending = Counter((entry.get('timestamp'), entry.get('text')) for entry in entries or [])
+    if not pending:
+        return 0
     path = Path(get_user_app_data_path()) / _LOG_FILE
     try:
         with _write_lock:
-            lines = path.read_text(encoding='utf-8').splitlines()
-            for index, line in enumerate(lines):
+            kept, deleted_count = [], 0
+            for line in path.read_text(encoding='utf-8').splitlines():
                 try:
                     entry = json.loads(line)
-                except json.JSONDecodeError:
+                    key = (entry.get('timestamp'), entry.get('text'))
+                except (json.JSONDecodeError, AttributeError):
+                    key = None
+                if key in pending and pending[key] > 0:
+                    pending[key] -= 1
+                    deleted_count += 1
                     continue
-                if entry.get('timestamp') == timestamp and entry.get('text') == text:
-                    del lines[index]
-                    path.write_text(('\n'.join(lines) + '\n') if lines else '', encoding='utf-8')
-                    return True
+                kept.append(line)
+            if deleted_count:
+                path.write_text(('\n'.join(kept) + '\n') if kept else '', encoding='utf-8')
+            return deleted_count
     except OSError as e:
-        logger.warning(f"Could not delete transcript: {e}")
-    return False
+        logger.warning(f"Could not delete transcripts: {e}")
+    return 0
 
 
 # An entry's timestamp for the age cut-off. A malformed line reads as the

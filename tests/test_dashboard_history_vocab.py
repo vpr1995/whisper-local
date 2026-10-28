@@ -109,11 +109,31 @@ class HistoryApiTests(TempDataDirTestCase):
         self.assertFalse(second['has_more'])
 
     def test_delete_removes_only_the_matching_entry(self):
-        self.assertTrue(self.api.delete_history_entry('2026-10-02T09:00:00', 'second note'))
+        second = {'timestamp': '2026-10-02T09:00:00', 'text': 'second note'}
+        self.assertEqual(self.api.delete_history_entries([second]), 1)
         remaining = [e['text'] for e in self.api.get_history()['entries']]
         self.assertEqual(len(remaining), 2)
         self.assertNotIn('second note', remaining)
-        self.assertFalse(self.api.delete_history_entry('2026-10-02T09:00:00', 'second note'))
+        self.assertEqual(self.api.delete_history_entries([second]), 0)
+
+    def test_multi_select_delete_removes_each_picked_entry(self):
+        picked = [{'timestamp': '2026-10-01T09:00:00', 'text': 'first note about Kubernetes'},
+                  {'timestamp': '2026-10-03T09:00:00', 'text': 'third note about kubernetes again'}]
+        self.assertEqual(self.api.delete_history_entries(picked), 2)
+        self.assertEqual([e['text'] for e in self.api.get_history()['entries']], ['second note'])
+
+    def test_identical_dictations_delete_one_per_request(self):
+        log_path = self.data_dir / 'transcripts.jsonl'
+        duplicate = {'timestamp': '2026-10-02T09:00:00', 'text': 'second note'}
+        log_path.write_text(log_path.read_text(encoding='utf-8') + json.dumps(duplicate) + '\n', encoding='utf-8')
+        self.assertEqual(self.api.delete_history_entries([duplicate]), 1)
+        self.assertIn('second note', [e['text'] for e in self.api.get_history()['entries']])
+
+    def test_select_all_deletes_every_match_including_unloaded_rows(self):
+        self.assertEqual(self.api.delete_matching_history('kubernetes'), 2)
+        self.assertEqual([e['text'] for e in self.api.get_history()['entries']], ['second note'])
+        self.assertEqual(self.api.delete_matching_history(''), 1)
+        self.assertEqual(self.api.get_history()['total'], 0)
 
     def test_saving_disabled_flag_follows_retention_zero(self):
         self.api.history_config = {'retention_days': 0}

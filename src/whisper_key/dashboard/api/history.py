@@ -155,10 +155,17 @@ class HistoryApi:
 
     # ── Editing ──────────────────────────────────────────────────────────────
 
-    # Deletes one journal entry; the page identifies it by timestamp + text.
-    def delete_history_entry(self, timestamp: str, text: str) -> bool:
+    # Deletes the given entries ({timestamp, text} each, as the page shows them).
+    # Returns how many were removed; 0 means they were already gone.
+    def delete_history_entries(self, entries: list) -> int:
         from ... import transcript_log
-        return transcript_log.delete_transcript(timestamp, text)
+        return transcript_log.delete_transcripts(entries)
+
+    # Deletes every entry matching `query` (all of them when it is empty): the
+    # page's "Select all", which also covers rows not loaded yet.
+    def delete_matching_history(self, query: str = '') -> int:
+        from ... import transcript_log
+        return transcript_log.delete_transcripts(_filter_entries(transcript_log.load_transcripts(), query))
 
     # "Fix this everywhere": persists a whole-word, case-insensitive replacement
     # that applies from the next dictation. Returns False for empty/no-op input.

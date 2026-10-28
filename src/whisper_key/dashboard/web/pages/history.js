@@ -1,7 +1,7 @@
 // pages/history.js
 // History page: live search over every saved transcript, grouped by day, with Copy,
-// "Fix this everywhere" (-> Vocabulary replacements), Delete and Export. Data comes
-// from api/history.py, 200 entries at a time ("Load more").
+// "Fix this everywhere" (-> Vocabulary replacements), Delete, multi-select delete
+// ("Select") and Export. Data comes from api/history.py, 200 entries at a time ("Load more").
 
 const HISTORY_PAGE_SIZE = 200;
 const SEARCH_DEBOUNCE_MS = 150;
@@ -9,7 +9,7 @@ const DELETE_CONFIRM_MS = 3000;
 
 // ── Formatting ───────────────────────────────────────────────────────────────
 
-const pluralize = (count, noun) => `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`;
+const pluralize = (count, noun, pluralNoun = `${noun}s`) => `${count.toLocaleString()} ${count === 1 ? noun : pluralNoun}`;
 
 // "2026-10-28" in local time: the key that decides which day group a row joins.
 function dayKeyOf(date) {
@@ -109,7 +109,7 @@ function buildHistoryRow(entry, query, api, onDeleted) {
       return;
     }
     clearTimeout(confirmTimer);
-    const deleted = await api.call('delete_history_entry', entry.timestamp, entry.text).catch(() => false);
+    const deleted = await api.call('delete_history_entries', [entry]).catch(() => 0);
     if (deleted) onDeleted(row);
     else ui.toast('That entry was already gone.', 'error');
   }, { variant: 'ghost' });
@@ -123,11 +123,17 @@ function buildHistoryRow(entry, query, api, onDeleted) {
     row.append(fixForm);
   }, { variant: 'ghost' });
 
+  // Only shown in select mode; the page toggles it from a click anywhere on the row.
+  const checkbox = el('input', { type: 'checkbox', class: 'history-check', tabindex: '-1', 'aria-hidden': 'true' });
+
   const row = el('div', { class: 'history-row' },
+    checkbox,
     textElement,
     el('div', { class: 'history-footer' },
       el('span', { class: 'history-meta', text: meta }),
       el('span', { class: 'history-actions' }, copyButton, fixButton, deleteButton)));
+  row.entry = entry;
+  row.checkbox = checkbox;
   return row;
 }
 
@@ -151,10 +157,13 @@ registerPage('history', {
       if (result.saved) ui.toast(`Exported ${pluralize(result.count, 'transcript')}`, 'success');
       else if (!result.count) ui.toast('Nothing to export.', 'info');
     });
+    const selectButton = ui.button('Select', () => setSelecting(true));
     const statusLine = el('div', { class: 'history-status' });
     const listMount = el('div', { class: 'history-list' });
     const loadMoreMount = el('div', { class: 'history-more' });
-    container.append(el('div', { class: 'history-toolbar' }, searchInput, exportButton), statusLine, listMount, loadMoreMount);
+    const selectionBar = buildSelectionBar();
+    container.append(el('div', { class: 'history-toolbar' }, searchInput, selectButton, exportButton),
+      selectionBar, statusLine, listMount, loadMoreMount);
 
     // Day-group bookkeeping so "Load more" continues the last card instead of restarting it.
     let currentDayKey = null;
@@ -164,9 +173,114 @@ registerPage('history', {
 
     const updateStatus = () => {
       statusLine.textContent = query.trim()
-        ? `${pluralize(matchedCount, 'match')} of ${totalCount.toLocaleString()}`
+        ? `${pluralize(matchedCount, 'match', 'matches')} of ${totalCount.toLocaleString()}`
         : `${pluralize(totalCount, 'dictation')} saved on this device`;
     };
+
+    // ── Multi-select ──
+    // Rows picked one by one live in selectedRows. "Select all" instead sets
+    // allMatchingSelected, so the delete also covers rows "Load more" has not
+    // fetched yet (the API deletes by the search query).
+    let selecting = false;
+    let allMatchingSelected = false;
+    const selectedRows = new Set();
+    let deleteConfirmTimer = null;
+
+    function buildSelectionBar() {
+      const countLabel = el('span', { class: 'history-selection-count' });
+      // Flips to "Unselect all" once everything is picked.
+      const selectAllButton = ui.button('Select all', () => {
+        if (everythingSelected()) clearSelection(); else selectAllMatching();
+        updateSelectionBar();
+      }, { variant: 'ghost' });
+      const deleteSelectedButton = ui.button('Delete', () => deleteSelected(), { variant: 'danger' });
+      const doneButton = ui.button('Done', () => setSelecting(false));
+      const bar = el('div', { class: 'history-selection-bar', hidden: true },
+        countLabel, el('span', { class: 'history-selection-spacer' }), selectAllButton, deleteSelectedButton, doneButton);
+      bar.countLabel = countLabel;
+      bar.deleteButton = deleteSelectedButton;
+      bar.selectAllButton = selectAllButton;
+      return bar;
+    }
+
+    const selectedCount = () => (allMatchingSelected ? matchedCount : selectedRows.size);
+    const everythingSelected = () => matchedCount > 0 && selectedCount() === matchedCount;
+
+    const resetDeleteConfirm = () => {
+      clearTimeout(deleteConfirmTimer);
+      deleteConfirmTimer = null;
+    };
+
+    const updateSelectionBar = () => {
+      const count = selectedCount();
+      selectionBar.countLabel.textContent = count ? `${pluralize(count, 'dictation')} selected` : 'Click dictations to select them';
+      selectionBar.deleteButton.querySelector('span').textContent =
+        deleteConfirmTimer ? `Click again to delete ${count.toLocaleString()}` : 'Delete';
+      selectionBar.deleteButton.toggleAttribute('disabled', !count);
+      selectionBar.selectAllButton.querySelector('span').textContent = everythingSelected() ? 'Unselect all' : 'Select all';
+    };
+
+    const setRowSelected = (row, selected) => {
+      row.checkbox.checked = selected;
+      row.classList.toggle('selected', selected);
+      if (selected) selectedRows.add(row); else selectedRows.delete(row);
+    };
+
+    const clearSelection = () => {
+      for (const row of [...selectedRows]) setRowSelected(row, false);
+      allMatchingSelected = false;
+      resetDeleteConfirm();
+    };
+
+    function setSelecting(on) {
+      selecting = on;
+      clearSelection();
+      listMount.classList.toggle('selecting', on);
+      selectionBar.hidden = !on;
+      selectButton.hidden = on;
+      updateSelectionBar();
+    }
+
+    function selectAllMatching() {
+      allMatchingSelected = true;
+      for (const row of listMount.querySelectorAll('.history-row')) setRowSelected(row, true);
+      resetDeleteConfirm();
+    }
+
+    // In select mode a click anywhere on a row toggles it (capture phase, so the
+    // text's expand-on-click and the row buttons don't also fire).
+    const onRowClickWhileSelecting = (event) => {
+      if (!selecting) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const row = event.currentTarget;
+      const selected = !row.checkbox.checked;
+      if (!selected && allMatchingSelected) {
+        // Unticking one row turns "all matching" into the loaded rows minus this one.
+        allMatchingSelected = false;
+      }
+      setRowSelected(row, selected);
+      resetDeleteConfirm();
+      updateSelectionBar();
+    };
+
+    // Same two-click confirm as a single row: deleted dictations can't be recovered.
+    async function deleteSelected() {
+      const count = selectedCount();
+      if (!count) return;
+      if (!deleteConfirmTimer) {
+        deleteConfirmTimer = setTimeout(() => { deleteConfirmTimer = null; updateSelectionBar(); }, DELETE_CONFIRM_MS);
+        return updateSelectionBar();
+      }
+      resetDeleteConfirm();
+      const deletedCount = allMatchingSelected
+        ? await api.call('delete_matching_history', query).catch(() => null)
+        : await api.call('delete_history_entries', [...selectedRows].map((row) => row.entry)).catch(() => null);
+      if (deletedCount === null) return updateSelectionBar();
+      ui.toast(`Deleted ${pluralize(deletedCount, 'dictation')}`, 'success');
+      setSelecting(false);
+      await runSearch();
+    }
 
     const appendEntries = (entries) => {
       for (const entry of entries) {
@@ -177,7 +291,10 @@ registerPage('history', {
           currentCard = ui.card(null, []);
           listMount.append(ui.sectionHeader(Number.isNaN(date.getTime()) ? 'Earlier' : dayLabelOf(date)), currentCard);
         }
-        currentCard.append(buildHistoryRow(entry, query, api, removeRow));
+        const row = buildHistoryRow(entry, query, api, removeRow);
+        row.addEventListener('click', onRowClickWhileSelecting, true);
+        if (allMatchingSelected) setRowSelected(row, true);
+        currentCard.append(row);
       }
       loadedCount += entries.length;
     };
@@ -240,6 +357,8 @@ registerPage('history', {
       listMount.replaceChildren();
       updateStatus();
       exportButton.toggleAttribute('disabled', !result.matched);
+      selectButton.toggleAttribute('disabled', !result.matched);
+      if (selecting) setSelecting(false); // a new search starts with nothing selected
       if (!result.entries.length) return showEmpty(result);
       appendEntries(result.entries);
       renderLoadMore(result.has_more);
