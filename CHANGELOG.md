@@ -71,9 +71,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   times faster than Whisper `small.en` over a mix of clips, and about 7 times
   faster on short dictations (0.14 s against 1.0 s for a 3.6 s phrase). It
   picks the language itself from 25 European languages. It cannot translate,
-  and it does not use `beam_size` or `initial_prompt`. It uses
-  `whisper.hotwords` (your dictionary): names it gets wrong without them
-  ("Pradvi") come out right ("Prudhvi"). The download is 670 MB, on first use.
+  and it does not use `beam_size`, `initial_prompt` or `whisper.hotwords`.
+  To fix a name it gets wrong, use History > "Fix this everywhere". The
+  download is 670 MB, on first use.
 - **Dictionary words apply without a restart.** A word you add on the
   dashboard's Vocabulary page or with `--add-word` applies to your next
   dictation, with every backend.
@@ -125,6 +125,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   `--add-word` in a terminal.
 
 ### Fixed
+- **Parakeet no longer returns empty or wrong text when the dictionary has
+  words.** Dictionary words made Parakeet use the sherpa-onnx hotword beam
+  search. On short real dictations, it returned no text or wrong text ("Yeah."
+  for "What's happening?"). Parakeet now always uses greedy decoding and
+  ignores dictionary words.
 - **Per-app rules now work on macOS for terminals, code editors and password
   managers.** The shipped rules listed only Windows program names. They now
   also list macOS bundle ids, for example Terminal, iTerm2, VS Code, Cursor,

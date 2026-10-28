@@ -417,28 +417,14 @@ class ParakeetEngineTests(unittest.TestCase):
         self.assertEqual(engine.transcribe_audio(audio), "Bonjour, ensuite.")
         self.assertTrue(engine.is_model_loaded)
 
-    def test_hotwords_switch_to_beam_search_and_reach_each_recording(self):
-        # The dictionary is the main accuracy fix for names; Parakeet must use it
-        engine, _, audio = self._make_engine(hotwords=["Prudhvi", " ", "Rohit Burani"])
-        self.assertEqual(self.recognizer_kwargs["decoding_method"], "modified_beam_search")
-        vocab = Path(self.recognizer_kwargs["bpe_vocab"]).read_text()
-        self.assertEqual(vocab, "<unk>\t0\n\u2581Pr\t-1\nudh\t-2\n")
-        engine.transcribe_audio(audio)
-        self.assertEqual(self.stream_hotwords[-1], "Prudhvi\nRohit Burani")
-
-    def test_no_hotwords_keeps_greedy_search(self):
-        engine, _, audio = self._make_engine()
+    def test_dictionary_words_keep_greedy_search(self):
+        # sherpa-onnx hotword beam search dropped or garbled short real
+        # dictations, so dictionary words must not switch the decoding method
+        engine, _, audio = self._make_engine(hotwords=["Prudhvi"])
+        engine.set_hotwords(["Prudhvi", "Rohit Burani"])
+        self.assertEqual(engine.transcribe_audio(audio), "Bonjour, ensuite.")
         self.assertNotIn("decoding_method", self.recognizer_kwargs)
-        engine.transcribe_audio(audio)
-        self.assertEqual(self.stream_hotwords[-1], None)
-
-    def test_first_dictionary_word_rebuilds_for_beam_search(self):
-        # Adding the first word while running must switch decoding, not be ignored
-        engine, _, audio = self._make_engine()
-        engine.set_hotwords(["Prudhvi"])
-        engine.transcribe_audio(audio)
-        self.assertEqual(self.recognizer_kwargs["decoding_method"], "modified_beam_search")
-        self.assertEqual(self.stream_hotwords[-1], "Prudhvi")
+        self.assertEqual(set(self.stream_hotwords), {None})
 
     def test_missing_model_files_fail_loudly(self):
         import types

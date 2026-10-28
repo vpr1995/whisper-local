@@ -77,7 +77,7 @@ On CPU with the same `medium` model: 2–6 seconds. The first transcription afte
 Supported via ROCm on Linux/Windows (not validated yet in this fork). Run `whisper-local --setup` and accept the GPU install prompt; we use [PinW/ctranslate2-rocm-wheels](https://github.com/PinW/ctranslate2-rocm-wheels). Apple silicon Macs have no CUDA or ROCm. The default model runs on the CPU. The opt-in `whisper_cpp` backend (`pip install -e '.[whispercpp]'`) can be faster there, according to the config notes. See [Models](models.md).
 
 ### How do I make hotwords work?
-`whisper-local --add-word "MyJargon"` or the dashboard's **Vocabulary** page. The app gives these words to the model as `hotwords` (Whisper and Parakeet). Names, technical terms, codenames work best. For bulk import: `whisper-local --import-vocab FOLDER` scans a folder of text files and merges the top hotwords automatically.
+`whisper-local --add-word "MyJargon"` or the dashboard's **Vocabulary** page. The app gives these words to the model as `hotwords` (Whisper only; Parakeet ignores them, so use History > "Fix this everywhere" for a name Parakeet gets wrong). Names, technical terms, codenames work best. For bulk import: `whisper-local --import-vocab FOLDER` scans a folder of text files and merges the top hotwords automatically.
 
 ### Can I use this as a server / API?
 Yes! `whisper-local --serve` starts a **local OpenAI-compatible HTTP server** on `http://127.0.0.1:7777`. Drop-in for any tool that expects `POST /v1/audio/transcriptions` (Cursor, VS Code Continue, Open WebUI, etc.) — point them at your local server with a dummy API key. Fully offline, runs the same model you use for dictation.

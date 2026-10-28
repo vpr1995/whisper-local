@@ -73,7 +73,7 @@ Hotwords are names and terms that you want the model to spell right. The **Words
 
 The **Heard often** row suggests words from your own history. Click one to add it.
 
-Hotwords work with Whisper and with Parakeet. For example, a name that Parakeet got wrong without a hotword came out right with it.
+Hotwords work with Whisper only. Parakeet ignores them, because they made it return empty or wrong text on short dictations. If Parakeet spells a name wrong, use **Fix this everywhere** in History.
 
 From the terminal:
 
