@@ -14,6 +14,8 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Audio Feedback** | `audio_feedback.py` | Recording event sound notifications | playsound3 |
 | **Speech Recognition** | `whisper_engine.py` | Audio transcription using AI | faster-whisper |
 | **Model Management** | `model_registry.py` | Whisper model registry & cache detection | faster-whisper |
+| **Auto Model** | `auto_model.py` | Resolves `whisper.model: auto` to large-v3-turbo (GPU), parakeet-v3 (its 25 languages) or base | - |
+| **Model Download** | `model_download.py` | First-run HuggingFace download with a percentage/MB progress line | huggingface_hub |
 | **Idle Model Unload** | `idle_unload.py` | Frees model memory after `whisper.unload_after_minutes` idle; engine reloads on next recording | threading |
 | **Voice Activity Detection** | `voice_activity_detection.py` | Continuous VAD monitoring & silence detection | ten-vad, threading |
 | **Clipboard Operations** | `clipboard_manager.py` | Text copying & auto-paste functionality | pyperclip, ctypes SendInput (Win), Quartz (Mac) |

@@ -363,9 +363,13 @@ class ParakeetEngineTests(unittest.TestCase):
         files = {role: f"{role}.onnx" for role in ('encoder', 'decoder', 'joiner', 'tokens')}
         for name in files.values():
             Path(folder, name).write_text("x")
+        Path(folder, files['tokens']).write_text("<unk> 0\n\u2581Pr 1\nudh 2\n")
         registry = types.SimpleNamespace(get_model_files_path=lambda key: (folder, files))
 
         decoded = []
+        test = self
+        self.recognizer_kwargs = {}
+        self.stream_hotwords = []
 
         class FakeStream:
             def accept_waveform(self, rate, audio):
@@ -376,9 +380,11 @@ class ParakeetEngineTests(unittest.TestCase):
             @classmethod
             def from_transducer(cls, **kwargs):
                 assert kwargs["model_type"] == "nemo_transducer"
+                test.recognizer_kwargs = kwargs
                 return cls()
 
-            def create_stream(self):
+            def create_stream(self, hotwords=None):
+                test.stream_hotwords.append(hotwords)
                 return FakeStream()
 
             def decode_stream(self, stream):
@@ -410,6 +416,29 @@ class ParakeetEngineTests(unittest.TestCase):
         self.assertFalse(engine.is_model_loaded)
         self.assertEqual(engine.transcribe_audio(audio), "Bonjour, ensuite.")
         self.assertTrue(engine.is_model_loaded)
+
+    def test_hotwords_switch_to_beam_search_and_reach_each_recording(self):
+        # The dictionary is the main accuracy fix for names; Parakeet must use it
+        engine, _, audio = self._make_engine(hotwords=["Prudhvi", " ", "Rohit Burani"])
+        self.assertEqual(self.recognizer_kwargs["decoding_method"], "modified_beam_search")
+        vocab = Path(self.recognizer_kwargs["bpe_vocab"]).read_text()
+        self.assertEqual(vocab, "<unk>\t0\n\u2581Pr\t-1\nudh\t-2\n")
+        engine.transcribe_audio(audio)
+        self.assertEqual(self.stream_hotwords[-1], "Prudhvi\nRohit Burani")
+
+    def test_no_hotwords_keeps_greedy_search(self):
+        engine, _, audio = self._make_engine()
+        self.assertNotIn("decoding_method", self.recognizer_kwargs)
+        engine.transcribe_audio(audio)
+        self.assertEqual(self.stream_hotwords[-1], None)
+
+    def test_first_dictionary_word_rebuilds_for_beam_search(self):
+        # Adding the first word while running must switch decoding, not be ignored
+        engine, _, audio = self._make_engine()
+        engine.set_hotwords(["Prudhvi"])
+        engine.transcribe_audio(audio)
+        self.assertEqual(self.recognizer_kwargs["decoding_method"], "modified_beam_search")
+        self.assertEqual(self.stream_hotwords[-1], "Prudhvi")
 
     def test_missing_model_files_fail_loudly(self):
         import types
@@ -501,6 +530,46 @@ class BackendSelectionTests(unittest.TestCase):
             model = YAML().load(f)["whisper"]["models"]["parakeet-v3"]
         self.assertEqual(model["backend"], "parakeet")
         self.assertEqual(set(model["files"]), {"encoder", "decoder", "joiner", "tokens"})
+
+
+class AutoModelTests(unittest.TestCase):
+    # whisper.model: auto must give a new user a working model without asking.
+    def _pick(self, system_language="en", **whisper_cfg):
+        from unittest import mock
+        from whisper_key import auto_model
+        with mock.patch.object(auto_model, "_system_language", return_value=system_language):
+            return auto_model.pick_model(whisper_cfg)[0]
+
+    def test_gpu_gets_large_turbo(self):
+        self.assertEqual(self._pick(device="cuda"), "large-v3-turbo")
+
+    def test_english_system_gets_parakeet(self):
+        self.assertEqual(self._pick(system_language="en", device="cpu"), "parakeet-v3")
+
+    def test_unsupported_system_language_keeps_whisper(self):
+        self.assertEqual(self._pick(system_language="hi", device="cpu"), "base")
+
+    def test_listed_languages_beat_the_system_language(self):
+        # Speaking Hindi on an English Mac must not land on Parakeet
+        self.assertEqual(self._pick(system_language="en", languages=["en", "hi"]), "base")
+        self.assertEqual(self._pick(system_language="hi", languages=["de", "fr"]), "parakeet-v3")
+
+    def test_forced_language_wins(self):
+        self.assertEqual(self._pick(system_language="en", language="ja"), "base")
+
+    def test_translate_keeps_whisper(self):
+        # Parakeet cannot translate
+        self.assertEqual(self._pick(system_language="en", task="translate"), "base")
+
+    def test_unknown_language_keeps_whisper(self):
+        self.assertEqual(self._pick(system_language=""), "base")
+
+    def test_factory_resolves_auto_before_the_backend(self):
+        from unittest import mock
+        from whisper_key import engine_factory
+        with mock.patch.object(engine_factory, "pick_model", return_value=("parakeet-v3", "x")):
+            self.assertEqual(engine_factory.resolve_backend({"model": "auto"}, None),
+                             ("faster_whisper", "parakeet-v3"))
 
 
 class SleepingTrayStateTests(unittest.TestCase):
@@ -1316,17 +1385,46 @@ class SystemAudioTests(unittest.TestCase):
             del sys.modules['soundcard']
 
 
-class ModelDownloadHintTests(unittest.TestCase):
-    # First-run UX: the download message names an approximate size per model.
-    def test_size_hint_for_known_models(self):
-        try:
-            from whisper_key.whisper_engine import _model_size_hint
-        except Exception:
-            self.skipTest("whisper_engine not importable (faster_whisper absent)")
-        self.assertEqual(_model_size_hint('base'), '~141 MB')
-        self.assertEqual(_model_size_hint('base.en'), '~141 MB')
-        self.assertEqual(_model_size_hint('large-v3'), '~3 GB')
-        self.assertEqual(_model_size_hint('unknown-model'), '')
+class ModelDownloadProgressTests(unittest.TestCase):
+    # First-run UX: a download shows a percentage of the real size, not silence.
+    def test_progress_line_shows_percent_and_sizes(self):
+        import contextlib
+        import io
+        from whisper_key import model_download
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            model_download._report("the 'base' model", 70_000_000, 141_000_000)
+        self.assertIn("49% · 70/141 MB", out.getvalue())
+
+    def test_progress_line_without_known_size(self):
+        import contextlib
+        import io
+        from whisper_key import model_download
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            model_download._report("x", 5_000_000, 0)
+        self.assertIn("Downloading x: 5 MB", out.getvalue())
+
+    def test_expected_size_counts_only_requested_files(self):
+        import types
+        from unittest import mock
+        from whisper_key import model_download
+        files = [types.SimpleNamespace(rfilename=n, size=sz) for n, sz in
+                 [("model.bin", 100), ("vocabulary.txt", 5), ("README.md", 7), ("onnx/model.onnx", 900)]]
+        fake_api = mock.Mock()
+        fake_api.return_value.model_info.return_value = types.SimpleNamespace(siblings=files)
+        with mock.patch("huggingface_hub.HfApi", fake_api):
+            self.assertEqual(model_download._expected_bytes("org/repo", ["model.bin", "vocabulary.*"]), 105)
+
+    def test_symlinked_snapshot_files_count_once(self):
+        import tempfile
+        from whisper_key import model_download
+        with tempfile.TemporaryDirectory() as repo:
+            blobs = Path(repo, "blobs"); blobs.mkdir()
+            (blobs / "abc").write_bytes(b"x" * 10)
+            snapshot = Path(repo, "snapshots", "rev"); snapshot.mkdir(parents=True)
+            (snapshot / "model.bin").symlink_to(blobs / "abc")
+            self.assertEqual(model_download._folder_bytes(repo), 10)
 
 
 class InstanceManagerNoConsoleTests(unittest.TestCase):
@@ -1489,6 +1587,27 @@ class PostprocessHotReloadTests(unittest.TestCase):
                     YAML().dump({'postprocess': {'strip_filler_words': True}}, f)
                 os.utime(sp, (base + 10, base + 10))  # guarantee a newer mtime
                 self.assertTrue(cm.get_postprocess_config().get('strip_filler_words'))
+
+    def test_hotwords_added_while_running_are_seen(self):
+        # A word added in Settings must apply without a restart
+        import os
+        import tempfile
+        import unittest.mock as mock
+        from ruamel.yaml import YAML
+        try:
+            from whisper_key import config_manager as cm_mod
+        except Exception:
+            self.skipTest("config_manager not importable on this platform")
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.object(cm_mod, 'get_user_app_data_path', return_value=d):
+                cm = cm_mod.ConfigManager(quiet=True)
+                self.assertEqual(cm.get_hotwords(), [])
+                sp = os.path.join(d, 'user_settings.yaml')
+                base = cm._postprocess_mtime or os.path.getmtime(sp)
+                with open(sp, 'w', encoding='utf-8') as f:
+                    YAML().dump({'whisper': {'hotwords': ['Prudhvi']}}, f)
+                os.utime(sp, (base + 10, base + 10))
+                self.assertEqual(cm.get_hotwords(), ['Prudhvi'])
 
 
 class SettingsResetTests(unittest.TestCase):
@@ -2137,7 +2256,7 @@ class DefaultsTests(unittest.TestCase):
         path = ROOT / "src" / "whisper_key" / "config.defaults.yaml"
         with open(path, encoding="utf-8") as f:
             cfg = YAML().load(f)
-        self.assertEqual(cfg["whisper"]["model"], "base")
+        self.assertEqual(cfg["whisper"]["model"], "auto")
         self.assertEqual(cfg["hotkey"]["recording_mode"], "push_to_talk")
 
     def test_profiles_no_tiny_downgrade(self):
@@ -3142,34 +3261,42 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
             onboarding.handle_gpu_failure(RuntimeError('CUDA libraries not found'), mock.Mock())
         prompt.assert_not_called()
 
-    def test_missing_accessibility_under_launchd_asks_macos(self):
-        # Issue #19: Start on login runs the app under launchd, with /dev/null
-        # for stdin. The terminal prompt raised termios.error there, and the app
-        # exited at every login.
+    def test_missing_accessibility_asks_macos_and_keeps_running(self):
+        # Issue #19: under launchd stdin is /dev/null, so a terminal prompt
+        # killed the app at login. Now the app never prompts: it shows macOS's
+        # dialog, keeps running, and restarts hotkeys when the grant arrives.
         import io
+        import contextlib
         import unittest.mock as mock
         permissions = self._load('platform/macos/permissions.py', 'wk_mac_permissions')
+        granted = iter([False, False, True])
+        on_granted = mock.Mock()
+        app_helper = mock.Mock()
+        app_helper.callAfter.side_effect = lambda fn, *args: fn(*args)
         with mock.patch.object(permissions.sys, 'stdin', io.StringIO()), \
-             mock.patch.object(permissions, 'request_accessibility_permission') as request:
-            self.assertTrue(permissions.handle_missing_permission(mock.Mock()))
-        request.assert_called_once()
+             mock.patch.object(permissions, 'check_accessibility_permission', side_effect=lambda: next(granted)), \
+             mock.patch.object(permissions, 'request_accessibility_permission') as request, \
+             mock.patch.object(permissions, 'POLL_SECONDS', 0), \
+             mock.patch.object(permissions.threading, 'Thread') as thread, \
+             mock.patch.dict(sys.modules, {'PyObjCTools': mock.Mock(AppHelper=app_helper)}), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertFalse(permissions.ensure_accessibility(on_granted))
+            request.assert_called_once()
+            on_granted.assert_not_called()
+            # Run the waiter inline instead of on a background thread.
+            kwargs = thread.call_args.kwargs
+            kwargs['target'](*kwargs['args'])
+        on_granted.assert_called_once()
 
-    def test_missing_accessibility_in_a_terminal_still_asks_there(self):
-        import types
+    def test_granted_accessibility_needs_no_dialog(self):
         import unittest.mock as mock
-        terminal_ui = types.ModuleType('whisper_key.terminal_ui')
-        terminal_ui.prompt_choice = mock.Mock(return_value=2)  # "Disable auto-paste"
-        permissions = self._load('platform/macos/permissions.py', 'whisper_key.platform.macos.permissions_tty')
-        stdin = mock.Mock()
-        stdin.isatty.return_value = True
-        config = mock.Mock()
-        with mock.patch.dict(sys.modules, {'whisper_key.terminal_ui': terminal_ui}), \
-             mock.patch.object(permissions.sys, 'stdin', stdin), \
+        permissions = self._load('platform/macos/permissions.py', 'wk_mac_permissions_ok')
+        on_granted = mock.Mock()
+        with mock.patch.object(permissions, 'check_accessibility_permission', return_value=True), \
              mock.patch.object(permissions, 'request_accessibility_permission') as request:
-            self.assertTrue(permissions.handle_missing_permission(config))
-        terminal_ui.prompt_choice.assert_called_once()
+            self.assertTrue(permissions.ensure_accessibility(on_granted))
         request.assert_not_called()
-        config.update_user_setting.assert_called_once_with('clipboard', 'auto_paste', False)
+        on_granted.assert_not_called()
 
     def test_doctor_flags_missing_cuda_libraries(self):
         import io

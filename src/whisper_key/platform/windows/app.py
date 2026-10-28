@@ -27,3 +27,12 @@ def getch():
 # macOS mirror marshals onto the main thread — see the note there.
 def run_on_ui_thread(fn):
     fn()
+
+
+# The user's locale language as a code ("en", "de"), '' if unknown.
+def system_language() -> str:
+    import ctypes
+    buffer = ctypes.create_unicode_buffer(85)
+    if not ctypes.windll.kernel32.GetUserDefaultLocaleName(buffer, len(buffer)):
+        return ''
+    return buffer.value.split('-')[0].lower()

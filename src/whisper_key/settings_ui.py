@@ -392,8 +392,8 @@ def _build_general_tab(nb, cm, vars_, row_index):
     cfg = cm.config
     whisper = cfg.get('whisper', {})
 
-    models = list((whisper.get('models') or {}).keys())
-    v = tk.StringVar(master=nb, value=_v(cfg, 'whisper', 'model', default='tiny'))
+    models = ['auto'] + list((whisper.get('models') or {}).keys())
+    v = tk.StringVar(master=nb, value=_v(cfg, 'whisper', 'model', default='auto'))
     vars_['whisper.model'] = v
     _row(tab, 'whisper.model', 'Model', lambda p: _combo(p, v, models), row_index)
 

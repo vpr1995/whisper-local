@@ -10,6 +10,7 @@
 
 import gc
 import logging
+import os
 import time
 import threading
 from typing import Optional, Callable
@@ -21,26 +22,9 @@ from .utils import import_ctranslate2_without_optional_backends
 import_ctranslate2_without_optional_backends()
 from faster_whisper import WhisperModel  # noqa: E402
 
-# Approximate on-disk download sizes for the standard Whisper models, shown in
-# the first-run download message so the wait is expected, not mysterious. Keyed
-# by the leading size token (handles ".en" and "large-v3" style keys). Unknown
-# models just omit the size hint.
-_MODEL_SIZE_HINTS = {
-    'tiny': '~75 MB',
-    'base': '~141 MB',
-    'small': '~465 MB',
-    'medium': '~1.5 GB',
-    'large': '~3 GB',
-    'distil': '~1.5 GB',
-}
-
-
-def _model_size_hint(model_key: str) -> str:
-    key = (model_key or '').lower()
-    for prefix, size in _MODEL_SIZE_HINTS.items():
-        if key.startswith(prefix):
-            return size
-    return ''
+# The files faster-whisper fetches for a model (mirrors faster_whisper.utils.download_model).
+FASTER_WHISPER_FILES = ["config.json", "preprocessor_config.json", "model.bin",
+                        "tokenizer.json", "vocabulary.*"]
 
 
 class WhisperEngine:
@@ -64,7 +48,7 @@ class WhisperEngine:
         self.language = None if language == 'auto' else language
         self.beam_size = beam_size
         self.initial_prompt = initial_prompt or None
-        self.hotwords = ", ".join(hotwords) if hotwords else None
+        self.set_hotwords(hotwords)
         self.task = task if task in ('transcribe', 'translate') else 'transcribe'
         self.model = None
         self.logger = logging.getLogger(__name__)
@@ -113,21 +97,14 @@ class WhisperEngine:
         try:
             print(f"🧠 Loading Whisper AI model [{self.model_key}]...")
 
-            was_cached = self._is_model_cached()
-            if not was_cached:
-                size = _model_size_hint(self.model_key)
-                size_note = f" ({size})" if size else ""
-                print(f"⬇  Downloading the '{self.model_key}' model{size_note} — "
-                      "first run only. This can take a few minutes; a progress bar "
-                      "appears below.")
+            if not self._is_model_cached():
+                print("   First run only: the model downloads once, then works offline.")
+                self._download_with_progress(self.model_key)
 
             if self.device == 'cuda':
                 self._verify_gpu_runtime()
 
             self.model = self._create_model(self.model_key)
-
-            if not was_cached:
-                print("\n")  # Workaround for download status bar misplacement
 
             print(f"   ✓ Whisper model [{self.model_key}] ready!")
             device_label = "GPU" if self.device == "cuda" else "CPU"
@@ -137,6 +114,18 @@ class WhisperEngine:
         except Exception as e:
             self.logger.error(f"Failed to load Whisper model: {e}")
             raise
+
+    # faster-whisper downloads with its progress bar turned off, so a first run
+    # looked frozen. Fetch the same files first with a visible progress line;
+    # WhisperModel then loads them from the cache. Local folders are skipped.
+    def _download_with_progress(self, model_key: str):
+        from faster_whisper.utils import _MODELS
+        from .model_download import download_snapshot
+        source = self._get_model_source(model_key)
+        repo_id = _MODELS.get(source, source)
+        if '/' not in repo_id or os.path.isdir(repo_id):
+            return
+        download_snapshot(repo_id, f"the '{model_key}' model", FASTER_WHISPER_FILES)
 
     def _create_model(self, model_key: str) -> WhisperModel:
         return WhisperModel(
@@ -182,6 +171,8 @@ class WhisperEngine:
                         progress_callback("Downloading model...")
 
                 self.logger.info(f"Loading Whisper model: {new_model_key} (async)")
+                if not was_cached:
+                    self._download_with_progress(new_model_key)
 
                 self.model = self._create_model(new_model_key)
 
@@ -294,6 +285,10 @@ class WhisperEngine:
     # An optional VAD pre-check short-circuits silent clips so we don't pay for a
     # full decode on an accidental hotkey press. Callers rely on this contract —
     # whisper_engine_cpp and system_audio both feed it the same array shape.
+    # Dictionary words, refreshed before each transcription (state_manager).
+    def set_hotwords(self, hotwords: Optional[list]):
+        self.hotwords = ", ".join(hotwords) if hotwords else None
+
     def transcribe_audio(self,
                          audio_data: np.ndarray) -> Optional[str]:
         if audio_data is None or len(audio_data) == 0:

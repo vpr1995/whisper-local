@@ -169,7 +169,11 @@ def _section_config() -> int:
         cfg = ConfigManager(quiet=True)
         Check("Effective config loads").ok().print()
         whisper_cfg = cfg.get_whisper_config()
-        Check("Selected model").info(f"{whisper_cfg.get('model', '?')} on {whisper_cfg.get('device', '?')}").print()
+        from .engine_factory import resolve_backend
+        _backend, effective_model = resolve_backend(whisper_cfg, None)
+        configured_model = whisper_cfg.get('model', '?')
+        model_note = f"auto → {effective_model}" if configured_model == 'auto' else configured_model
+        Check("Selected model").info(f"{model_note} on {whisper_cfg.get('device', '?')}").print()
         from .dictation_languages import normalize_languages
         spoken = normalize_languages(whisper_cfg.get('languages'))
         Check("Language").info(

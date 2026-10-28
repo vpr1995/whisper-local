@@ -4,6 +4,8 @@
 # new backend is wired in once. Engine imports stay lazy: each backend pulls in
 # a different ML runtime.
 
+from .auto_model import AUTO, pick_model
+
 BACKENDS = ('faster_whisper', 'whisper_cpp', 'parakeet')
 
 
@@ -19,10 +21,13 @@ def engine_class(backend: str):
     return WhisperEngine
 
 
-# (backend, model key) that will actually run; see ModelRegistry.resolve.
+# (backend, model key) that will actually run: `auto` is picked for this
+# machine (auto_model.py), then ModelRegistry.resolve matches it to a backend.
 def resolve_backend(whisper_cfg: dict, model_registry) -> tuple:
     backend = whisper_cfg.get('backend', 'faster_whisper')
-    model_key = whisper_cfg.get('model', 'base')
+    model_key = whisper_cfg.get('model', AUTO)
+    if model_key == AUTO:
+        model_key, _reason = pick_model(whisper_cfg)
     if model_registry is None:
         return backend, model_key
     return model_registry.resolve(model_key, backend)
@@ -32,6 +37,9 @@ def resolve_backend(whisper_cfg: dict, model_registry) -> tuple:
 # e.g. self-test forces beam_size=1 and no prompt.
 def create_engine(whisper_cfg: dict, vad_manager, model_registry, **overrides):
     backend, model_key = resolve_backend(whisper_cfg, model_registry)
+    if whisper_cfg.get('model', AUTO) == AUTO:
+        _key, reason = pick_model(whisper_cfg)
+        print(f"   Model: auto → {model_key} ({reason}). Pick another in Settings.")
     engine_kwargs = dict(
         model_key=model_key,
         device=whisper_cfg['device'],

@@ -5,10 +5,13 @@
 # Windows mirror: platform/windows/permissions.py (always-granted stubs).
 import logging
 import os
-import signal
 import sys
+import threading
+import time
 
 logger = logging.getLogger(__name__)
+
+POLL_SECONDS = 1.0
 
 try:
     from ApplicationServices import AXIsProcessTrusted, AXIsProcessTrustedWithOptions
@@ -42,39 +45,37 @@ def request_accessibility_permission():
     AXIsProcessTrustedWithOptions(options)
 
 
-def handle_missing_permission(config_manager) -> bool:
-    # Under launchd (Start on login) nobody can answer the terminal prompt
-    # below. Reading a key from launchd's /dev/null stdin raised termios.error
-    # and ended the app at every login (issue #19). Ask macOS instead: its
-    # dialog adds the app to the Accessibility list, and a restart after the
-    # grant picks it up.
-    if sys.stdin is None or not sys.stdin.isatty():
-        request_accessibility_permission()
+# Hotkeys and auto-paste both need Accessibility. When it is missing, show
+# macOS's own dialog, keep running, and check once a second; on the grant,
+# `on_granted` runs (main restarts the hotkey listener), so no restart is
+# needed. Returns True when the permission is already there.
+def ensure_accessibility(on_granted) -> bool:
+    if check_accessibility_permission():
         return True
+    request_accessibility_permission()
+    app_name = _get_terminal_app_name() if sys.stdin is not None and sys.stdin.isatty() else 'Whisper Local (python)'
+    print("🔐 Whisper Local needs Accessibility permission for its hotkeys and auto-paste.")
+    print(f"   Turn on {app_name} in System Settings → Privacy & Security → Accessibility.")
+    print("   The app keeps running and continues by itself after you allow it.")
+    threading.Thread(target=_wait_for_accessibility, args=(on_granted,),
+                     daemon=True, name='accessibility-wait').start()
+    return False
 
-    from ...terminal_ui import prompt_choice
 
-    app_name = _get_terminal_app_name()
+def _wait_for_accessibility(on_granted):
+    while not check_accessibility_permission():
+        time.sleep(POLL_SECONDS)
+    logger.info("Accessibility permission granted while running")
+    # The hotkey monitor was first set up on the main thread, so it is
+    # restarted there too (the main loop pumps the NSApp run loop).
+    from PyObjCTools import AppHelper
+    AppHelper.callAfter(_run_granted_callback, on_granted)
 
-    title = "Auto-paste requires permission to simulate [Cmd+V] keypress..."
-    options = [
-        (f"Grant accessibility permission to {app_name}", "Transcribe directly to cursor, with option to auto-send"),
-        ("Disable auto-paste", "Transcribe to clipboard, then manually paste"),
-    ]
 
-    choice = prompt_choice(title, options)
-
-    if choice == 1:
-        config_manager.update_user_setting('clipboard', 'auto_paste', True)
-        request_accessibility_permission()
-        print()
-        print("Please restart Whisper Local after permission is granted")
-        os.kill(os.getpid(), signal.SIGINT)
-        return False
-    elif choice == 2:
-        config_manager.update_user_setting('clipboard', 'auto_paste', False)
-        print()
-        return True
-    else:
-        os.kill(os.getpid(), signal.SIGINT)
-        return False
+def _run_granted_callback(on_granted):
+    try:
+        on_granted()
+        print("✓ Accessibility permission granted: hotkeys are live")
+    except Exception as e:
+        logger.error(f"Could not start hotkeys after the permission grant: {e}")
+        print(f"❌ Could not start hotkeys after the permission grant ({e}). Restart Whisper Local.")

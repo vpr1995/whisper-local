@@ -51,8 +51,10 @@ Dragon is a paid product (~$500 perpetual or subscription), Windows-only, with g
 ## Technical
 
 ### Which Whisper model should I use?
+- **`auto`**: **this is the default.** The app picks for your computer and your language: `parakeet-v3` for English and most European languages, `large-v3-turbo` with a GPU, and `base` for other languages.
+- **`parakeet-v3` (~670 MB)**: the fastest on CPU, with high accuracy. 25 European languages only. It cannot translate.
 - **`tiny` (~75 MB)** — fast, OK for short commands. Bad for long dictation.
-- **`base` (~141 MB)** — reasonable for most users. **This is the default.**
+- **`base` (~141 MB)** — reasonable for most users.
 - **`small` (~464 MB)** — much better accuracy, still real-time on most CPUs.
 - **`medium` (~1.4 GB)** — recommended for GPUs. Excellent accuracy.
 - **`large-v3` (~2.9 GB)** — best, GPU strongly recommended.
@@ -71,7 +73,7 @@ On CPU with the same `medium` model: 2–6 seconds. The first transcription afte
 Supported via ROCm on Linux/Windows. Run `whisper-local --setup` and accept the GPU install prompt; we use [PinW/ctranslate2-rocm-wheels](https://github.com/PinW/ctranslate2-rocm-wheels). Apple Silicon Macs should use the `whisper_cpp` backend (`pip install 'whisper-local[whispercpp]'`) for best performance.
 
 ### How do I make hotwords work?
-`whisper-local --add-word "MyJargon"` or the **Add word to dictionary...** tray item. These get fed as `hotwords` to Whisper at recording time. Names, technical terms, codenames work best. For bulk import: `whisper-local --import-vocab FOLDER` scans a folder of text files and merges the top hotwords automatically.
+`whisper-local --add-word "MyJargon"` or the **Add word to dictionary...** tray item. The app gives these words to the model as `hotwords` (Whisper and Parakeet). Names, technical terms, codenames work best. For bulk import: `whisper-local --import-vocab FOLDER` scans a folder of text files and merges the top hotwords automatically.
 
 ### Can I use this as a server / API?
 Yes! `whisper-local --serve` starts a **local OpenAI-compatible HTTP server** on `http://127.0.0.1:7777`. Drop-in for any tool that expects `POST /v1/audio/transcriptions` (Cursor, VS Code Continue, Open WebUI, etc.) — point them at your local server with a dummy API key. Fully offline, runs the same model you use for dictation.

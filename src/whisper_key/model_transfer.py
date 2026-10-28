@@ -110,8 +110,9 @@ def export_model(dest: str = None) -> int:
 
     cm = ConfigManager(quiet=True)
     whisper_cfg = cm.get_whisper_config()
-    model_key = whisper_cfg.get("model", "base")
+    from .engine_factory import resolve_backend
     registry = ModelRegistry(whisper_models_config=whisper_cfg.get("models", {}))
+    _backend, model_key = resolve_backend(whisper_cfg, registry)
 
     model = registry.get_model(model_key)
     if model and model.is_local_path:

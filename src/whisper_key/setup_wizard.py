@@ -4,9 +4,6 @@
 # YAML file to get going. The model recommendation is derived from detected
 # hardware rather than asking the user to guess.
 
-import os
-import platform
-import shutil
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -20,6 +17,8 @@ CYAN = "\033[36m"
 RESET = "\033[0m"
 
 DEFAULT_MODELS = [
+    ("auto", "Auto (picks for this computer and your language)", "recommended"),
+    ("parakeet-v3", "Parakeet V3 (670MB, fastest, 25 European languages)", "any modern CPU"),
     ("tiny", "Tiny (75MB, fast, basic accuracy)", "any CPU"),
     ("base", "Base (140MB, good balance)", "modern CPU"),
     ("small", "Small (460MB, great accuracy)", "8+ cores or GPU"),
@@ -59,9 +58,9 @@ def run_wizard() -> int:
 
 def _ask_model() -> str:
     print(f"{BOLD}1. Which Whisper model?{RESET}")
-    suggestion = _recommend_model()
+    suggestion = "auto"
     for i, (key, label, hint) in enumerate(DEFAULT_MODELS, 1):
-        marker = f" {GREEN}← recommended for your hardware{RESET}" if key == suggestion else ""
+        marker = f" {GREEN}← recommended{RESET}" if key == suggestion else ""
         print(f"  {i}. {label}  {DIM}({hint}){RESET}{marker}")
     choice = input(f"\nChoose 1-{len(DEFAULT_MODELS)} [default: recommended]: ").strip()
     if not choice:
@@ -122,26 +121,6 @@ def _ask_mic():
     except ValueError:
         pass
     return 'default'
-
-
-def _recommend_model() -> str:
-    cores = os.cpu_count() or 4
-    has_gpu = _detect_gpu()
-    if has_gpu:
-        return 'large-v3-turbo'
-    if cores >= 8:
-        return 'small'
-    if cores >= 4:
-        return 'base'
-    return 'tiny'
-
-
-def _detect_gpu() -> bool:
-    if platform.system() != 'Windows':
-        return False
-    if shutil.which('nvidia-smi'):
-        return True
-    return False
 
 
 def _merge_into_user_settings(overrides: dict):

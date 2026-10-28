@@ -27,7 +27,7 @@ No cloud. No subscription. No telemetry. Powered by [OpenAI Whisper](https://git
 
 **macOS, or Python on either:** `pipx install whisper-local` &nbsp;then&nbsp; `whisper-local`
 
-<sub>Windows 10+ · macOS · nothing to sign up for · first launch downloads one 141 MB model, then it is offline for good · [all releases](https://github.com/drajb/whisper-local/releases)</sub>
+<sub>Windows 10+ · macOS · nothing to sign up for · first launch downloads one model (141–670 MB), then it is offline for good · [all releases](https://github.com/drajb/whisper-local/releases)</sub>
 
 </div>
 
@@ -176,7 +176,13 @@ pip install -e .
 | **Double-click** | `whisper-local.cmd` (Windows) |
 | **Start on login** | Tick **Start on login** in the tray menu (or the first-run welcome), or run `whisper-local --enable-autostart`. Disable anytime the same way. |
 
-First launch downloads the default [`base`](https://huggingface.co/Systran/faster-whisper-base) Whisper model (~141 MB) into your HuggingFace cache. After that, **everything runs offline**. (Prefer a smaller/faster download? Set `whisper.model: tiny` — ~75 MB.)
+First launch picks a model for your computer and your language, and downloads it into your HuggingFace cache. A progress line shows the download. After that, **everything runs offline**.
+
+- Your language is English or another European language: [Parakeet V3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) (~670 MB). It is fast on any modern CPU.
+- You set up a GPU: Whisper `large-v3-turbo` (~1.5 GB).
+- Other languages: Whisper [`base`](https://huggingface.co/Systran/faster-whisper-base) (~141 MB).
+
+To choose a model yourself, set `whisper.model` (for example `tiny`, ~75 MB).
 
 > **`huggingface.co` blocked at work?** Common on corporate networks. Export the
 > model from a machine that has internet and import it on the one that doesn't —

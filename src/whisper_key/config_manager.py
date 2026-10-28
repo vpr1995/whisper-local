@@ -366,9 +366,19 @@ class ConfigManager:
                 fresh = resolved.get(section)
                 if fresh is not None:
                     self.config[section] = fresh
+            # Dictionary words too: Settings, the add-word dialog and
+            # --add-word all write the file while the app runs.
+            self.config.setdefault('whisper', {})['hotwords'] = \
+                (resolved.get('whisper') or {}).get('hotwords') or []
             self.logger.debug("Reloaded postprocess/history config from disk")
         except Exception as e:
             self.logger.debug(f"postprocess hot-reload failed: {e}")
+
+    # whisper.hotwords as on disk now, so a word added while the app runs
+    # applies to the next dictation.
+    def get_hotwords(self) -> list:
+        self._reload_postprocess_if_changed()
+        return list(self.config.get('whisper', {}).get('hotwords') or [])
 
     def get_terminal_title_config(self) -> Dict[str, Any]:
         return self.config.get('terminal_title', {}).copy()

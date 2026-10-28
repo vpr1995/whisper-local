@@ -80,7 +80,7 @@ def import_vocab(source: str, top_n: int = 50, write: bool = True) -> int:
         return 0
 
     _merge_hotwords(picks)
-    print(f"\nMerged {len(picks)} hotwords into user_settings.yaml. Restart whisper-local to apply.")
+    print(f"\nMerged {len(picks)} hotwords into user_settings.yaml. They apply to your next dictation.")
     return 0
 
 

@@ -5,14 +5,31 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 ## [Unreleased]
 
 ### Added
+- **`whisper.model: auto` is the new default.** The app picks the model for
+  your computer. With a set-up GPU it uses `large-v3-turbo`. When all the
+  languages you speak are in Parakeet's 25, it uses `parakeet-v3`. Otherwise
+  it uses `base`. The languages come from `whisper.language`, then
+  `whisper.languages`, then the system language. Startup shows the choice
+  and the reason.
+- **Model downloads show progress.** The first download prints one line
+  that updates: percentage and MB. Before, the first start looked frozen
+  for minutes.
+- **Accessibility permission without a restart (macOS).** When the
+  permission is missing, the app shows the macOS dialog and continues to
+  run. When you allow it, the hotkeys start by themselves. The terminal
+  prompt and the forced restart are removed.
 - **Parakeet backend (experimental).** Set `whisper.model: parakeet-v3`, or
   `whisper.backend: parakeet`. It runs NVIDIA Parakeet TDT v3 through
   sherpa-onnx, which is already installed. On an M1 Pro CPU it is about 3
   times faster than Whisper `small.en` over a mix of clips, and about 7 times
   faster on short dictations (0.14 s against 1.0 s for a 3.6 s phrase). It
   picks the language itself from 25 European languages. It cannot translate,
-  and it does not use `beam_size`, `initial_prompt` or `hotwords`;
-  corrections still apply. The download is 670 MB, on first use.
+  and it does not use `beam_size` or `initial_prompt`. It uses
+  `whisper.hotwords` (your dictionary): names it gets wrong without them
+  ("Pradvi") come out right ("Prudhvi"). The download is 670 MB, on first use.
+- **Dictionary words apply without a restart.** A word you add in Settings,
+  in the add-word dialog or with `--add-word` applies to your next
+  dictation, with every backend.
 - **The floating pill now works on macOS.** It is a native panel, not a Tk
   window: blurred, rounded and dark, and it never takes focus from the text
   field the result goes into. It shows the recording state, a live level

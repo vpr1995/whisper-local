@@ -16,16 +16,18 @@ whisper: # Whisper AI Model Settings
     # - parakeet (experimental): NVIDIA Parakeet TDT v3 via sherpa-onnx. About
     #   3x faster than Whisper small on CPU, 7x on short dictations. Picks the
     #   language itself from 25 European languages. It cannot translate and
-    #   ignores beam_size, initial_prompt and hotwords. Uses the parakeet-v3
+    #   ignores beam_size and initial_prompt; hotwords work. Uses the parakeet-v3
     #   model below when `model` names a Whisper model.
     backend: faster_whisper
 
     # Model selection
-    # See "models" below for more information
-    # 'base' (~141 MB) is the default: noticeably more accurate than 'tiny' and
-    # still real-time on CPU. Switch to 'tiny' for the smallest/fastest download,
-    # or 'small'/'medium'/'large' for higher accuracy (GPU recommended for large).
-    model: base
+    # 'auto' (default) picks for this computer and the language you speak:
+    #   GPU (device: cuda) → large-v3-turbo
+    #   your language is one Parakeet knows (English, most European) → parakeet-v3
+    #   otherwise → base
+    # Your language is `language`, else `languages`, else the system language.
+    # Or name any model below; see "models" for the list.
+    model: auto
 
     # Transcription device
     # Options: cpu, cuda (for both NVIDIA and AMD)

@@ -138,10 +138,10 @@ class ModelRegistry:
         if model.is_local_path:
             return False
         try:
-            from huggingface_hub import snapshot_download
+            from .model_download import download_snapshot
             self.logger.info(f"Downloading model: {model.source}")
-            print(f"   Downloading model: {model.label} (first run only)...")
-            snapshot_download(repo_id=model.source)
+            print("   First run only: the model downloads once, then works offline.")
+            download_snapshot(model.source, model.label)
             self.logger.info(f"Model downloaded: {model.source}")
             return True
         except Exception as e:

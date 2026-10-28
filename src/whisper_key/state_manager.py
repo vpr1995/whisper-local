@@ -627,6 +627,7 @@ class StateManager:
             if self.level_overlay:
                 self.level_overlay.show_processing()
 
+            self._refresh_hotwords()
             transcribed_text = self.whisper_engine.transcribe_audio(audio_data)
             self._offer_outsider_language()
 
@@ -1152,7 +1153,11 @@ class StateManager:
 
         if new_whisper.get('model') and new_whisper.get('model') != old_whisper.get('model'):
             try:
-                self._execute_model_change(new_whisper['model'])
+                from .auto_model import AUTO, pick_model
+                new_model = new_whisper['model']
+                if new_model == AUTO:
+                    new_model, _reason = pick_model(new_whisper)
+                self._execute_model_change(new_model)
             except Exception as e:
                 self.logger.error(f"Profile model change failed: {e}")
 
@@ -1187,11 +1192,19 @@ class StateManager:
                          daemon=True, name='retry-dictation').start()
         return True
 
+    # Words added to the dictionary while the app runs apply to this recording.
+    def _refresh_hotwords(self):
+        try:
+            self.whisper_engine.set_hotwords(self.config_manager.get_hotwords())
+        except Exception as e:
+            self.logger.debug(f"Hotword refresh skipped: {e}")
+
     def _retry_worker(self, audio):
         try:
             self._update_ui_state("processing")
             if self.level_overlay:
                 self.level_overlay.show_processing()
+            self._refresh_hotwords()
             text = self.whisper_engine.transcribe_audio(audio)
             if text:
                 text = postprocess(text, effective_postprocess_config(

@@ -6,5 +6,9 @@ def check_accessibility_permission() -> bool:
     return True
 
 
-def handle_missing_permission(config_manager) -> bool:
+def request_accessibility_permission():
+    pass
+
+
+def ensure_accessibility(on_granted) -> bool:
     return True

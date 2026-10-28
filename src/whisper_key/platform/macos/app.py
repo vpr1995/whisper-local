@@ -98,3 +98,11 @@ def run_event_loop(shutdown_event):
         )
         if event:
             app.sendEvent_(event)
+
+
+# The user's first preferred language as a code ("en", "de"). Read from
+# NSLocale, because a LaunchAgent start has no LANG to go by. '' if unknown.
+def system_language() -> str:
+    from Foundation import NSLocale
+    preferred = NSLocale.preferredLanguages()
+    return str(preferred[0]).split('-')[0].lower() if preferred else ''

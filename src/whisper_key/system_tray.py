@@ -245,7 +245,10 @@ class SystemTray:
             is_model_loading = app_state.get('model_loading', False)
 
             auto_paste_enabled = self.config_manager.get_setting('clipboard', 'auto_paste')
-            current_model = self.config_manager.get_setting('whisper', 'model')
+            # With `auto` the config key isn't a menu item, so the check mark
+            # follows the model the engine runs.
+            configured_model = self.config_manager.get_setting('whisper', 'model')
+            current_model = getattr(self.state_manager.whisper_engine, 'model_key', configured_model)
 
             available_hosts = self.state_manager.get_available_audio_hosts()
             current_host = self.state_manager.get_current_audio_host()
@@ -353,7 +356,7 @@ class SystemTray:
                 pystray.MenuItem("Auto-paste", lambda icon, item: self._set_transcription_mode(True), radio=True, checked=lambda item: auto_paste_enabled),
                 pystray.MenuItem("Copy to clipboard", lambda icon, item: self._set_transcription_mode(False), radio=True, checked=lambda item: not auto_paste_enabled),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem(f"Model: {current_model.title()}", pystray.Menu(*model_sub_menu_items)),
+                pystray.MenuItem(f"Model: {current_model.title()}" + (" (auto)" if configured_model == 'auto' else ""), pystray.Menu(*model_sub_menu_items)),
                 pystray.MenuItem(
                     f"Language: {self.state_manager.get_current_language()}",
                     pystray.Menu(*self._build_language_menu())
@@ -443,11 +446,10 @@ class SystemTray:
             self.logger.error(f"Failed to open model cache: {e}")
 
     def _set_transcription_mode(self, auto_paste: bool):
-        if auto_paste:
-            if not permissions.check_accessibility_permission():
-                if not permissions.handle_missing_permission(self.config_manager):
-                    return
-                auto_paste = False
+        # Paste needs Accessibility: show macOS's dialog; pasting starts
+        # working as soon as the user allows it.
+        if auto_paste and not permissions.check_accessibility_permission():
+            permissions.request_accessibility_permission()
 
         self.state_manager.update_transcription_mode(auto_paste)
         self._set_menu()

@@ -239,7 +239,7 @@ def show_add_word_dialog(on_added=None, blocking: bool = False):
                     return
                 ok = add_word(word)
                 if ok:
-                    status_var.set(f"Added '{word}'. Restart Whisper Local to apply.")
+                    status_var.set(f"Added '{word}'. It applies to your next dictation.")
                     entry_var.set("")
                     if on_added:
                         try: on_added(word)

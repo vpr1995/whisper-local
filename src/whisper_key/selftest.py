@@ -102,7 +102,6 @@ def _test_model_loadable():
         from .model_registry import ModelRegistry
         cm = ConfigManager(quiet=True)
         whisper_cfg = cm.get_whisper_config()
-        model_key = whisper_cfg.get('model', 'tiny')
 
         from .engine_factory import missing_backend_dependency, resolve_backend
         registry = ModelRegistry(

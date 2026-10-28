@@ -2,12 +2,14 @@
 # Opt-in NVIDIA Parakeet TDT v3 backend (sherpa-onnx, already a core dependency),
 # selected via whisper.backend: parakeet. Mirrors WhisperEngine's public API so
 # the rest of the app is backend-agnostic. About 3x faster than Whisper small on
-# CPU (7x on short clips); it auto-detects 25 European languages and cannot
-# translate, take a prompt or bias toward hotwords.
+# CPU (7x on short clips); it auto-detects 25 European languages, cannot
+# translate or take a prompt, and biases toward whisper.hotwords through
+# sherpa-onnx's beam search.
 
 import gc
 import logging
 import os
+import tempfile
 import threading
 import time
 from typing import Callable, Optional
@@ -16,6 +18,10 @@ import numpy as np
 
 SAMPLE_RATE = 16000
 
+# How hard hotwords are pushed. Tuned on TTS clips: 3.0-4.5 fixed names
+# ("Pradvi" -> "Prudhvi") with no false hits on ordinary sentences.
+HOTWORDS_SCORE = 3.5
+
 
 class ParakeetEngine:
     # Parakeet scaled past 4 threads in benchmarks, but 4 leaves cores free for
@@ -23,8 +29,8 @@ class ParakeetEngine:
     NUM_THREADS = 4
 
     # Same signature as WhisperEngine so engine_factory can build any backend.
-    # Whisper-only knobs (beam size, prompt, hotwords, compute type) are accepted
-    # and ignored.
+    # Whisper-only knobs (beam size, prompt, compute type) are accepted and
+    # ignored.
     def __init__(self,
                  model_key: str = "parakeet-v3",
                  device: str = "cpu",
@@ -45,7 +51,7 @@ class ParakeetEngine:
         self.language = None if language in (None, 'auto') else language
         self.beam_size = beam_size
         self.initial_prompt = initial_prompt or None
-        self.hotwords = hotwords or []
+        self.hotwords = _clean_hotwords(hotwords)
         self.task = task if task in ('transcribe', 'translate') else 'transcribe'
         self.log_transcriptions = log_transcriptions
         self.vad_manager = vad_manager
@@ -71,8 +77,10 @@ class ParakeetEngine:
         try:
             self.model = self._create_model(self.model_key)
             print(f"   ✓ Parakeet model [{self.model_key}] ready! (CPU, threads={self.NUM_THREADS})")
-            if self.hotwords or self.initial_prompt:
-                print("   ℹ Parakeet ignores hotwords and initial_prompt; corrections still apply")
+            if self.hotwords:
+                print(f"   ✓ Biasing toward {len(self.hotwords)} dictionary words")
+            if self.initial_prompt:
+                print("   ℹ Parakeet ignores initial_prompt; hotwords and corrections still apply")
             self._warmup()
         except Exception as e:
             self.logger.error(f"Failed to load Parakeet model '{self.model_key}': {e}")
@@ -91,9 +99,15 @@ class ParakeetEngine:
         missing = [role for role, path in paths.items() if not os.path.exists(path)]
         if missing:
             raise RuntimeError(f"Parakeet model files missing: {', '.join(missing)}")
+        # Hotwords need beam search; without any, greedy is faster and identical.
+        hotword_options = dict(
+            decoding_method="modified_beam_search", hotwords_score=HOTWORDS_SCORE,
+            modeling_unit="bpe", bpe_vocab=_bpe_vocab_for(paths['tokens']),
+        ) if self.hotwords else {}
         return sherpa_onnx.OfflineRecognizer.from_transducer(
             encoder=paths['encoder'], decoder=paths['decoder'], joiner=paths['joiner'],
-            tokens=paths['tokens'], model_type="nemo_transducer", num_threads=self.NUM_THREADS)
+            tokens=paths['tokens'], model_type="nemo_transducer", num_threads=self.NUM_THREADS,
+            **hotword_options)
 
     def _warmup(self):
         try:
@@ -159,6 +173,17 @@ class ParakeetEngine:
 
     # ── Transcription ─────────────────────────────────────────────────────────
 
+    # Dictionary words, refreshed before each transcription (state_manager).
+    # Words only need a new list per recording, but going from none to some
+    # (or back) switches the decoding method, so the recognizer is rebuilt on
+    # the next recording.
+    def set_hotwords(self, hotwords: Optional[list]):
+        cleaned = _clean_hotwords(hotwords)
+        with self._model_lock:
+            if bool(cleaned) != bool(self.hotwords):
+                self.model = None
+            self.hotwords = cleaned
+
     def transcribe_audio(self, audio_data: Optional[np.ndarray]) -> Optional[str]:
         if audio_data is None or len(audio_data) == 0:
             self.logger.warning("No audio data to transcribe")
@@ -202,7 +227,8 @@ class ParakeetEngine:
             return None
 
     def _decode(self, audio: np.ndarray) -> str:
-        stream = self.model.create_stream()
+        stream = (self.model.create_stream("\n".join(self.hotwords)) if self.hotwords
+                  else self.model.create_stream())
         stream.accept_waveform(SAMPLE_RATE, audio)
         self.model.decode_stream(stream)
         return stream.result.text.strip()
@@ -232,3 +258,28 @@ class ParakeetEngine:
 
     def is_loading(self) -> bool:
         return False
+
+
+def _clean_hotwords(hotwords: Optional[list]) -> list:
+    return [str(word).strip() for word in (hotwords or []) if str(word).strip()]
+
+
+# sherpa-onnx splits hotwords into tokens with a SentencePiece vocab file, which
+# the Parakeet export lacks. tokens.txt has the same pieces in merge order, so
+# "piece<TAB>-rank" rebuilds it. Written once next to the model (or to the temp
+# folder when the model folder is read-only); returns its path.
+def _bpe_vocab_for(tokens_path: str) -> str:
+    for folder in (os.path.dirname(tokens_path), tempfile.gettempdir()):
+        vocab_path = os.path.join(folder, "bpe.vocab")
+        if os.path.exists(vocab_path):
+            return vocab_path
+        try:
+            with open(tokens_path, encoding="utf-8") as tokens, \
+                 open(vocab_path, "w", encoding="utf-8") as vocab:
+                for line in tokens:
+                    piece, _, rank = line.rstrip("\n").rpartition(" ")
+                    vocab.write(f"{piece}\t{-int(rank)}\n")
+            return vocab_path
+        except OSError:
+            continue
+    raise RuntimeError("Could not write bpe.vocab for Parakeet hotwords")

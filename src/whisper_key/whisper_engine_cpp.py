@@ -162,6 +162,10 @@ class WhisperEngineCpp:
         except Exception as e:
             self.logger.debug(f"whisper.cpp warmup skipped: {e}")
 
+    # Same contract as WhisperEngine.set_hotwords.
+    def set_hotwords(self, hotwords: Optional[list]):
+        self.hotwords = hotwords or []
+
     def transcribe_audio(self,
                          audio_data: Optional[np.ndarray]) -> Optional[str]:
         if audio_data is None or len(audio_data) == 0:

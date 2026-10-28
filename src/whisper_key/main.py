@@ -605,18 +605,21 @@ def main():
         system_tray.start()
         terminal_title.start()
 
-        if clipboard_config['auto_paste']:
-            if not permissions.check_accessibility_permission():
-                if not permissions.handle_missing_permission(config_manager):
-                    app.run_event_loop(shutdown_event)
-                    return
-                clipboard_manager.update_auto_paste(False)
+        # Without Accessibility, hotkeys and auto-paste are dead. Ask, keep
+        # running, and restart the hotkey listener once it is granted.
+        def restart_hotkeys_after_grant():
+            hotkey_listener.stop_listening()
+            hotkey_listener.start_listening()
+            audio_feedback.play_ready_sound()
+        hotkeys_live = permissions.ensure_accessibility(on_granted=restart_hotkeys_after_grant)
 
         print("🚀 Whisper Local ready!")
         # Audible counterpart to the message above: on a cold start the model
         # load is slow and the app has no window, so the chime is how a user
-        # knows the hotkey is finally live without watching the console.
-        audio_feedback.play_ready_sound()
+        # knows the hotkey is finally live without watching the console. While
+        # Accessibility is missing the chime waits for the grant instead.
+        if hotkeys_live:
+            audio_feedback.play_ready_sound()
         config_manager.print_startup_hotkey_instructions()
         print("   [CTRL+C] to quit", flush=True)
 
