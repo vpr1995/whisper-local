@@ -13,21 +13,21 @@
 commands:
   # Hotkey commands — send keyboard shortcuts to the active window
   - trigger: "undo"
-    hotkey: "ctrl+z"
+    hotkey: "ctrl+z | macos: cmd+z"
   - trigger: "select all"
-    hotkey: "ctrl+a"
+    hotkey: "ctrl+a | macos: cmd+a"
   - trigger: "paste that"
-    hotkey: "ctrl+v"
+    hotkey: "ctrl+v | macos: cmd+v"
   - trigger: "snap left"
-    hotkey: "win+left"
+    hotkey: "win+left | macos: fn+ctrl+left"
   - trigger: "snap right"
-    hotkey: "win+right"
+    hotkey: "win+right | macos: fn+ctrl+right"
   - trigger: "maximize"
-    hotkey: "win+up"
+    hotkey: "win+up | macos: fn+ctrl+f"
   - trigger: "minimize"
-    hotkey: "win+down"
+    hotkey: "win+down | macos: cmd+m"
   - trigger: "show desktop"
-    hotkey: "win+d"
+    hotkey: "win+d | macos: f11"
 
   # Type commands — deliver pre-written text to the active window
   - trigger: "my email"
@@ -37,19 +37,19 @@ commands:
 
   # Shell commands — run any shell command (cmd.exe on Windows, /bin/sh on macOS)
   - trigger: "open notepad"
-    run: 'notepad.exe'
+    run: 'notepad.exe | macos: open -a TextEdit'
   - trigger: "open calculator"
-    run: 'calc.exe'
+    run: 'calc.exe | macos: open -a Calculator'
   - trigger: "open browser"
-    run: 'start https://www.google.com'
+    run: 'start https://www.google.com | macos: open https://www.google.com'
   - trigger: "open downloads"
-    run: 'explorer "%USERPROFILE%\Downloads"'
+    run: 'explorer "%USERPROFILE%\Downloads" | macos: open ~/Downloads'
   - trigger: "new terminal"
-    run: 'wt.exe'
+    run: 'wt.exe | macos: open -a Terminal'
   - trigger: "screenshot"
-    run: 'snippingtool'
+    run: 'snippingtool | macos: screencapture -i -c'
   - trigger: "lock screen"
-    run: 'rundll32.exe user32.dll,LockWorkStation'
+    run: 'rundll32.exe user32.dll,LockWorkStation | macos: pmset displaysleepnow'
 
   # AI rephrase — select text in any app first, then trigger command mode
   # and speak the trigger. The selection is sent to the AI provider (Apple
@@ -66,7 +66,7 @@ commands:
   # between steps if the target app needs time to react. Example: save
   # the file then commit (won't actually run without your VCS setup).
   - trigger: "save and format"
-    hotkey: "ctrl+s"
+    hotkey: "ctrl+s | macos: cmd+s"
     then:
       - delay: 0.2
-      - hotkey: "shift+alt+f"
+      - hotkey: "shift+alt+f | macos: shift+option+f"

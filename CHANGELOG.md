@@ -124,6 +124,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 - **The Tk add-word dialog.** Use the dashboard's Vocabulary page, or
   `--add-word` in a terminal.
 
+### Fixed
+- **Per-app rules now work on macOS for terminals, code editors and password
+  managers.** The shipped rules listed only Windows program names. They now
+  also list macOS bundle ids, for example Terminal, iTerm2, VS Code, Cursor,
+  JetBrains IDEs, Xcode, 1Password and Apple Mail.
+- **Transforms and voice "rephrase" now copy and paste on macOS.** They sent
+  Control+C and Control+V, which do nothing on a Mac. They now send Command+C
+  and Command+V.
+- **On macOS, `win` in a hotkey means the Command key.** Before, the app
+  ignored it, so the transform hotkey `win+alt+1` worked as Option+1 while the
+  dashboard showed ⌘⌥1.
+- **The shipped voice commands have macOS values.** Commands and transforms
+  accept the `"windows value | macos: mac value"` form, as the main config
+  does. "Undo" sends Command+Z on a Mac and "open calculator" opens
+  Calculator.
+- **The About page describes Retry correctly.** Retry transcribes the last
+  recording again with the current model. It does not type the last text.
+
 ## [0.23.0]
 
 Three dictation features from Wispr Flow's recent changelog, built to work

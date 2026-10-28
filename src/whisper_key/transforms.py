@@ -72,6 +72,8 @@ class TransformsManager:
             self.transforms, _ = load_layered(
                 DEFAULTS_FILE, self._path, "transforms", USER_FILE_HEADER,
                 id_key="name")
+            from .config_manager import resolve_platform_values
+            resolve_platform_values(self.transforms)
             self._mtime = self._path.stat().st_mtime if self._path.exists() else 0.0
             self.logger.info(f"Loaded {len(self.transforms)} transforms")
         except Exception as e:
@@ -127,7 +129,7 @@ class TransformsManager:
 
         try:
             from .platform import keyboard as kb
-            kb.send_hotkey('ctrl', 'c')
+            kb.send_copy()
             time.sleep(0.12)
             selection = pyperclip.paste()
         except Exception as e:
@@ -157,7 +159,7 @@ class TransformsManager:
             from .platform import keyboard as kb
             pyperclip.copy(result)
             time.sleep(0.05)
-            kb.send_hotkey('ctrl', 'v')
+            kb.send_paste()
             time.sleep(0.2)
         finally:
             try: pyperclip.copy(original_clipboard)

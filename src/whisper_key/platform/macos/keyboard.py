@@ -22,6 +22,7 @@ try:
         kCGEventFlagMaskControl,
         kCGEventFlagMaskShift,
         kCGEventFlagMaskAlternate,
+        kCGEventFlagMaskSecondaryFn,
     )
     _quartz_available = True
     MODIFIER_FLAGS = {
@@ -32,6 +33,9 @@ try:
         'shift': kCGEventFlagMaskShift,
         'option': kCGEventFlagMaskAlternate,
         'alt': kCGEventFlagMaskAlternate,
+        # fn/Globe: macOS window tiling shortcuts are fn+ctrl+arrow / fn+ctrl+f.
+        'fn': kCGEventFlagMaskSecondaryFn,
+        'function': kCGEventFlagMaskSecondaryFn,
     }
 except ImportError:
     _quartz_available = False

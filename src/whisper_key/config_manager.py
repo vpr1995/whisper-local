@@ -82,13 +82,22 @@ def _parse_platform_value(value: str) -> str:
     return macos_value if IS_MACOS else default_value
 
 
-def _resolve_platform_values(config: Dict[str, Any]) -> Dict[str, Any]:
-    for key, value in config.items():
-        if isinstance(value, dict):
+# Picks the platform's half of every "windows value | macos: mac value" string,
+# in place, through nested dicts and lists (voice-command macros nest a list).
+def _resolve_platform_values(config):
+    items = config.items() if isinstance(config, dict) else enumerate(config)
+    for key, value in list(items):
+        if isinstance(value, (dict, list)):
             _resolve_platform_values(value)
         elif isinstance(value, str) and ' | macos:' in value:
             config[key] = _parse_platform_value(value)
     return config
+
+
+# Public entry for the layered files (commands, transforms) that don't go
+# through ConfigManager but use the same " | macos:" syntax.
+def resolve_platform_values(config):
+    return _resolve_platform_values(config)
 
 
 class ConfigManager:   

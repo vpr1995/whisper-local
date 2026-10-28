@@ -55,6 +55,11 @@ MODIFIER_FLAGS = {
     'control': 1 << 18,
     'cmd': 1 << 20,
     'command': 1 << 20,
+    # Windows-key names mean Command here, so a "win+..." combo from a shared
+    # config does what the dashboard shows (⌘) instead of silently losing a key.
+    'win': 1 << 20,
+    'windows': 1 << 20,
+    'super': 1 << 20,
     'option': 1 << 19,
     'alt': 1 << 19,
     'shift': 1 << 17,
@@ -108,9 +113,6 @@ def _parse_hotkey_string(hotkey_str: str) -> tuple[int, int | None]:
     keycode = None
 
     for part in parts:
-        if part in ('win', 'window', 'windows', 'super'):
-            continue
-
         if part in MODIFIER_FLAGS:
             modifiers |= MODIFIER_FLAGS[part]
         elif part in KEY_CODES:

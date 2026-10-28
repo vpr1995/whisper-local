@@ -2,7 +2,9 @@
 #
 # When a transcription is about to be delivered, the foreground window is
 # inspected. If its exe name OR window title contains any "match" string,
-# the rule applies and overrides the global behaviour for that delivery.
+# the rule applies. On macOS the "exe name" is the app's bundle id (e.g.
+# com.apple.terminal) and the "title" is the app's name, so each rule lists
+# both the Windows exe names and the macOS bundle ids. The rule and overrides the global behaviour for that delivery.
 #
 # Supported overrides:
 #   auto_send:   true | false   - force ENTER after paste (auto-send)
@@ -29,7 +31,8 @@
 # postprocess config; everything else is inherited.
 #
 # Browser apps (Gmail, Slack in Chrome, ...) can only be matched by window
-# title, e.g. match: ["Gmail"].
+# title, e.g. match: ["Gmail"]. That works on Windows only: macOS reports the
+# browser's name, not the page title.
 #
 # Rules are matched top-down; first match wins. Your own rules are matched
 # before all of these, so they always win.
@@ -53,12 +56,16 @@ rules:
 
   # Password managers: never deliver dictation into a password field
   - id: password-managers
-    match: ["1password.exe", "1password-7.exe", "lastpass.exe", "bitwarden.exe", "keepass.exe", "keepassxc.exe"]
+    match: ["1password.exe", "1password-7.exe", "lastpass.exe", "bitwarden.exe", "keepass.exe", "keepassxc.exe",
+            "com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop",
+            "org.keepassxc.keepassxc", "com.apple.passwords"]
     suppress: true
 
   # Terminals: copy only — pasting into a terminal can run commands
   - id: terminals
-    match: ["windowsterminal.exe", "wt.exe", "conhost.exe", "powershell.exe", "cmd.exe", "alacritty.exe", "wezterm-gui.exe"]
+    match: ["windowsterminal.exe", "wt.exe", "conhost.exe", "powershell.exe", "cmd.exe", "alacritty.exe", "wezterm-gui.exe",
+            "com.apple.terminal", "com.googlecode.iterm2", "org.alacritty", "com.github.wez.wezterm",
+            "dev.warp.warp-stable", "com.mitchellh.ghostty", "net.kovidgoyal.kitty"]
     auto_paste: false
     style: verbatim
     polish: false
@@ -67,7 +74,9 @@ rules:
   # decides where it lands; identifier/path bias. Keep it verbatim: no forced
   # capitalization or trailing period (code isn't prose).
   - id: code-editors
-    match: ["code.exe", "cursor.exe", "windsurf.exe", "rider64.exe", "pycharm64.exe", "idea64.exe"]
+    match: ["code.exe", "cursor.exe", "windsurf.exe", "rider64.exe", "pycharm64.exe", "idea64.exe",
+            "com.microsoft.vscode", "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf",
+            "com.jetbrains.", "dev.zed.zed", "com.sublimetext.", "com.apple.dt.xcode"]
     auto_paste: false
     initial_prompt: "Programming context. Identifiers, snake_case, camelCase, file paths, regex."
     style: verbatim
@@ -75,7 +84,8 @@ rules:
 
   # Chat apps: send the message immediately, casual tone bias
   - id: chat-apps
-    match: ["slack.exe", "discord.exe", "telegram.exe", "whatsapp.exe", "Slack", "Discord"]
+    match: ["slack.exe", "discord.exe", "telegram.exe", "whatsapp.exe", "Slack", "Discord",
+            "com.tinyspeck.slackmacgap", "com.hnc.discord", "ru.keepcoder.telegram", "net.whatsapp.whatsapp"]
     auto_send: true
     style: casual
     list_formatting: false   # a new line would send the message early
@@ -83,8 +93,8 @@ rules:
 
   # Email clients: professional bias, no auto-send, AI polish on
   - id: email-clients
-    # "com.microsoft.outlook" is Outlook on macOS (apps there are matched by bundle id)
-    match: ["outlook.exe", "com.microsoft.outlook", "thunderbird.exe", "Mail"]
+    match: ["outlook.exe", "thunderbird.exe", "Mail",
+            "com.microsoft.outlook", "com.apple.mail", "org.mozilla.thunderbird"]
     style: formal
     polish: true
     initial_prompt: "Professional email body. Polite, clear sentences."

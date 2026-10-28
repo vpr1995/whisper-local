@@ -79,7 +79,8 @@ class VoiceCommandManager:
         merged, _ = load_layered(
             DEFAULTS_FILE, Path(self.commands_path), "commands",
             USER_FILE_HEADER, id_key="trigger")
-        commands = self._validate_commands(merged)
+        from .config_manager import resolve_platform_values
+        commands = self._validate_commands(resolve_platform_values(merged))
         commands.sort(key=lambda cmd: len(cmd.get('trigger', '')), reverse=True)
         return commands
 
@@ -147,7 +148,7 @@ class VoiceCommandManager:
             import time
             original = clipboard_text
             try:
-                keyboard.send_hotkey('ctrl', 'c')
+                keyboard.send_copy()
                 time.sleep(0.1)
                 selection_text = pyperclip.paste() or ''
             except Exception:
@@ -234,7 +235,7 @@ class VoiceCommandManager:
         except Exception:
             original_clipboard = ''
 
-        keyboard.send_hotkey('ctrl', 'c')
+        keyboard.send_copy()
         time.sleep(0.12)
         try:
             selection = pyperclip.paste()
@@ -258,7 +259,7 @@ class VoiceCommandManager:
         try:
             pyperclip.copy(polished)
             time.sleep(0.05)
-            keyboard.send_hotkey('ctrl', 'v')
+            keyboard.send_paste()
             time.sleep(0.2)
         finally:
             try: pyperclip.copy(original_clipboard)

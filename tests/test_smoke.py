@@ -4173,10 +4173,13 @@ class LayeredDefaultsTests(unittest.TestCase):
     def _write_old_app_rules(self):
         self._write('app_rules.yaml', (
             'rules:\n'
-            '  - match: ["slack.exe", "discord.exe", "telegram.exe", "whatsapp.exe", "Slack", "Discord"]\n'
+            '  - match: ["slack.exe", "discord.exe", "telegram.exe", "whatsapp.exe", "Slack", "Discord",'
+            ' "com.tinyspeck.slackmacgap", "com.hnc.discord", "ru.keepcoder.telegram", "net.whatsapp.whatsapp"]\n'
             '    auto_send: true\n'
             '    initial_prompt: "Casual chat message. Conversational tone."\n'
-            '  - match: ["code.exe", "cursor.exe", "windsurf.exe", "rider64.exe", "pycharm64.exe", "idea64.exe"]\n'
+            '  - match: ["code.exe", "cursor.exe", "windsurf.exe", "rider64.exe", "pycharm64.exe", "idea64.exe",'
+            ' "com.microsoft.vscode", "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf",'
+            ' "com.jetbrains.", "dev.zed.zed", "com.sublimetext.", "com.apple.dt.xcode"]\n'
             '    auto_paste: false\n'
             '    initial_prompt: "Programming context. Identifiers, snake_case, camelCase, file paths, regex."\n'
             '  - match: ["mytool.exe"]\n'
@@ -4252,7 +4255,8 @@ class LayeredDefaultsTests(unittest.TestCase):
         # shipped rule as it changes.
         self._write('app_rules.yaml', (
             'rules:\n'
-            '  - match: ["outlook.exe", "com.microsoft.outlook", "thunderbird.exe", "Mail"]\n'
+            '  - match: ["outlook.exe", "thunderbird.exe", "Mail",'
+            ' "com.microsoft.outlook", "com.apple.mail", "org.mozilla.thunderbird"]\n'
             '    style: casual\n'
             '    initial_prompt: "Professional email body. Polite, clear sentences."\n'))
         rules = self._load_rules()
@@ -4260,7 +4264,8 @@ class LayeredDefaultsTests(unittest.TestCase):
                          [{'id': 'email-clients', 'style': 'casual'}])
         email = next(r for r in rules if r.get('id') == 'email-clients')
         self.assertEqual(email['style'], 'casual')
-        self.assertEqual(email['match'], ['outlook.exe', 'com.microsoft.outlook', 'thunderbird.exe', 'Mail'])
+        self.assertEqual(email['match'], ['outlook.exe', 'thunderbird.exe', 'Mail',
+                                          'com.microsoft.outlook', 'com.apple.mail', 'org.mozilla.thunderbird'])
 
     def test_user_rules_are_matched_before_shipped_rules(self):
         self._write('app_rules.yaml',
@@ -5050,7 +5055,10 @@ class StandaloneExeTests(unittest.TestCase):
             self.assertIn("startsWith(github.ref, 'refs/tags/v')", workflow['jobs'][job]['if'], job)
 
     def test_users_are_told_how_to_verify_a_download(self):
-        for rel in ('README.md', 'docs/faq.md', 'docs/troubleshooting.md'):
+        # The README no longer has a Windows .exe section (this fork has no releases
+        # and is validated on macOS only); the verify command stays in the FAQ and
+        # troubleshooting docs for the Windows build.
+        for rel in ('docs/faq.md', 'docs/troubleshooting.md'):
             text = (ROOT / rel).read_text(encoding='utf-8')
             self.assertIn('gh attestation verify whisper-local.exe --repo vpr1995/whisper-local', text, rel)
 

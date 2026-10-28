@@ -103,7 +103,7 @@ function buildControlsCard(api) {
   return ui.card(null, [
     ui.settingRow('Restart Whisper Local', 'Reloads settings and the speech model.',
       commandButton('Restart', 'restart', 'Restarting Whisper Local…')),
-    ui.settingRow('Retry last dictation', 'Types your last dictation again, for example after it landed in the wrong window.',
+    ui.settingRow('Retry last dictation', 'Transcribes your last recording again with the current model and shows the text in a window, for example after you change the model.',
       commandButton('Retry', 'retry_last_dictation', 'Retrying your last dictation…')),
     ui.settingRow('Pause or resume hotkeys', 'Turns every Whisper Local hotkey off or back on.',
       commandButton('Pause / resume', 'toggle_pause_hotkeys', 'Hotkeys toggled.')),
