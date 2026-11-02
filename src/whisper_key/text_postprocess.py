@@ -117,9 +117,7 @@ def postprocess(text: str, config: dict, on_polish_failed=None) -> str:
     if not text or not config:
         return text
 
-    # A named style is shorthand for a set of the toggles below. The app-rule
-    # path resolves it beforehand (see app_rules.effective_postprocess_config)
-    # and drops the key; this covers every other caller.
+    # A named style is shorthand for a set of the toggles below.
     if config.get('style'):
         config = {**config, **resolve_style(config['style'], config)}
 

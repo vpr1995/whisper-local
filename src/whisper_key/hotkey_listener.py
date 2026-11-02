@@ -1,9 +1,9 @@
 # hotkey_listener.py
 # Registers global hotkeys and maps them to StateManager actions: record (toggle
-# or push-to-talk), stop, auto-send, stop-and-polish, cancel, command mode, AI rephrase, pause-all,
-# paste-last and per-transform hotkeys. Handles PTT press/release (with optional
-# double-tap-to-lock) and re-registration when transforms or hotkey config
-# change. Backed by the platform.hotkeys layer.
+# or push-to-talk), stop, auto-send, stop-and-polish, cancel, command mode, AI rephrase,
+# pause-all and paste-last. Handles PTT press/release (with optional
+# double-tap-to-lock) and re-registration when the hotkey config changes.
+# Backed by the platform.hotkeys layer.
 
 import logging
 
@@ -15,7 +15,7 @@ class HotkeyListener:
     def __init__(self, state_manager: StateManager, recording_hotkey: str, stop_key: str,
                  auto_send_key: str = None, cancel_combination: str = None,
                  command_hotkey: str = None, rephrase_hotkey: str = None,
-                 pause_hotkey: str = None, transforms_manager=None,
+                 pause_hotkey: str = None,
                  recording_mode: str = "push_to_talk", paste_last_hotkey: str = None,
                  double_tap_to_lock: bool = False, double_tap_window_ms: int = 400,
                  stop_polish_key: str = None):
@@ -28,7 +28,6 @@ class HotkeyListener:
         self.command_hotkey = command_hotkey
         self.rephrase_hotkey = rephrase_hotkey
         self.pause_hotkey = pause_hotkey
-        self.transforms_manager = transforms_manager
         self.recording_mode = recording_mode
         self.paste_last_hotkey = paste_last_hotkey
         # Hands-free double-tap only applies to push-to-talk; toggle mode is
@@ -148,16 +147,6 @@ class HotkeyListener:
                 'callback': self._pause_hotkey_pressed,
                 'name': 'pause'
             })
-
-        if self.transforms_manager:
-            def make_transform_callback(transform_name):
-                return lambda: self.state_manager.apply_transform(transform_name)
-            for transform in self.transforms_manager.transforms_with_hotkeys():
-                hotkey_configs.append({
-                    'combination': transform['hotkey'],
-                    'callback': make_transform_callback(transform.get('name', '?')),
-                    'name': f"transform:{transform.get('name', '?')}"
-                })
 
         hotkey_configs.sort(key=self._get_hotkey_combination_specificity, reverse=True)
 
@@ -344,15 +333,3 @@ class HotkeyListener:
 
     def is_active(self) -> bool:
         return self.is_listening
-
-    def refresh_transforms(self):
-        if not self.transforms_manager:
-            return
-        self.transforms_manager.reload_if_changed()
-        self.logger.info("Re-registering hotkeys to pick up transform changes")
-        try:
-            self.stop_listening()
-            self._setup_hotkeys()
-            self.start_listening()
-        except Exception as e:
-            self.logger.error(f"Failed to refresh transform hotkeys: {e}")

@@ -61,7 +61,7 @@ Parakeet v3 is NVIDIA's Parakeet TDT model. It runs through sherpa-onnx, which i
 - The download is about 670 MB, on first use.
 - It supports 25 European languages. It picks the language itself.
 - On an M1 Pro CPU it was about 3 times faster than Whisper `small.en` over a mix of clips. On short dictations it was about 7 times faster (0.14 s against 1.0 s for a 3.6 s phrase). These figures come from the project's own tests.
-- It **cannot translate**. The Translate profile needs a Whisper model.
+- It **cannot translate**. `whisper.task: translate` needs a Whisper model.
 - It ignores `beam_size` and `initial_prompt`.
 - It ignores hotwords. Use **Fix this everywhere** in History for a name it gets wrong. See [History and vocabulary](history-and-vocabulary.md#hotwords).
 

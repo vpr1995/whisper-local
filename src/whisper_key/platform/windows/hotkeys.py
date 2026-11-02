@@ -45,7 +45,7 @@ def start():
 
 # global-hotkeys' stop only flips a flag — it never joins the checker thread,
 # which polls on a 20 ms cycle. Returning immediately leaves a window where a
-# caller that re-registers next (settings change, transforms refresh) clears
+# caller that re-registers next (a settings change) clears
 # the bindings dict while that thread is still iterating it, raising
 # RuntimeError and killing it (issue #7). Give it 10 poll cycles to notice.
 # The library's own restart path waits 0.7 s for the same reason.

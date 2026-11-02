@@ -20,7 +20,7 @@ Your voice stays on your computer. No account. No cloud. No telemetry.
   <img src="docs/screenshots/dashboard-history.png" width="49%" alt="The History page: search of past dictations, grouped by day">
 </p>
 <p align="center">
-  <img src="docs/screenshots/style-ai.png" width="49%" alt="The Style page: AI provider, polish per app type, AI transforms and per-app rules">
+  <img src="docs/screenshots/dashboard-vocabulary.png" width="49%" alt="The Vocabulary page: words, replacements and snippets">
   <img src="docs/screenshots/dashboard-about.png" width="49%" alt="The About page: a checklist of what Whisper Local needs, all items ready">
 </p>
 
@@ -59,8 +59,8 @@ On the first start the app downloads one speech model, then works offline. macOS
 - **A dashboard window.** Home, History, Models, Vocabulary, Style, Settings and About, with a live status bar. [Dashboard tour](docs/dashboard.md)
 - **Picks a speech model for you.** Parakeet v3 for English and 24 other European languages, Whisper `large-v3-turbo` on a GPU, Whisper `base` for other languages. [Models](docs/models.md)
 - **Clean text.** Stutters and "um" go. "Scratch that" and "at 2, actually 3" work. Spoken lists, times and emails get formatted. [Configuration](docs/configuration.md)
-- **AI polish, transforms and rephrase.** They run on Apple Intelligence on your Mac, or on Ollama. Polish is on for email apps by default. [AI polish](docs/ai-polish.md)
-- **Different behavior per app.** Casual in chat, formal in email, auto-send in Slack. Profiles and writing styles. [Per-app rules](docs/per-app-rules.md)
+- **AI polish and rephrase.** They run on Apple Intelligence on your Mac, or on Ollama. Polish is one on/off switch. [AI polish](docs/ai-polish.md)
+- **Writing styles.** Formal, casual, very casual or verbatim, in one choice. [Writing styles](docs/writing-styles.md)
 - **Searchable history.** Search, copy, delete many at once, and fix a misheard word everywhere. [History and vocabulary](docs/history-and-vocabulary.md)
 - **Your own words.** Hotwords, replacements and snippets. [History and vocabulary](docs/history-and-vocabulary.md)
 - **Voice commands.** Say a phrase to press a shortcut, type text or run a command. [Voice commands](docs/voice-commands.md)
@@ -75,9 +75,9 @@ On the first start the app downloads one speech model, then works offline. macOS
 | [Dashboard](docs/dashboard.md) | A tour of every dashboard page |
 | [Hotkeys](docs/hotkeys.md) | Every shortcut and its default |
 | [Models](docs/models.md) | Model choice, GPU, idle unload, live preview |
-| [AI polish](docs/ai-polish.md) | Apple Intelligence, Ollama, transforms, rephrase |
+| [AI polish](docs/ai-polish.md) | Apple Intelligence, Ollama, polish, rephrase |
 | [History and vocabulary](docs/history-and-vocabulary.md) | History, hotwords, replacements, snippets |
-| [Per-app rules](docs/per-app-rules.md) | Profiles, per-app behavior, writing styles |
+| [Writing styles](docs/writing-styles.md) | Formal, casual, very casual, verbatim, your own |
 | [Voice commands](docs/voice-commands.md) | The `commands.yaml` format |
 | [Configuration](docs/configuration.md) | Config files, key settings, command-line flags |
 | [Privacy](docs/privacy.md) | Every network call the app can make |

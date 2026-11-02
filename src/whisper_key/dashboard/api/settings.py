@@ -157,7 +157,7 @@ def _build_catalogue(config: dict) -> list:
         ], 'Recording options', 'recording'),
         _section('after-you-speak', 'After you speak', MAIN_VIEW, [
             _toggle('clipboard.auto_paste', 'Paste automatically',
-                    'Type the text at your cursor. Off copies it to the clipboard only. Per-app rules can override this.'),
+                    'Type the text at your cursor. Off copies it to the clipboard only.'),
             _toggle('clipboard.paste_preserve_clipboard', 'Keep my clipboard',
                     'Puts back whatever you had copied once the text is pasted.'),
         ], 'Formatting', 'formatting'),

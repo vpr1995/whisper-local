@@ -14,8 +14,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   are ready. Each item that is missing has a button: open the correct System
   Settings pane, install Apple's Command Line Tools, open the Models page, or
   get Ollama. "Check again" runs the checks again.
-- **Apple Intelligence for the AI features.** AI polish, AI transforms and
-  rephrase now use Apple's on-device model when your Mac supports it
+- **Apple Intelligence for the AI features.** AI polish and rephrase now use Apple's on-device model when your Mac supports it
   (Apple silicon, macOS 26 or later, Apple Intelligence turned on). If it is
   not available, they use Ollama. Set `postprocess.ai.provider` to `auto`
   (default), `apple_intelligence` or `ollama`, or use dashboard > Style > AI.
@@ -24,26 +23,20 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   why Apple Intelligence is not in use.
 - **Stop and polish key.** Set `hotkey.stop_polish_key` (dashboard > Settings >
   More shortcuts) to a key that stops the recording and polishes that one
-  dictation with the AI. It works when polish is off, also in apps where a
-  rule turns polish off. If the AI cannot answer, the app types your original
+  dictation with the AI. It works when polish is off. If the AI cannot answer, the app types your original
   text and shows a notice with the reason. The key is off by default.
 - **Polish checks the result.** If the AI changes your words, answers your
   dictation, or refuses, the app types your original text. Dictations over
   1200 characters are not polished.
-- **Polish per app.** Add `polish: true | false` to a rule in
-  `app_rules.yaml`. Email apps polish by default (when polish is available).
-  Code editors and terminals never polish. Outlook for Mac is now part of the
-  email rule. On the Style page, "Polish in" has a toggle for email apps,
-  chat apps and everywhere else.
 - **A dashboard window.** `Open Whisper Local…` in the tray opens one window
   with a sidebar: **Home** (status, recent transcriptions, your hotkeys),
   **History** (search your past dictations, copy or fix one everywhere),
-  **Models**, **Vocabulary** (your dictionary), **Style** (profiles, writing
-  style, clean-up level, AI transforms, per-app rules), **Settings**, and
+  **Models**, **Vocabulary** (your dictionary), **Style** (writing style,
+  clean-up level, AI provider and polish), **Settings**, and
   **About** (restart, retry last dictation, pause hotkeys, config folder,
   hotkey cheat sheet). It runs in its own window, so it never blocks the
   tray.
-  Models and Style use tiles: you pick a model or a profile with one click.
+  Models uses tiles: you pick a model with one click.
   The settings for the model, language and CPU/GPU moved from Settings to
   Models. The AI polish (Ollama) settings moved to Style.
 - **The dashboard status bar shows the app state.** A green dot shows
@@ -97,7 +90,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 ### Added
 - **A shorter tray menu.** It now shows the status, Start/Stop dictation,
   Model (downloaded models only), Microphone, Auto-paste, Open Whisper
-  Local…, Settings… and Quit. Profiles, history, retry, pause, restart,
+  Local…, Settings… and Quit. History, retry, pause, restart,
   the config folder and the cheat sheet moved to the dashboard.
 - **`--window` accepts only `fallback` and `dashboard`.** It is an internal
   flag, so no user command needs changing.
@@ -111,8 +104,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   Use `postprocess.ai.polish` and `postprocess.ai.polish_prompt`. The new key
   `postprocess.ai.provider` selects the AI. The Ollama endpoint, model and
   timeout stay in `postprocess.ollama`.
-- **The Professional transform does not write email scaffolding.** It does
-  not add a subject line, a greeting, a sign-off or `[Name]` placeholders.
 
 ### Removed
 - **The Tk Settings window** (`--settings`, `settings_ui.py`) and **the Tk
@@ -136,6 +127,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   capture (`--transcribe-system` and the `loopback` extra), `--import-vocab`,
   `--export-model` / `--import-model` and the delivery audit log
   (`audit.enabled`). Noise suppression stays.
+- **Profiles, per-app rules and AI transforms** (`profiles.yaml`,
+  `app_rules.yaml`, `transforms.yaml`, and the Profile, AI transforms and
+  Per-app rules sections of the Style page). The app ignores these files now.
+  One writing style and one clean-up level apply to every app. There is no
+  built-in guard for password managers or terminals any more: the app types
+  where the cursor is.
+- **"Polish in" per app type.** AI polish is one switch for every app:
+  dashboard > Style > AI polish, or `postprocess.ai.polish: true | false`.
 
 ### Fixed
 - **Parakeet no longer returns empty or wrong text when the dictionary has
@@ -143,18 +142,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   search. On short real dictations, it returned no text or wrong text ("Yeah."
   for "What's happening?"). Parakeet now always uses greedy decoding and
   ignores dictionary words.
-- **Per-app rules now work on macOS for terminals, code editors and password
-  managers.** The shipped rules listed only Windows program names. They now
-  also list macOS bundle ids, for example Terminal, iTerm2, VS Code, Cursor,
-  JetBrains IDEs, Xcode, 1Password and Apple Mail.
-- **Transforms and voice "rephrase" now copy and paste on macOS.** They sent
-  Control+C and Control+V, which do nothing on a Mac. They now send Command+C
+- **Voice "rephrase" now copies and pastes on macOS.** It sent
+  Control+C and Control+V, which do nothing on a Mac. It now sends Command+C
   and Command+V.
 - **On macOS, `win` in a hotkey means the Command key.** Before, the app
-  ignored it, so the transform hotkey `win+alt+1` worked as Option+1 while the
+  ignored it, so a hotkey such as `win+alt+1` worked as Option+1 while the
   dashboard showed ⌘⌥1.
-- **The shipped voice commands have macOS values.** Commands and transforms
-  accept the `"windows value | macos: mac value"` form, as the main config
+- **The shipped voice commands have macOS values.** Commands accept the `"windows value | macos: mac value"` form, as the main config
   does. "Undo" sends Command+Z on a Mac and "open calculator" opens
   Calculator.
 - **The About page describes Retry correctly.** Retry transcribes the last

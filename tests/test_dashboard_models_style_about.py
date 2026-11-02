@@ -242,31 +242,6 @@ class ModelsApiTests(unittest.TestCase):
 
 # ── Style ────────────────────────────────────────────────────────────────────
 
-class StyleHelperTests(unittest.TestCase):
-    def test_describe_profile_overrides(self):
-        sentences = style_api.describe_profile_overrides({
-            'whisper': {'model': 'base', 'task': 'transcribe', 'initial_prompt': ''},
-            'clipboard': {'auto_paste': False, 'delivery_method': 'paste'},
-            'custom': {'knob': 3},
-        })
-        self.assertEqual(sentences, ['Model: base', 'Copies to the clipboard only', 'custom.knob = 3'])
-
-    def test_translate_task_is_described(self):
-        self.assertEqual(style_api.describe_override('whisper', 'task', 'translate'), 'Translates speech to English')
-
-    def test_summarize_rule(self):
-        summary = style_api.summarize_rule({'id': 'chat-apps', 'match': ['slack.exe'], 'auto_send': True,
-                                            'style': 'casual', 'auto_paste': False})
-        self.assertEqual(summary['name'], 'Chat apps')
-        self.assertEqual(summary['apps'], ['slack.exe'])
-        self.assertEqual(summary['effects'], ['Style: Casual', 'Copies only, no paste', 'Presses Enter after pasting'])
-
-    def test_user_rule_without_id_and_string_match(self):
-        summary = style_api.summarize_rule({'match': 'obsidian.exe', 'suppress': True})
-        self.assertEqual((summary['name'], summary['apps'], summary['effects']),
-                         ('Your rule', ['obsidian.exe'], ['Never dictates here']))
-
-
 class StyleApiTests(unittest.TestCase):
     def setUp(self):
         self.config = FakeConfig(postprocess={'style': 'casual', 'styles': {'shouty': {'capitalize_first': True}}})
@@ -305,21 +280,6 @@ class StyleApiTests(unittest.TestCase):
         self.assertFalse(self.api.set_cleanup_level('bogus')['ok'])
         self.config.update_user_setting.assert_not_called()
 
-    def test_profiles_list_and_apply(self):
-        with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch('whisper_key.profiles.get_user_app_data_path', return_value=tmp):
-            data = self.api.get_profiles()
-            ids = [profile['id'] for profile in data['profiles']]
-            self.assertEqual(ids[:2], ['dictation', 'chat'])
-            self.assertEqual(data['active'], 'dictation')
-            self.assertEqual(sum(profile['active'] for profile in data['profiles']), 1)
-
-            result = self.api.set_profile('code')
-            self.assertEqual(result, {'ok': True, 'restart_required': True})
-            self.config.update_user_setting.assert_any_call('clipboard', 'auto_paste', False)
-            self.assertEqual(self.api.get_profiles()['active'], 'code', "the active profile must persist")
-            self.assertFalse(self.api.set_profile('no-such-profile')['ok'])
-
     # The real Apple Intelligence answer depends on the test machine, so pin it.
     def _with_apple(self, available, reason=''):
         return mock.patch('whisper_key.ai_provider.apple_availability', return_value=(available, reason))
@@ -338,6 +298,7 @@ class StyleApiTests(unittest.TestCase):
         self.assertEqual((data['model'], data['timeout']), ('llama3.2', 8))
         self.assertEqual(data['active_provider'], 'apple_intelligence')
         self.assertEqual(data['status_text'], "Using Apple Intelligence (on this Mac, offline).")
+        self.assertIs(data['polish'], True)
 
     def test_status_text_when_ollama_is_chosen_or_apple_is_off(self):
         self.config.config['postprocess']['ai'] = {'provider': 'ollama'}
@@ -368,53 +329,6 @@ class StyleApiTests(unittest.TestCase):
             self.assertTrue(self.api.set_ai_setting('timeout', ' 12 ')['ok'])
         self.config.update_user_setting.assert_called_with('postprocess', 'ollama', {'model': 'llama3.2', 'timeout': 12})
 
-    # Runs `body` with the user's app data folder (and so app_rules.yaml) in a temp dir.
-    def _in_temp_app_data(self, body):
-        with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch('whisper_key.app_rules.get_user_app_data_path', return_value=tmp), \
-             self._with_apple(True):
-            body(Path(tmp))
-
-    def test_polish_categories_default_to_email_on_and_the_rest_off(self):
-        def body(_):
-            categories = {c['id']: c for c in self.api.get_ai_settings()['polish_in']}
-            self.assertEqual([c['label'] for c in categories.values()], ["Email apps", "Chat apps", "Everywhere else"])
-            self.assertEqual({k: c['enabled'] for k, c in categories.items()},
-                             {'email': True, 'chat': False, 'everywhere': False})
-        self._in_temp_app_data(body)
-
-    def test_unset_app_category_follows_the_global_setting(self):
-        def body(_):
-            self.config.config['postprocess']['ai'] = {'polish': True}
-            categories = {c['id']: c['enabled'] for c in self.api.get_ai_settings()['polish_in']}
-            self.assertEqual(categories, {'email': True, 'chat': True, 'everywhere': True})
-        self._in_temp_app_data(body)
-
-    def test_set_polish_for_an_app_category_writes_the_rule_override(self):
-        def body(tmp):
-            self.config.update_user_setting.reset_mock()
-            result = self.api.set_polish_for('chat', True)
-            self.assertTrue(result['ok'])
-            self.assertTrue(next(c for c in result['settings']['polish_in'] if c['id'] == 'chat')['enabled'])
-            self.assertIn('- id: chat-apps\n    polish: true', (tmp / 'app_rules.yaml').read_text())
-            self.assertFalse(self.api.set_polish_for('email', False)['settings']['polish_in'][0]['enabled'])
-            self.config.update_user_setting.assert_not_called()      # app rules, not user_settings.yaml
-        self._in_temp_app_data(body)
-
-    def test_set_polish_for_everywhere_writes_the_global_setting(self):
-        def body(_):
-            self.assertTrue(self.api.set_polish_for('everywhere', True)['ok'])
-            self.config.update_user_setting.assert_called_with(
-                'postprocess', 'ai', {'polish': True})
-        self._in_temp_app_data(body)
-
-    def test_set_polish_for_rejects_unknown_category_and_non_booleans(self):
-        def body(tmp):
-            self.assertFalse(self.api.set_polish_for('code', True)['ok'])
-            self.assertFalse(self.api.set_polish_for('chat', 'yes')['ok'])
-            self.assertFalse((tmp / 'app_rules.yaml').exists() and 'polish' in (tmp / 'app_rules.yaml').read_text())
-        self._in_temp_app_data(body)
-
     def test_set_ai_setting_rejects_bad_values(self):
         for key, value in [('model', '  '), ('endpoint', 'localhost:11434'), ('timeout', 'soon'),
                            ('timeout', 0), ('timeout', 500), ('provider', 'openai'), ('polish', 'yes'),
@@ -422,27 +336,13 @@ class StyleApiTests(unittest.TestCase):
             self.assertFalse(self.api.set_ai_setting(key, value)['ok'], (key, value))
         self.config.update_user_setting.assert_not_called()
 
-    def test_transforms_list_with_keys(self):
-        with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch('whisper_key.transforms.get_user_app_data_path', return_value=tmp):
-            transforms = self.api.get_transforms()
-        polish = next(t for t in transforms if t['name'] == 'Polish')
-        self.assertEqual(polish['keys'], ['win', 'alt', '1'])
-        self.assertTrue(any(t['keys'] == [] for t in transforms))
-
-    def test_app_rules_list(self):
-        with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch('whisper_key.app_rules.get_user_app_data_path', return_value=tmp):
-            rules = self.api.get_app_rules()
-        self.assertIn('Terminals', [rule['name'] for rule in rules])
-
     def test_open_user_file_only_when_it_exists(self):
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch('whisper_key.utils.get_user_app_data_path', return_value=tmp), \
              mock.patch('whisper_key.utils.open_file') as open_file:
-            self.assertFalse(self.api.open_transforms_file())
-            (Path(tmp) / 'transforms.yaml').write_text('transforms: []')
-            self.assertTrue(self.api.open_transforms_file())
+            self.assertFalse(self.api.open_user_settings_file())
+            (Path(tmp) / 'user_settings.yaml').write_text('postprocess: {}')
+            self.assertTrue(self.api.open_user_settings_file())
             open_file.assert_called_once()
 
 
@@ -572,16 +472,11 @@ class AboutApiTests(unittest.TestCase):
 
     def test_cheat_sheet_includes_unset_hotkeys(self):
         self.config.config['hotkey'] = {'recording_hotkey': 'ctrl+alt+r'}
-        fake_transforms = mock.MagicMock()
-        fake_transforms.return_value.list_transforms.return_value = [
-            {'name': 'polish', 'hotkey': 'win+alt+1', 'prompt': 'Polish it'}]
-        with mock.patch('whisper_key.transforms.TransformsManager', fake_transforms):
-            rows = self.api.get_hotkey_cheat_sheet()
+        rows = self.api.get_hotkey_cheat_sheet()
         record = next(row for row in rows if row['label'] == 'Record / dictate')
         self.assertEqual(record['keys'], ['ctrl', 'alt', 'r'])
         cancel = next(row for row in rows if row['label'] == 'Cancel recording')
         self.assertEqual(cancel['keys'], [])
-        self.assertEqual(rows[-1]['group'], 'transform')
 
     def test_open_log_file_needs_a_log(self):
         with mock.patch('whisper_key.utils.open_file') as open_file:

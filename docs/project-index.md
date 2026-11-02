@@ -40,17 +40,14 @@ Open-source project maintained as `vpr1995/whisper-local` by Prudhvi Reddy Vemir
 | **Apple Intelligence** | `platform/macos/apple_intelligence.py` (+ Windows stub, `assets/apple_intelligence_helper.swift`) | `availability()`, `prepare()` (compiles the Swift helper once into `<app data>/apple_intelligence/`), `prewarm()` (loads the model at hotkey press) and `generate()` for Apple's on-device model. One `helper serve` process stays running between requests; a timeout kills it. Windows always reports unavailable | swiftc (Command Line Tools) |
 | **Floating Overlay** | `platform/*/overlay.py` | Floating pill: level meter, timer, streaming text. Native AppKit panel on macOS, Tk `level_overlay.py` on Windows | pyobjc / tkinter |
 | **Fallback Window** | `fallback_window.py` | Capture window when no text field is focused | tkinter |
-| **AI Provider** | `ai_provider.py` | One front door for polish, transforms and rephrase: picks Apple Intelligence (macOS 26+) or Ollama from `postprocess.ai.provider`, checks that polish (fillers, repeats, false starts, punctuation) only deleted words, holds the Ollama call and the user-facing reason texts. The helper is built in the background at app start | urllib |
-| **Transforms** | `transforms.py` | Wispr-style AI text transforms through the AI provider | ruamel.yaml |
+| **AI Provider** | `ai_provider.py` | One front door for polish and rephrase: picks Apple Intelligence (macOS 26+) or Ollama from `postprocess.ai.provider`, checks that polish (fillers, repeats, false starts, punctuation) only deleted words, holds the Ollama call and the user-facing reason texts. The helper is built in the background at app start | urllib |
 | **Dictionary** | `dictionary.py` | Hotword add/remove/list and history mining for the dashboard Vocabulary page | ruamel.yaml |
-| **Profiles** | `profiles.py` | Dictation/Chat/Code/Notes/Translate presets | ruamel.yaml |
-| **Per-App Rules** | `app_rules.py` | Foreground-app-specific behaviour overrides (delivery, formatting, per-app `polish`) | ruamel.yaml |
-| **Layered Defaults** | `defaults_merge.py` | Loads shipped defaults under the user's app_rules/commands/transforms/profiles, and migrates pre-0.21 full copies | ruamel.yaml |
+| **Layered Defaults** | `defaults_merge.py` | Loads the shipped voice commands under the user's `commands.yaml` | ruamel.yaml |
 | **Text Post-Process** | `text_postprocess.py` | Inline formatting, smart formatting, voice editing, corrections + optional AI polish (via `ai_provider.py`) | - |
 | **Dictation Cleanup** | `dictation_cleanup.py` | Backtrack ("actually 3"), stutter removal, spoken lists, lowercase | re |
 | **Dictation Languages** | `dictation_languages.py` | "Languages you speak": restricts auto-detection, flags speech in other languages | - |
 | **Snippets** | `snippets.py` | Spoken shortcuts expanded inline during dictation | re |
-| **Styles** | `styles.py` | Named writing styles (formal/casual/very casual/verbatim), global or per app | - |
+| **Styles** | `styles.py` | Named writing styles (formal/casual/very casual/verbatim), one global choice | - |
 | **Hotkey Gestures** | `hotkey_gestures.py` | Double-tap-to-lock state machine for push-to-talk | threading |
 | **Whisper Mode** | `audio_gain.py` | Boosts quiet recordings before transcription | numpy |
 | **Corrections** | `corrections.py` | Persist post-transcription replacements (history "Fix this everywhere") | ruamel.yaml |
@@ -64,7 +61,7 @@ Open-source project maintained as `vpr1995/whisper-local` by Prudhvi Reddy Vemir
 | **Autostart** | `autostart.py` | Opt-in launch-on-login (Windows Run key / macOS LaunchAgent) | winreg |
 | **Parakeet Backend** | `parakeet_engine.py` | Opt-in `parakeet` backend (NVIDIA Parakeet TDT v3) mirroring WhisperEngine's API | sherpa-onnx |
 | **Engine Factory** | `engine_factory.py` | Maps `whisper.backend` (or a Parakeet model) to an engine for the app and self-test | - |
-| **Foreground App** | `platform/*/foreground.py` | Detects the active window/app for per-app rules | pywin32 / pyobjc |
+| **Foreground App** | `platform/*/foreground.py` | Detects the active app: history's app name and the no-text-field check | pywin32 / pyobjc |
 | **Console Control** | `platform/windows/console.py` | Show/hide/own the console window (pyapp builds) | ctypes |
 
 ## Project Structure

@@ -141,22 +141,14 @@ class AboutApi:
 
     # ── Hotkey cheat sheet ───────────────────────────────────────────────────
 
-    # Every hotkey, including unset ones (keys == []), as {label, keys, help, group}.
+    # Every hotkey, including unset ones (keys == []), as {label, keys, help}.
     def get_hotkey_cheat_sheet(self) -> list:
-        from ...cheat_sheet import collect_hotkey_rows, collect_transform_hotkey_rows
-        rows = [dict(row, group='core') for row in collect_hotkey_rows(self._load_config().config)]
-        try:
-            from ...transforms import TransformsManager
-            rows += [dict(row, group='transform')
-                     for row in collect_transform_hotkey_rows(TransformsManager().list_transforms())]
-        except Exception as e:
-            logger.debug(f"Transform hotkeys unavailable: {e}")
+        from ...cheat_sheet import collect_hotkey_rows
         return [{
             'label': row['label'],
             'keys': [part.strip() for part in (row['key'] or '').split('+') if part.strip()],
             'help': row['help'],
-            'group': row['group'],
-        } for row in rows]
+        } for row in collect_hotkey_rows(self._load_config().config)]
 
     # ── Diagnostics ──────────────────────────────────────────────────────────
 

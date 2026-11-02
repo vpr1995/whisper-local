@@ -44,7 +44,7 @@ DARK_BACKGROUND = '#1c1c1e'
 
 # Loggers that chatter at INFO on every ConfigManager load (each API call makes
 # one); in this short-lived process that only drowns dashboard.log.
-NOISY_LOGGERS = ('whisper_key.config_manager', 'whisper_key.transforms')
+NOISY_LOGGERS = ('whisper_key.config_manager',)
 
 
 # ── Logging ──────────────────────────────────────────────────────────────────

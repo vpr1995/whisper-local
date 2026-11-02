@@ -287,7 +287,6 @@ def setup_hotkey_listener(hotkey_config, state_manager, voice_commands_enabled=T
         command_hotkey=hotkey_config.get('command_hotkey') if voice_commands_enabled else None,
         rephrase_hotkey=hotkey_config.get('rephrase_hotkey'),
         pause_hotkey=hotkey_config.get('pause_hotkey'),
-        transforms_manager=getattr(state_manager, 'transforms_manager', None),
         recording_mode=hotkey_config.get('recording_mode', 'push_to_talk'),
         paste_last_hotkey=hotkey_config.get('paste_last_hotkey'),
         double_tap_to_lock=bool(hotkey_config.get('double_tap_to_lock', False)),

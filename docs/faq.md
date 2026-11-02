@@ -39,18 +39,18 @@ Delete the files in `~/.whisperkey/` (macOS) or `%APPDATA%\whisperkey\` (Windows
 ## Comparison
 
 ### How is this different from faster-whisper directly?
-`faster-whisper` is the inference runtime. Whisper Local is the full **desktop dictation app** around it: global hotkeys, push-to-talk, voice commands, transforms, system tray, audio capture with pre-roll buffer, fallback window, profile switching, per-app rules and AI rephrase (Apple Intelligence or Ollama).
+`faster-whisper` is the inference runtime. Whisper Local is the full **desktop dictation app** around it: global hotkeys, push-to-talk, voice commands, system tray, audio capture with pre-roll buffer, fallback window, writing styles and AI polish and rephrase (Apple Intelligence or Ollama).
 
 ### How is this different from Windows Speech Recognition? (Windows, not validated yet)
-WSR uses an old Microsoft engine that's significantly less accurate than Whisper. Whisper Local is built on **modern AI transcription** (the same OpenAI Whisper model that powers most cloud dictation services), runs on your GPU, supports 99 languages, and has voice commands + transforms.
+WSR uses an old Microsoft engine that's significantly less accurate than Whisper. Whisper Local is built on **modern AI transcription** (the same OpenAI Whisper model that powers most cloud dictation services), runs on your GPU, supports 99 languages, and has voice commands.
 
 ### How is this different from Wispr Flow?
 Wispr Flow is closed-source, transcribes your audio in the cloud (on its own speech model, Canto), and caps its free tier. Whisper Local is open-source, MIT-licensed, runs **100% on your machine** on OpenAI's Whisper, and is free without limits.
 
-On the dictation itself, we track Wispr's changelog and build what works offline. Matched today: push-to-talk and hands-free (double-tap) recording, auto-cleanup levels, per-app writing styles, backtrack ("at 2, actually 3"), snippets, a personal dictionary, AI transforms (Apple Intelligence or a local Ollama), paste-last, dictation languages with a "speaking a different language?" prompt, a warning while you talk when the mic hears nothing, retrying a dictation, history with retention, and usage stats. Not matched: Wispr's meeting Notetaker, its mobile apps and keyboard, cloud sync across devices, and team features. Wispr's strength is polish and its own model; ours is privacy, no limits and hackability.
+On the dictation itself, we track Wispr's changelog and build what works offline. Matched today: push-to-talk and hands-free (double-tap) recording, auto-cleanup levels, writing styles, backtrack ("at 2, actually 3"), snippets, a personal dictionary, AI polish (Apple Intelligence or a local Ollama), paste-last, dictation languages with a "speaking a different language?" prompt, a warning while you talk when the mic hears nothing, retrying a dictation, history with retention, and usage stats. Not matched: Wispr's meeting Notetaker, its mobile apps and keyboard, cloud sync across devices, and team features. Wispr's strength is polish and its own model; ours is privacy, no limits and hackability.
 
 ### How is this different from Dragon NaturallySpeaking?
-Dragon is a paid product (~$500 perpetual or subscription), Windows-only, with great accuracy on its own engine. Whisper Local is free, uses Whisper, and is open-source. This fork is validated on macOS. Windows support exists in the code and is not validated yet. Dragon has decades of dictation-specific UX (Read That Back, training profiles); we have voice commands + transforms + Ollama integration.
+Dragon is a paid product (~$500 perpetual or subscription), Windows-only, with great accuracy on its own engine. Whisper Local is free, uses Whisper, and is open-source. This fork is validated on macOS. Windows support exists in the code and is not validated yet. Dragon has decades of dictation-specific UX (Read That Back, training profiles); we have voice commands, AI polish and Ollama integration.
 
 ## Technical
 

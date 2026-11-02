@@ -94,7 +94,7 @@ def _resolve_platform_values(config):
     return config
 
 
-# Public entry for the layered files (commands, transforms) that don't go
+# Public entry for the layered commands file, which doesn't go
 # through ConfigManager but use the same " | macos:" syntax.
 def resolve_platform_values(config):
     return _resolve_platform_values(config)

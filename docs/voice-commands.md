@@ -52,7 +52,7 @@ The shipped commands have a Windows value and a macOS value, written as `"window
 | open downloads / new terminal | `explorer …` / `wt.exe` | `open ~/Downloads` / `open -a Terminal` |
 | screenshot / lock screen | `snippingtool` / `LockWorkStation` | `screencapture -i -c` / `pmset displaysleepnow` |
 
-You can use the same `| macos:` form in your own `commands.yaml` and `transforms.yaml`. On a Mac, `win` in a hotkey means the Command key.
+You can use the same `| macos:` form in your own `commands.yaml`. On a Mac, `win` in a hotkey means the Command key.
 
 The window commands (snap, maximize, show desktop) are not tested yet. If one does not work, change it in your `commands.yaml`.
 

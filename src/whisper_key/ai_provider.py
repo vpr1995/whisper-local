@@ -1,5 +1,5 @@
 # ai_provider.py
-# One front door for every AI text step (per-dictation polish, transforms, rephrase).
+# One front door for every AI text step (per-dictation polish and rephrase).
 # Picks Apple Intelligence (on-device, macOS 26+) or Ollama from `postprocess.ai.provider`.
 # Polish cleans up each dictation (fillers, repeats, false starts, punctuation) and is
 # guarded so the model may only delete words, never reword or answer the dictation.
@@ -46,7 +46,7 @@ DEFAULT_OLLAMA_TIMEOUT_SECONDS = 5
 # Apple's model has no per-call timeout setting, so the app picks one. Polish waits a
 # base plus a little per character: warm, a sentence takes ~0.5 s and 800 characters
 # ~3 s; a cold model adds ~1.3 s. So a long dictation is not cut off, while a stalled
-# model gives up within a few seconds. A deliberate rewrite (transforms, rephrase)
+# model gives up within a few seconds. A deliberate rewrite (rephrase)
 # may take longer.
 APPLE_POLISH_BASE_TIMEOUT_SECONDS = 3.0
 APPLE_POLISH_TIMEOUT_SECONDS_PER_CHARACTER = 0.005
@@ -210,16 +210,15 @@ def polish_failure_reason(config) -> str:
 # ── The two providers ────────────────────────────────────────────────────────
 
 # One Ollama call. '' on any failure, so callers degrade instead of raising.
-def _ollama_generate(prompt: str, ollama_settings: dict, model=None, timeout_seconds=None) -> str:
+def _ollama_generate(prompt: str, ollama_settings: dict) -> str:
     endpoint = (ollama_settings.get('endpoint') or DEFAULT_OLLAMA_ENDPOINT).rstrip('/')
     payload = {
-        'model': model or ollama_settings.get('model') or DEFAULT_OLLAMA_MODEL,
+        'model': ollama_settings.get('model') or DEFAULT_OLLAMA_MODEL,
         'prompt': prompt,
         'stream': False,
     }
     try:
-        timeout = float(timeout_seconds if timeout_seconds is not None
-                        else ollama_settings.get('timeout', DEFAULT_OLLAMA_TIMEOUT_SECONDS))
+        timeout = float(ollama_settings.get('timeout', DEFAULT_OLLAMA_TIMEOUT_SECONDS))
         request = urllib.request.Request(
             f"{endpoint}/api/generate",
             data=json.dumps(payload).encode('utf-8'),
@@ -244,21 +243,20 @@ def _apple_generate(prompt: str, timeout_seconds: float) -> str:
 
 # Sends a finished prompt to whichever provider is active and logs how long it took
 # (never the text: dictations are private). `purpose` names the step in that log line.
-def _generate(prompt: str, config, apple_timeout_seconds: float, model=None, timeout_seconds=None,
-              purpose: str = 'rewrite') -> str:
+def _generate(prompt: str, config, apple_timeout_seconds: float, purpose: str = 'rewrite') -> str:
     provider = active_provider(config)
     started = time.monotonic()
     if provider == PROVIDER_APPLE:
-        text = _apple_generate(prompt, timeout_seconds or apple_timeout_seconds)
+        text = _apple_generate(prompt, apple_timeout_seconds)
     else:
-        text = _ollama_generate(prompt, _ollama_settings(config), model, timeout_seconds)
+        text = _ollama_generate(prompt, _ollama_settings(config))
     elapsed_ms = round((time.monotonic() - started) * 1000)
     outcome = f"{len(text)} characters back" if text else "no answer"
     logger.info(f"AI {purpose} via {PROVIDER_LABELS[provider]}: {elapsed_ms} ms, {outcome}")
     return text
 
 
-# ── Rewrite (transforms, rephrase) ───────────────────────────────────────────
+# ── Rewrite (rephrase) ───────────────────────────────────────────────────────
 
 # The prompt for "rewrite this selection as the user said". Shared by both rephrase paths.
 def build_rephrase_prompt(instruction: str, selection: str) -> str:
@@ -268,10 +266,9 @@ def build_rephrase_prompt(instruction: str, selection: str) -> str:
 
 
 # Free-form rewrite with a finished prompt. Not checked against the input: the user
-# asked for a rewrite on purpose. '' on any failure; never raises. `model` and
-# `timeout_seconds` are per-call overrides (a transform can set them).
-def rewrite(prompt: str, config, model=None, timeout_seconds=None) -> str:
-    return _generate(prompt, config, APPLE_REWRITE_TIMEOUT_SECONDS, model, timeout_seconds)
+# asked for a rewrite on purpose. '' on any failure; never raises.
+def rewrite(prompt: str, config) -> str:
+    return _generate(prompt, config, APPLE_REWRITE_TIMEOUT_SECONDS)
 
 
 # ── Polish (every dictation) ─────────────────────────────────────────────────

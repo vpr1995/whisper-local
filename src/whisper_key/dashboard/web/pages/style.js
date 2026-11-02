@@ -1,25 +1,12 @@
 // pages/style.js
-// Style page: how dictation is shaped. A profile tile grid (preset bundles of settings),
-// the writing style chips, the clean-up level, the AI provider and polish, and two
-// compact lists (AI transforms, per-app rules) that open their YAML for editing.
-// Everything except transforms and app rules is saved from here. Data and actions
-// come from api/style.py.
+// Style page: how dictation is shaped. The writing style chips, the clean-up level,
+// and the AI provider with its polish switch. Every control saves as it changes.
+// Data and actions come from api/style.py.
 
 // Wrapped in a function so these helper names stay private: all page scripts share one global scope.
 (() => {
 
-const COMPACT_VISIBLE_ITEMS = 3; // rows shown in the transforms / app-rules cards before "+ N more"
-
-// Tile icon per shipped profile; user-defined profiles fall back to the sparkle.
-const PROFILE_ICONS = { dictation: 'mic', chat: 'chat', code: 'code', notes: 'notes', translate: 'globe' };
-const FALLBACK_PROFILE_ICON = 'style';
-
 // ── Small helpers ────────────────────────────────────────────────────────────
-
-const tag = (text) => el('span', { class: 'style-tag', text });
-
-// Appends a full stop to a description that has none ("General-purpose voice typing" -> "...typing.").
-const asSentence = (text) => (!text || /[.!?]$/.test(text) ? text : `${text}.`);
 
 // One boxed section, like a Settings card, so each group reads as its own unit.
 const sectionCard = (...children) => ui.card(null, el('div', { class: 'pad style-section' }, children));
@@ -30,47 +17,6 @@ async function saveOrToast(api, methodName, ...args) {
   if (!result) return null;
   if (!result.ok) { ui.toast(result.error, 'error'); return null; }
   return result;
-}
-
-// ── Profile ──────────────────────────────────────────────────────────────────
-
-// Tile grid plus the strip under it describing the selected profile. Applying a profile
-// overwrites settings that are read at startup, so a successful pick asks for a restart.
-function buildProfileSection(api, data, noticeSlot) {
-  let activeId = data.active;
-  const profileById = (profileId) => data.profiles.find((profile) => profile.id === profileId);
-
-  const strip = el('div', { class: 'style-strip' });
-  const showProfile = (profileId) => {
-    const profile = profileById(profileId);
-    strip.replaceChildren(
-      el('span', { class: 'style-strip-text', text: asSentence(profile.description) || profile.name }),
-      profile.changes.length ? el('span', { class: 'style-strip-tags' },
-        el('span', { class: 'style-strip-label', text: 'Sets' }), profile.changes.map(tag)) : null);
-  };
-
-  const grid = ui.tileGrid(
-    data.profiles.map((profile) => ({
-      id: profile.id, title: profile.name, icon: PROFILE_ICONS[profile.id] || FALLBACK_PROFILE_ICON,
-    })),
-    {
-      selectedId: activeId,
-      columns: 5,
-      onSelect: async (profileId) => {
-        if (profileId === activeId) return;
-        const result = await saveOrToast(api, 'set_profile', profileId);
-        if (!result) return; // keep the previous tile selected
-        activeId = profileId;
-        grid.setSelected(profileId);
-        showProfile(profileId);
-        ui.toast('Profile applied. Restart to apply.', 'success');
-        noticeSlot.replaceChildren(ui.restartNotice(api, 'Profiles change settings that Whisper Local reads at startup.'));
-      },
-    });
-
-  showProfile(activeId);
-  return sectionCard(grid, strip,
-    el('p', { class: 'style-footnote', text: 'Applying one overwrites those settings, including the model.' }));
 }
 
 // ── Writing style ────────────────────────────────────────────────────────────
@@ -158,7 +104,7 @@ function buildAiSection(api, saved) {
   const refresh = (settings) => {
     Object.assign(saved, settings);
     statusCaption.textContent = saved.status_text;
-    for (const category of saved.polish_in) polishToggles[category.id].checked = category.enabled;
+    polishToggle.checked = saved.polish;
     ollamaFields.hidden = saved.active_provider !== 'ollama';
   };
   ollamaFields.hidden = saved.active_provider !== 'ollama';
@@ -170,21 +116,13 @@ function buildAiSection(api, saved) {
     ui.toast('AI provider saved. It applies right away.', 'success');
   });
 
-  // "Polish in": one toggle per category (email apps, chat apps, everywhere else). They
-  // are re-set from the saved settings after every save, since an app category without
-  // its own setting follows "Everywhere else".
-  const polishToggles = {};
-  const polishRow = el('div', { class: 'style-polish-toggles' });
-  for (const category of saved.polish_in) {
-    polishToggles[category.id] = ui.toggle(category.enabled, async (enabled) => {
-      const result = await saveOrToast(api, 'set_polish_for', category.id, enabled);
-      if (!result) { polishToggles[category.id].checked = !enabled; return; }
-      refresh(result.settings);
-      ui.toast(`AI polish is ${enabled ? 'on' : 'off'} for ${category.label.toLowerCase()}. It applies to your next dictation.`, 'success');
-    });
-    polishRow.append(el('label', { class: 'style-polish-toggle' },
-      el('span', { class: 'style-polish-toggle-label', text: category.label }), polishToggles[category.id]));
-  }
+  // One switch: polish every dictation with the AI, or none.
+  const polishToggle = ui.toggle(saved.polish, async (enabled) => {
+    const result = await saveOrToast(api, 'set_ai_setting', 'polish', enabled);
+    if (!result) { polishToggle.checked = !enabled; return; }
+    refresh(result.settings);
+    ui.toast(`AI polish is ${enabled ? 'on' : 'off'}. It applies to your next dictation.`, 'success');
+  });
 
   // One labelled input row for an Ollama field.
   const fieldRow = (key, label, caption, inputProps, suffix) => {
@@ -208,43 +146,9 @@ function buildAiSection(api, saved) {
     el('div', { class: 'setting-row' },
       el('div', { class: 'setting-text' }, el('div', { class: 'setting-label', text: 'AI provider' }), statusCaption),
       el('div', { class: 'setting-control' }, providerChoice)),
-    ui.settingRow('Polish in', 'Removes ums, repeats and false starts and fixes punctuation with the AI. Adds about half a second.', polishRow),
+    ui.settingRow('AI polish', 'Removes ums, repeats and false starts and fixes punctuation with the AI. Adds about half a second.', polishToggle),
     ollamaFields,
   ]);
-}
-
-// ── Transforms and per-app rules ─────────────────────────────────────────────
-
-function buildTransformsCard(api, transforms) {
-  return ui.compactListCard({
-    title: 'AI transforms',
-    actionLabel: 'Edit file',
-    onAction: () => api.call('open_transforms_file'),
-    items: transforms,
-    maxVisible: COMPACT_VISIBLE_ITEMS,
-    emptyText: 'No transforms yet. Add some in transforms.yaml.',
-    renderItem: (transform) => el('div', { class: `compact-row${transform.keys.length ? '' : ' compact-row-dim'}`, title: transform.description },
-      el('span', { class: 'compact-row-name', text: transform.name }),
-      transform.keys.length ? ui.hotkey(transform.keys) : el('span', { class: 'compact-row-sub', text: 'no hotkey' })),
-  });
-}
-
-function buildAppRulesCard(api, rules) {
-  return ui.compactListCard({
-    title: 'Per-app rules',
-    actionLabel: 'Edit file',
-    onAction: () => api.call('open_app_rules_file'),
-    items: rules,
-    maxVisible: COMPACT_VISIBLE_ITEMS,
-    emptyText: 'No app rules yet. Add some in app_rules.yaml.',
-    renderItem: (rule) => {
-      const appCount = `${rule.apps.length} ${rule.apps.length === 1 ? 'app' : 'apps'}`;
-      const firstEffect = (rule.effects[0] || '').replace(/^Style: /, '');
-      return el('div', { class: 'compact-row', title: [rule.apps.join(', '), rule.effects.join(' · ')].filter(Boolean).join('\n') },
-        el('span', { class: 'compact-row-name', text: rule.name }),
-        el('span', { class: 'compact-row-sub', text: [appCount, firstEffect].filter(Boolean).join(' · ') }));
-    },
-  });
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -252,36 +156,26 @@ function buildAppRulesCard(api, rules) {
 registerPage('style', {
   title: 'Style',
   async render(container, api) {
-    const noticeSlot = el('div', { class: 'notice-slot' });
     container.append(
-      el('p', { class: 'page-subtitle', text: 'How your dictation is shaped before it is typed.' }),
-      noticeSlot);
+      el('p', { class: 'page-subtitle', text: 'How your dictation is shaped before it is typed.' }));
 
     // Independent blocks: one failing call must not blank the page.
-    const [profiles, styles, cleanup, aiSettings, transforms, appRules] = await Promise.all([
-      api.call('get_profiles').catch(() => null),
+    const [styles, cleanup, aiSettings] = await Promise.all([
       api.call('get_writing_styles').catch(() => null),
       api.call('get_cleanup_levels').catch(() => null),
       api.call('get_ai_settings').catch(() => null),
-      api.call('get_transforms').catch(() => []),
-      api.call('get_app_rules').catch(() => []),
     ]);
     const unavailable = () => ui.card(null, ui.emptyState('Could not load this section'));
 
     container.append(...[
-      ui.sectionHeader('Profile', ui.button('Add your own', () => api.call('open_profiles_file'), { variant: 'ghost' })),
-      profiles ? buildProfileSection(api, profiles, noticeSlot) : unavailable(),
-      ui.sectionHeader('Writing style', el('span', { class: 'section-caption', text: 'Per-app rules can override it.' })),
+      ui.sectionHeader('Writing style'),
       styles ? buildStyleSection(api, styles) : unavailable(),
       ui.sectionHeader('Clean-up', el('span', { class: 'section-caption',
         text: 'How much to tidy what you said before it is typed.' })),
       cleanup ? buildCleanupSection(api, cleanup) : unavailable(),
       ui.sectionHeader('AI', el('span', { class: 'section-caption',
-        text: 'Used by polish, AI transforms and rephrase.' })),
+        text: 'Used by polish and rephrase.' })),
       aiSettings ? buildAiSection(api, aiSettings) : unavailable(),
-      el('div', { class: 'style-duo' }, buildTransformsCard(api, transforms), buildAppRulesCard(api, appRules)),
-      el('p', { class: 'style-footnote',
-        text: 'Select text, press a transform\'s hotkey and the AI rewrites it.' }),
     ]);
   },
 });

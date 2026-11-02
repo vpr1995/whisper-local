@@ -33,18 +33,3 @@ def collect_hotkey_rows(config: dict) -> list:
     return [{'label': label, 'key': key or None, 'help': help_text}
             for label, key, help_text in entries]
 
-
-# Transform hotkeys as rows {label, key, help}; transforms without a hotkey are
-# skipped. Takes the transform dicts (TransformsManager.list_transforms()).
-def collect_transform_hotkey_rows(transforms: list) -> list:
-    rows = []
-    for transform in transforms or []:
-        if not transform.get('hotkey'):
-            continue
-        prompt = transform.get('prompt', '') or ''
-        rows.append({
-            'label': (transform.get('name') or '').title(),
-            'key': transform['hotkey'],
-            'help': prompt[:60] + ('…' if len(prompt) >= 60 else ''),
-        })
-    return rows

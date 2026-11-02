@@ -203,7 +203,7 @@ function buildDiagnosticsCard(api, showResult) {
     ui.settingRow('Bundle logs for a bug report', 'Saves a redacted zip of your logs and settings to the Desktop.', bundleLogs),
     ui.settingRow('Usage summary', 'Words dictated, streak and time saved.', viewUsage),
     ui.settingRow('Log file', 'Opens app.log in your default text editor.', openLog),
-    ui.settingRow('Config folder', 'Your settings, dictionary, transforms and history.', openConfig),
+    ui.settingRow('Config folder', 'Your settings, dictionary and history.', openConfig),
   ]);
 }
 

@@ -82,10 +82,9 @@ class ProviderResolutionTests(unittest.TestCase):
         with mock.patch.object(ai_provider, '_apple_module', return_value=apple), apple_is(True), \
              mock.patch.object(ai_provider, '_ollama_generate', return_value='ollama text') as ollama:
             self.assertEqual(ai_provider.rewrite('do it', config_with('auto')), 'apple text')
-            self.assertEqual(ai_provider.rewrite('do it', config_with('ollama'), model='big', timeout_seconds=9),
-                             'ollama text')
+            self.assertEqual(ai_provider.rewrite('do it', config_with('ollama')), 'ollama text')
         apple.generate.assert_called_once_with('do it', ai_provider.APPLE_REWRITE_TIMEOUT_SECONDS)
-        self.assertEqual(ollama.call_args.args[2:], ('big', 9))
+        self.assertEqual(ollama.call_args.args[0], 'do it')
 
     def test_rewrite_never_raises_and_returns_empty_on_failure(self):
         apple = fake_apple_module(error=OnDeviceAIError('guardrail'))

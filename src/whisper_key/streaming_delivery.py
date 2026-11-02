@@ -23,8 +23,7 @@ logger = logging.getLogger(__name__)
 # Lives here (a dependency-light module) so it's unit-testable without importing
 # the heavy state_manager/audio stack. Side-effect-free.
 def decide_stream_delivery(streaming_cfg: dict, streaming_available: bool,
-                           auto_paste: bool, foreground_textable: bool,
-                           rule) -> bool:
+                           auto_paste: bool, foreground_textable: bool) -> bool:
     if not (streaming_cfg or {}).get('deliver_to_cursor', False):
         return False
     if not streaming_available:
@@ -33,11 +32,6 @@ def decide_stream_delivery(streaming_cfg: dict, streaming_available: bool,
         return False
     if not foreground_textable:        # no text field: use the normal fallback flow
         return False
-    if rule:
-        if rule.get('suppress'):
-            return False
-        if rule.get('auto_paste') is False:
-            return False
     return True
 
 

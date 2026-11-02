@@ -11,8 +11,7 @@
 #                                              stats + transcripts
 #
 # Also owns the floating overlay + FallbackWindow lifecycle and the cross-cutting
-# concerns: profile activation, app-rule application, AI rephrase, command mode,
-# and the continuous-dictation restart loop.
+# concerns: AI rephrase, command mode and the continuous-dictation restart loop.
 #
 # Thread safety: most state lives behind self._state_lock. The audio capture
 # thread writes recording-status atomically; everything else mutates state
@@ -36,10 +35,7 @@ from .audio_feedback import AudioFeedback
 from .utils import OptionalComponent
 from .voice_activity_detection import VadEvent, VadManager
 from .voice_commands import VoiceCommandManager
-from .profiles import ProfileManager
-from .app_rules import AppRules, formatting_overrides as app_rules_formatting_overrides, effective_postprocess_config
 from .streaming_delivery import StreamingDelivery, decide_stream_delivery
-from .transforms import TransformsManager
 from .text_postprocess import postprocess
 from .stats import record_transcription
 from .transcript_log import record_transcript
@@ -99,11 +95,6 @@ class StateManager:
         self.logger = logging.getLogger(__name__)
         self._current_audio_host = None
         self._initialize_audio_host()
-        self.profile_manager = ProfileManager(config_manager)
-        self.app_rules = AppRules()
-        self.transforms_manager = TransformsManager(
-            ai_config_provider=config_manager.get_postprocess_config,
-        )
         self.level_overlay = None
         self.fallback_window = FallbackWindow()
         # Set by main when whisper.unload_after_minutes > 0; stopped on shutdown.
@@ -116,11 +107,6 @@ class StateManager:
         self.system_tray = OptionalComponent(system_tray)
         self._ensure_audio_device_for_host(self._current_audio_host)
         self._start_default_input_watcher()
-
-        try:
-            self.transforms_manager.system_tray = system_tray
-        except Exception:
-            pass
 
         overlay_cfg = self.config_manager.config.get('overlay', {}) or {}
         if overlay_cfg.get('enabled', True):
@@ -349,7 +335,6 @@ class StateManager:
             streaming_available,
             bool(self.clipboard_manager.auto_paste),
             self._foreground_is_textable(),
-            self.app_rules.match_for_foreground(),
         )
         if not active:
             return
@@ -439,12 +424,11 @@ class StateManager:
 
     # Loads Apple's model at hotkey press when this dictation may be polished, so the
     # polish after the recording skips the ~1 s cold start. "May" means polish is on
-    # for the app in front (global setting or app rule) or a "stop and polish" key
-    # exists. Never raises: a missed prewarm only costs that cold start.
+    # or a "stop and polish" key exists. Never raises: a missed prewarm only costs
+    # that cold start.
     def _prewarm_ai_if_polish_can_run(self):
         try:
-            postprocess_cfg = effective_postprocess_config(
-                self.config_manager.get_postprocess_config(), self.app_rules.match_for_foreground())
+            postprocess_cfg = self.config_manager.get_postprocess_config()
             polish_on = bool((postprocess_cfg.get('ai') or {}).get('polish'))
             stop_polish_key = self.config_manager.get_hotkey_config().get('stop_polish_key')
             if polish_on or stop_polish_key:
@@ -460,18 +444,6 @@ class StateManager:
             prompt_parts.append(base_prompt)
         language = whisper_cfg.get('language') or 'auto'
         task = whisper_cfg.get('task') or 'transcribe'
-
-        try:
-            rule = self.app_rules.match_for_foreground() or {}
-        except Exception:
-            rule = {}
-        if rule.get('initial_prompt'):
-            prompt_parts.append(str(rule['initial_prompt']))
-            self.logger.debug(f"App rule {rule.get('match')} → initial_prompt applied")
-        if rule.get('language'):
-            language = rule['language']
-        if rule.get('task'):
-            task = rule['task']
 
         if whisper_cfg.get('prompt_from_selection', False):
             sel = self._grab_selection_text()
@@ -560,29 +532,6 @@ class StateManager:
             self.level_overlay.show_notice("Mic is silent: check mute or permission")
         self.system_tray.notify(self._silent_mic_message())
 
-    # Tell the user, once per app per session, that a per-app rule made this
-    # delivery copy-only. Without it the app looks broken in exactly the place
-    # the rule is most useful — a code editor, where the shipped default is
-    # copy-only so dictation never types into source by surprise.
-    def _announce_copy_only(self, rule):
-        try:
-            seen = self._copy_only_announced
-        except AttributeError:
-            seen = self._copy_only_announced = set()
-        # Identify by the rule's own match pattern: it is always present,
-        # unlike the foreground exe, which isn't looked up until later in
-        # the pipeline.
-        match = rule.get('match')
-        key = str(match)
-        if key in seen:
-            return
-        seen.add(key)
-        where = ', '.join(match) if isinstance(match, (list, tuple)) else (match or 'this app')
-        self.system_tray.notify(
-            f"Copied, not pasted — your app rule for {where} is copy-only. "
-            "Press Ctrl+V, or edit app_rules.yaml to change it.")
-        self.logger.info(f"Copy-only delivery for {where} (app rule)")
-
     # Every transcription runs on a thread of its own. The callers are the hotkey
     # backend (on Windows, global-hotkeys calls back from its 20 ms polling
     # thread, so a transcription run inline there left every hotkey dead for
@@ -600,8 +549,8 @@ class StateManager:
     # The heart of the app: everything between "user released the hotkey" and
     # "text is in their editor". Runs on a worker thread so the hotkey listener
     # never blocks. Order matters — transcribe, then branch by mode (command /
-    # rephrase / dictation), then apply app rules + post-processing, then choose a
-    # delivery route (suppressed, fallback window, or paste at cursor), and only
+    # rephrase / dictation), then post-process, then choose a delivery route
+    # (fallback window or paste at cursor), and only
     # record stats/history once delivery actually succeeded. Every early return
     # is a legitimate "nothing to deliver" case and must still clear state via
     # the finally block.
@@ -684,15 +633,10 @@ class StateManager:
                 self._handle_rephrase(rephrase_selection, transcribed_text)
                 return
 
-            # Match the foreground app once, before post-processing, so a rule can
-            # override formatting (e.g. code editors: verbatim, no auto-caps/periods)
-            # in addition to the delivery behaviour handled further down.
-            rule = self.app_rules.match_for_foreground()
-            raw_postprocess_cfg = self.config_manager.get_postprocess_config()
-            fmt_overrides = app_rules_formatting_overrides(rule, raw_postprocess_cfg)
-            if fmt_overrides:
-                self.logger.info(f"App rule {rule.get('match')} → formatting overrides {fmt_overrides}")
-            postprocess_cfg = effective_postprocess_config(raw_postprocess_cfg, rule, force_polish=force_polish)
+            postprocess_cfg = self.config_manager.get_postprocess_config()
+            # "Stop and polish": this one dictation is polished whatever the setting says.
+            if force_polish:
+                postprocess_cfg = {**postprocess_cfg, 'ai': {**(postprocess_cfg.get('ai') or {}), 'polish': True}}
             # Only the "Stop and polish" key explains a missing polish; a polish
             # that is merely switched on stays quiet and keeps the plain text.
             on_polish_failed = None
@@ -709,31 +653,6 @@ class StateManager:
                 self.logger.info("Post-processing produced empty text; nothing to deliver")
                 if self.level_overlay:
                     self.level_overlay.flash_failure("Nothing to type")
-                return
-
-            if rule and rule.get('suppress'):
-                self.logger.info(f"Delivery suppressed by app rule: {rule.get('match')}")
-                # Clipboard-free setups get the recovery window instead of a
-                # silent copy, so the transcript is still retrievable without
-                # touching the clipboard behind the user's back (issue #12).
-                may_copy = self.clipboard_manager.silent_copy_allowed
-                if may_copy:
-                    self.clipboard_manager.copy_text(transcribed_text)
-                else:
-                    self.fallback_window.show(
-                        transcribed_text,
-                        reason="Delivery is suppressed for this app, and clipboard "
-                               "copying is off — your dictation is safe here.",
-                        allow_clipboard=False,
-                    )
-                self.last_transcription = transcribed_text
-                self.recent_transcriptions.appendleft(transcribed_text)
-                self.system_tray.refresh_menu()
-                self.system_tray.notify(
-                    "Delivery suppressed for this app — text on clipboard." if may_copy
-                    else "Delivery suppressed for this app — see the popup.")
-                if self.level_overlay:
-                    self.level_overlay.flash_success()
                 return
 
             if not self._foreground_is_textable():
@@ -757,34 +676,7 @@ class StateManager:
                     self.level_overlay.flash_success()
                 return
 
-            effective_auto_enter = use_auto_enter
-            effective_auto_paste = None
-            if rule:
-                if rule.get('auto_send') is True:
-                    effective_auto_enter = True
-                elif rule.get('auto_send') is False:
-                    effective_auto_enter = False
-                if 'auto_paste' in rule:
-                    effective_auto_paste = bool(rule['auto_paste'])
-
-            previous_auto_paste = None
-            if effective_auto_paste is not None:
-                previous_auto_paste = self.clipboard_manager.auto_paste
-                self.clipboard_manager.update_auto_paste(effective_auto_paste)
-                # An app rule silently turning paste off reads as "the app is
-                # broken" — it was reported as exactly that (issue #11). Say it
-                # once per app per session: often enough to explain, rare enough
-                # not to nag.
-                if previous_auto_paste and not effective_auto_paste:
-                    self._announce_copy_only(rule)
-
-            try:
-                success = self.clipboard_manager.deliver_transcription(
-                    transcribed_text, effective_auto_enter
-                )
-            finally:
-                if previous_auto_paste is not None:
-                    self.clipboard_manager.update_auto_paste(previous_auto_paste)
+            success = self.clipboard_manager.deliver_transcription(transcribed_text, use_auto_enter)
 
             if success:
                 self.last_transcription = transcribed_text
@@ -1096,30 +988,6 @@ class StateManager:
         self.system_tray.refresh_menu()
         return True
 
-    def apply_transform(self, name: str) -> bool:
-        success = self.transforms_manager.apply(name)
-        if self.level_overlay:
-            if success:
-                self.level_overlay.flash_success()
-            else:
-                self.level_overlay.flash_failure()
-        return success
-
-    def list_transforms(self) -> list:
-        return self.transforms_manager.list_transforms()
-
-    def reload_transforms(self) -> bool:
-        old = [(t.get('name'), t.get('hotkey')) for t in self.transforms_manager.list_transforms()]
-        self.transforms_manager.reload_if_changed()
-        new = [(t.get('name'), t.get('hotkey')) for t in self.transforms_manager.list_transforms()]
-        changed = old != new
-        if changed:
-            self.system_tray.notify(f"Transforms reloaded ({len(new)} active)")
-            self.system_tray.refresh_menu()
-            if self._hotkey_listener_ref:
-                self._hotkey_listener_ref.refresh_transforms()
-        return changed
-
     def set_hotkey_listener(self, listener):
         self._hotkey_listener_ref = listener
 
@@ -1131,57 +999,6 @@ class StateManager:
     def toggle_hotkeys_paused(self):
         if self._hotkey_listener_ref:
             self._hotkey_listener_ref.toggle_pause()
-
-    def list_profiles(self) -> list:
-        return self.profile_manager.list_profiles()
-
-    def get_active_profile(self) -> Optional[str]:
-        return self.profile_manager.get_active()
-
-    def activate_profile(self, name: str) -> bool:
-        old_whisper = dict(self.config_manager.get_whisper_config())
-
-        if not self.profile_manager.apply(name):
-            return False
-
-        new_whisper = self.config_manager.get_whisper_config()
-
-        if new_whisper.get('language') != old_whisper.get('language'):
-            lang = new_whisper.get('language', 'auto')
-            try:
-                self.whisper_engine.language = None if lang == 'auto' else lang
-            except Exception:
-                pass
-
-        if new_whisper.get('task') != old_whisper.get('task'):
-            task = new_whisper.get('task') or 'transcribe'
-            try:
-                self.whisper_engine.task = task if task in ('transcribe', 'translate') else 'transcribe'
-            except Exception:
-                pass
-
-        new_prompt = new_whisper.get('initial_prompt') or ''
-        if new_prompt != (old_whisper.get('initial_prompt') or ''):
-            try:
-                self.whisper_engine.initial_prompt = new_prompt or None
-            except Exception:
-                pass
-
-        if new_whisper.get('model') and new_whisper.get('model') != old_whisper.get('model'):
-            try:
-                from .auto_model import AUTO, pick_model
-                new_model = new_whisper['model']
-                if new_model == AUTO:
-                    new_model, _reason = pick_model(new_whisper)
-                self._execute_model_change(new_model)
-            except Exception as e:
-                self.logger.error(f"Profile model change failed: {e}")
-
-        self.logger.info(f"Activated profile: {name}")
-        print(f"   ✓ Profile activated: {name}")
-        self.system_tray.notify(f"Profile: {name}")
-        self.system_tray.refresh_menu()
-        return True
 
     def get_recent_transcriptions(self) -> list:
         return list(self.recent_transcriptions)
@@ -1223,8 +1040,7 @@ class StateManager:
             self._refresh_hotwords()
             text = self.whisper_engine.transcribe_audio(audio)
             if text:
-                text = postprocess(text, effective_postprocess_config(
-                    self.config_manager.get_postprocess_config(), None))
+                text = postprocess(text, self.config_manager.get_postprocess_config())
             if not text or not text.strip():
                 failure = getattr(self.whisper_engine, 'last_error', None)
                 self.system_tray.notify(f"Retry failed: {failure[:140]}" if failure
@@ -1256,10 +1072,7 @@ class StateManager:
             self._update_ui_state("idle")
 
     # Types the last dictation again at the cursor (paste-last hotkey), e.g.
-    # after it went to the wrong window. Never auto-sends, and the foreground
-    # app's rule still applies: nothing goes into a suppressed app (password
-    # managers), and copy-only apps (terminals, where a pasted newline runs a
-    # command) get the clipboard instead.
+    # after it went to the wrong window. Never auto-sends.
     def paste_last_transcription(self) -> bool:
         text = self.last_transcription
         if not text:
@@ -1269,20 +1082,7 @@ class StateManager:
             self.logger.info("Paste-last ignored: busy recording or transcribing")
             return False
         self._wait_for_modifiers_released()
-        rule = None
         try:
-            rule = self.app_rules.match_for_foreground()
-        except Exception as e:
-            self.logger.debug(f"Paste-last rule lookup failed: {e}")
-        try:
-            if rule and rule.get('suppress'):
-                self.logger.info(f"Paste-last suppressed by app rule: {rule.get('match')}")
-                self.system_tray.notify("Not pasted: this app is excluded in app_rules.yaml.")
-                return False
-            if rule and rule.get('auto_paste') is False:
-                self.clipboard_manager.copy_text(text)
-                self.system_tray.notify("Last dictation copied — this app is copy-only.")
-                return True
             self.clipboard_manager.deliver_transcription(text, use_auto_enter=False)
         except Exception as e:
             self.logger.error(f"Paste-last failed: {e}")

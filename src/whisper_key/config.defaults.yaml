@@ -66,8 +66,7 @@ whisper: # Whisper AI Model Settings
     prompt_from_selection: false
 
     # Whisper task: "transcribe" outputs in the source language, "translate"
-    # outputs in English regardless of source language. The translate profile
-    # toggles this; you can also flip it manually here.
+    # outputs in English regardless of source language.
     task: transcribe
 
     # Free the model's memory after this many minutes without dictation
@@ -164,7 +163,7 @@ streaming: # Real-time STT (Experimental)
     # and the final Whisper pass is skipped for that recording. Trade-off: you get
     # the lighter streaming model's accuracy, not the full Whisper transcription.
     # Only applies to plain dictation into a real text field with auto-paste on;
-    # command/rephrase modes and copy-only/suppressed apps are unaffected.
+    # command and rephrase modes are unaffected.
     deliver_to_cursor: false
 
     # Live preview model. Moonshine v2 models are offline models re-decoded a
@@ -210,7 +209,7 @@ hotkey: # Hotkey Configuration
     auto_send_key: "alt | macos: option"
 
     # Alternative stop key that delivers this one dictation with the AI polish
-    # forced on, even where postprocess.ai.polish or an app rule has it off.
+    # forced on, even when postprocess.ai.polish is off.
     # If the AI cannot answer, the plain text is pasted and a notice says why.
     # Leave empty to disable (every simple key is already taken by default).
     stop_polish_key: ""
@@ -332,11 +331,6 @@ clipboard: # Clipboard Behavior
     # Automatically paste after transcription
     # true = paste immediately to active window
     # false = only copy to clipboard (paste manually)
-    #
-    # NOTE: app_rules.yaml can override this per application, and the shipped
-    # rules do — code editors (VS Code, Cursor, PyCharm, ...) are copy-only so
-    # dictation never types into source unexpectedly. If a specific app only
-    # copies, check app_rules.yaml before this setting.
     auto_paste: true
 
     # Delivery method for auto-paste
@@ -573,7 +567,6 @@ postprocess: # Transcription post-processing pipeline
     #   casual      - capitalized, no trailing period (chat)
     #   very_casual - all lowercase except acronyms and your own terms, no period
     #   verbatim    - no automatic capitals, periods or lists (code, terminals)
-    # app_rules.yaml can pick a different style per app (`style: casual`).
     # Redefine a preset or add your own under `styles`, using any of:
     # capitalize_first, ensure_punctuation, strip_trailing_period,
     # inline_formatting, lowercase, list_formatting. Example:
@@ -603,7 +596,7 @@ postprocess: # Transcription post-processing pipeline
     # one/two, number one/number two), each followed by punctuation, so prose
     # like "one of the two options" is left alone.
     # Heads-up: a new line can send a message in chat apps. The verbatim style
-    # turns lists off, and app rules can do it per app.
+    # turns lists off.
     list_formatting: false
     list_style: numbered   # numbered | bullets
 
@@ -638,7 +631,7 @@ postprocess: # Transcription post-processing pipeline
     # Append a period if the text doesn't end in punctuation
     ensure_punctuation: false
 
-    # AI steps: polish, the AI transforms and "rephrase selection" all use this one provider.
+    # AI steps: polish and "rephrase selection" both use this one provider.
     ai:
         # Which AI answers:
         #   auto               Apple Intelligence (on this Mac, offline) when it is available,

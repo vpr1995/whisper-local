@@ -1,7 +1,7 @@
 # doctor.py
 # `whisper-local --doctor` health check. Walks runtime, dependencies, config,
-# audio devices, Whisper model cache, hotkeys, post-process/AI provider, transforms,
-# and recent log errors, printing a per-section report. Exit 0 = clean, 1 = issues.
+# audio devices, Whisper model cache, hotkeys, post-process/AI provider and
+# recent log errors, printing a per-section report. Exit 0 = clean, 1 = issues.
 
 import importlib
 import os
@@ -70,7 +70,7 @@ def run_doctor() -> int:
     failures += _section_audio()
     failures += _section_model()
     failures += _section_hotkeys()
-    failures += _section_postprocess_and_rules()
+    failures += _section_postprocess()
     failures += _section_logs()
 
     print()
@@ -353,8 +353,8 @@ def _section_hotkeys() -> int:
     return failures
 
 
-def _section_postprocess_and_rules() -> int:
-    print(f"{BOLD}Post-process & app rules{RESET}")
+def _section_postprocess() -> int:
+    print(f"{BOLD}Post-process{RESET}")
     failures = 0
 
     try:
@@ -382,25 +382,6 @@ def _section_postprocess_and_rules() -> int:
         failures += _check_ai_provider(post_cfg)
     except Exception as e:
         Check("Post-process config").warn(str(e)).print()
-
-    try:
-        from pathlib import Path
-        from .utils import get_user_app_data_path
-        rules_path = Path(get_user_app_data_path()) / "app_rules.yaml"
-        existed = rules_path.exists()          # AppRules() creates it, so ask first
-        # Report what actually applies: the shipped rules plus the user's, not
-        # just the contents of their (overrides-only) file.
-        from .app_rules import AppRules
-        rules = AppRules().rules
-        own = sum(1 for r in rules if not r.get('id'))
-        detail = f"{len(rules)} rules in effect"
-        if own:
-            detail += f" ({own} of your own)"
-        if not existed:
-            detail += ", app_rules.yaml just created"
-        Check("Per-app rules").ok(detail).print()
-    except Exception as e:
-        Check("Per-app rules").warn(str(e)).print()
 
     print()
     return failures

@@ -1,44 +1,16 @@
 # test_macos_defaults.py
-# The shipped defaults must work on a Mac, not only on Windows: per-app rules
-# match macOS bundle ids, " | macos:" values resolve inside voice commands and
-# transforms, and a "win+..." combo means Command (as the dashboard draws it).
+# The shipped defaults must work on a Mac, not only on Windows: " | macos:"
+# values resolve inside voice commands, and a "win+..." combo means Command
+# (as the dashboard draws it).
 
 import sys
-import tempfile
 import unittest
 import unittest.mock as mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from whisper_key import app_rules, config_manager  # noqa: E402
-
-
-class MacPerAppRuleTests(unittest.TestCase):
-    # Which shipped rule a macOS app (bundle id, app name) lands in.
-    def _rule_id_for(self, bundle_id: str, app_name: str):
-        with tempfile.TemporaryDirectory() as data_dir, \
-             mock.patch.object(app_rules, 'get_user_app_data_path', return_value=data_dir):
-            rules = app_rules.AppRules()
-            for rule in rules.rules:
-                if rules._matches(rule, bundle_id.lower(), app_name.lower()):
-                    return rule.get('id')
-        return None
-
-    def test_terminals_editors_and_password_managers_match_on_macos(self):
-        self.assertEqual(self._rule_id_for('com.apple.Terminal', 'Terminal'), 'terminals')
-        self.assertEqual(self._rule_id_for('com.googlecode.iterm2', 'iTerm2'), 'terminals')
-        self.assertEqual(self._rule_id_for('com.microsoft.VSCode', 'Code'), 'code-editors')
-        self.assertEqual(self._rule_id_for('com.jetbrains.pycharm', 'PyCharm'), 'code-editors')
-        self.assertEqual(self._rule_id_for('com.1password.1password', '1Password'), 'password-managers')
-
-    def test_chat_and_email_match_on_macos(self):
-        self.assertEqual(self._rule_id_for('com.tinyspeck.slackmacgap', 'Slack'), 'chat-apps')
-        self.assertEqual(self._rule_id_for('com.apple.mail', 'Mail'), 'email-clients')
-        self.assertEqual(self._rule_id_for('com.microsoft.Outlook', 'Microsoft Outlook'), 'email-clients')
-
-    def test_an_unrelated_app_matches_nothing(self):
-        self.assertIsNone(self._rule_id_for('com.apple.Notes', 'Notes'))
+from whisper_key import config_manager  # noqa: E402
 
 
 class PlatformValueTests(unittest.TestCase):

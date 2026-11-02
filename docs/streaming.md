@@ -72,8 +72,7 @@ pass is skipped (it would just duplicate what's already there).
 **Trade-offs and scope, plainly:**
 - You get the lighter streaming model's accuracy, not the full Whisper transcription.
 - It only kicks in for **plain dictation into a real text field with auto-paste on**.
-  Command mode, AI rephrase, copy-only apps, and `suppress` app-rules are unaffected
-  and keep using the normal Whisper flow.
+  Command mode and AI rephrase are unaffected and keep using the normal Whisper flow.
 - Like any live-typing tool, text already typed can't be un-typed if you cancel.
 - Smoothest with `clipboard.delivery_method: type` (direct injection, no clipboard churn).
 

@@ -9,7 +9,7 @@ Your voice stays on your computer. Whisper Local runs the speech model locally, 
 | 1 | The first time you use a model | A request to download the model files | `huggingface.co` | After the download, the model is cached and never downloaded again. |
 | 2 | If you accept the GPU setup prompt | `pip install` of GPU runtime packages | PyPI, or `repo.radeon.com` for AMD | Opt-in. Not used on a Mac. |
 | 3 | If you turn on **Check for updates** | The request for the latest release. Only the app version is in it. | `api.github.com` | Off by default. `update_check.enabled: false`. |
-| 4 | If Ollama is the AI in use | The text of a polish, transform or rephrase | The Ollama server you set. The default is `localhost`. | Choose Apple Intelligence, or turn the AI steps off. |
+| 4 | If Ollama is the AI in use | The text of a polish or rephrase | The Ollama server you set. The default is `localhost`. | Choose Apple Intelligence, or turn the AI steps off. |
 | 5 | Live preview, first use only | A request to download the small streaming model | `huggingface.co` | Live preview is off by default. |
 
 Apple Intelligence makes no network call. It runs on your Mac.

@@ -18,20 +18,17 @@ Everything is in `~/.whisperkey` on macOS. (Windows, not validated yet: `%APPDAT
 |---|---|
 | `user_settings.yaml` | Your settings. Only the keys you change. |
 | `commands.yaml` | Your voice commands. See [Voice commands](voice-commands.md). |
-| `app_rules.yaml` | Your per-app rules. See [Per-app rules](per-app-rules.md). |
-| `profiles.yaml` | The active profile and your own profiles |
-| `transforms.yaml` | Your AI transforms. See [AI polish](ai-polish.md#transforms). |
 | `transcripts.jsonl`, `stats.jsonl` | History text, and usage numbers. See [Privacy](privacy.md). |
 | `app.log`, `dashboard.log` | Logs |
 | `apple_intelligence/` | The compiled Apple Intelligence helper |
 
-The shipped defaults are in the package: [`config.defaults.yaml`](../src/whisper_key/config.defaults.yaml) is the full list of settings with comments. Do not edit it. Your files sit on top of the defaults. Updates improve the shipped rules, transforms and commands, and your changes stay.
+The shipped defaults are in the package: [`config.defaults.yaml`](../src/whisper_key/config.defaults.yaml) is the full list of settings with comments. Do not edit it. Your files sit on top of the defaults. Updates improve the shipped commands, and your changes stay.
 
 ## Edit and reset settings
 
 - **Dashboard.** Settings, Models and Style change the common settings. Most changes to `postprocess.*` and `history.*` apply on your next dictation. Other changes need a restart. The dashboard shows a **Restart now** button.
 - **File.** **Settings > Your settings > Open file** opens `user_settings.yaml`. Edit and restart the app.
-- **Reset.** **Settings > Reset...** puts every setting back to its default, and keeps your dictionary. Or delete `user_settings.yaml` and restart. Your hotwords, commands and transforms are kept.
+- **Reset.** **Settings > Reset...** puts every setting back to its default, and keeps your dictionary. Or delete `user_settings.yaml` and restart. Your hotwords and commands are kept.
 - **Back up.** `whisper-local --export-settings DIR` and `--import-settings DIR`.
 
 ## Key settings

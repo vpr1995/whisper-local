@@ -1,8 +1,7 @@
 # styles.py
 # Named writing styles (formal, casual, very casual, verbatim) that bundle the
-# post-processing toggles into one choice, like Wispr Flow's per-app Styles.
-# A style can be set globally (postprocess.style) or per app rule (style: …);
-# users can redefine the presets or add their own under postprocess.styles.
+# post-processing toggles into one choice (postprocess.style). Users can
+# redefine the presets or add their own under postprocess.styles.
 
 import logging
 

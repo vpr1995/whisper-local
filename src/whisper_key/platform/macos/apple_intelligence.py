@@ -193,7 +193,7 @@ def prepare():
 # One helper process stays running and answers requests over stdin/stdout, so the
 # model stays warm between dictations. A request that runs past its timeout kills
 # the process (the only reliable way to stop a stuck model); the next request
-# starts a fresh one. The lock keeps one request in flight: polish, transforms,
+# starts a fresh one. The lock keeps one request in flight: polish,
 # rephrase and prewarm come from different threads, and the model refuses
 # concurrent requests anyway.
 

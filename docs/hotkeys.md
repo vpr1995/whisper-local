@@ -27,7 +27,6 @@ The dashboard shows your current shortcuts on Home ("Your hotkeys") and on About
 | Rephrase selection | `hotkey.rephrase_hotkey` | `ctrl+option+command` | Rewrites selected text with a spoken instruction. |
 | Paste last dictation | `hotkey.paste_last_hotkey` | `ctrl+option+v` | Types your last dictation again. |
 | Pause all hotkeys | `hotkey.pause_hotkey` | `ctrl+option+command+space` | Switches every shortcut off or on. |
-| Transforms | `hotkey` in `transforms.yaml` | see [AI polish](ai-polish.md#transforms) | Rewrite selected text with a stored prompt. |
 
 `fn` is the Globe key on a Mac keyboard. On macOS the Escape key is reserved by the system, so the cancel key is `shift`.
 
@@ -56,7 +55,7 @@ A single hold works as before. `hotkey.double_tap_window_ms` (default 400) sets 
 While you record, three keys can end the recording, and one can cancel it.
 
 - **Stop** (`fn`). Delivers the text. In push-to-talk mode, releasing the Dictate keys does the same.
-- **Stop and press Enter** (`option`). Delivers the text, then presses Enter. Use it in chat apps. It needs **Paste automatically** on. A per-app rule can also send Enter for you. See [Per-app rules](per-app-rules.md).
+- **Stop and press Enter** (`option`). Delivers the text, then presses Enter. Use it in chat apps. It needs **Paste automatically** on.
 - **Stop and polish** (off by default). Delivers the text after an AI polish, even where polish is off. See [AI polish](ai-polish.md#stop-and-polish).
 - **Cancel** (`shift`). Discards the recording. Nothing is typed.
 

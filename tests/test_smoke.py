@@ -873,126 +873,6 @@ class TextPostprocessTests(unittest.TestCase):
                          "alpha.\ngamma")
 
 
-class AppRulesShapeTests(unittest.TestCase):
-    def test_defaults_yaml_is_valid(self):
-        from ruamel.yaml import YAML
-        path = ROOT / "src" / "whisper_key" / "app_rules.defaults.yaml"
-        self.assertTrue(path.exists())
-        with open(path, encoding="utf-8") as f:
-            data = YAML().load(f)
-        self.assertIn('rules', data)
-        self.assertIsInstance(data['rules'], list)
-        for rule in data['rules']:
-            self.assertIn('match', rule)
-
-
-class AppRulesPolishTests(unittest.TestCase):
-    def shipped_rules(self):
-        from ruamel.yaml import YAML
-        path = ROOT / "src" / "whisper_key" / "app_rules.defaults.yaml"
-        return {rule['id']: rule for rule in YAML().load(path.read_text(encoding='utf-8'))['rules']}
-
-    def test_shipped_polish_settings(self):
-        rules = self.shipped_rules()
-        self.assertIs(rules['email-clients']['polish'], True)
-        self.assertIs(rules['code-editors']['polish'], False)
-        self.assertIs(rules['terminals']['polish'], False)
-        self.assertNotIn('polish', rules['chat-apps'])
-        self.assertIn('com.microsoft.outlook', rules['email-clients']['match'])
-
-    def test_outlook_on_macos_matches_by_bundle_id(self):
-        from whisper_key.app_rules import AppRules
-        rule = self.shipped_rules()['email-clients']
-        self.assertTrue(AppRules._matches(None, rule, 'com.microsoft.outlook', 'microsoft outlook'))
-
-    def test_a_rule_overrides_global_polish_for_that_delivery(self):
-        from whisper_key.app_rules import effective_postprocess_config
-        base = {'ai': {'provider': 'auto', 'polish': False, 'polish_prompt': 'p'}}
-        email = effective_postprocess_config(base, {'polish': True})
-        self.assertEqual(email['ai'], {'provider': 'auto', 'polish': True, 'polish_prompt': 'p'})
-        editor = effective_postprocess_config({'ai': {'polish': True}}, {'polish': False})
-        self.assertIs(editor['ai']['polish'], False)
-        self.assertIs(effective_postprocess_config({'ai': {'polish': True}}, {'style': 'casual'})['ai']['polish'], True)
-        self.assertIs(base['ai']['polish'], False, 'the global config must not be mutated')
-        self.assertIs(effective_postprocess_config({}, {'polish': True})['ai']['polish'], True)
-
-    def test_set_rule_polish_keeps_user_comments_and_other_overrides(self):
-        import tempfile
-        import unittest.mock as mock
-        from whisper_key import app_rules
-        with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch('whisper_key.app_rules.get_user_app_data_path', return_value=tmp):
-            path = Path(tmp) / 'app_rules.yaml'
-            path.write_text("format: 2\n# my note\nrules:\n  - id: chat-apps\n    auto_send: false  # keep\n", encoding='utf-8')
-            app_rules.set_rule_polish('chat-apps', True)
-            app_rules.set_rule_polish('email-clients', False)
-            text = path.read_text(encoding='utf-8')
-            self.assertIn('# my note', text)
-            self.assertIn('# keep', text)
-            self.assertIn('auto_send: false', text)
-            merged = {rule.get('id'): rule for rule in app_rules.AppRules().rules}
-            self.assertIs(merged['chat-apps']['polish'], True)
-            self.assertIs(merged['chat-apps']['auto_send'], False)
-            self.assertIs(merged['email-clients']['polish'], False)
-
-
-class AppRulesFormattingTests(unittest.TestCase):
-    def test_formatting_overrides_extracts_only_format_keys(self):
-        from whisper_key.app_rules import formatting_overrides
-        rule = {
-            'match': ['code.exe'],
-            'auto_paste': False,          # delivery key, not a formatting key
-            'capitalize_first': False,
-            'ensure_punctuation': False,
-        }
-        self.assertEqual(
-            formatting_overrides(rule),
-            {'capitalize_first': False, 'ensure_punctuation': False},
-        )
-
-    def test_formatting_overrides_empty_and_none(self):
-        from whisper_key.app_rules import formatting_overrides
-        self.assertEqual(formatting_overrides(None), {})
-        self.assertEqual(formatting_overrides({'match': ['x'], 'auto_send': True}), {})
-
-    def test_merge_overrides_global_postprocess(self):
-        # Simulate the pipeline merge: rule formatting overrides global config.
-        from whisper_key.app_rules import formatting_overrides
-        global_cfg = {'capitalize_first': True, 'ensure_punctuation': True, 'inline_formatting': True}
-        rule = {'capitalize_first': False, 'ensure_punctuation': False}
-        merged = {**global_cfg, **formatting_overrides(rule)}
-        self.assertFalse(merged['capitalize_first'])
-        self.assertFalse(merged['ensure_punctuation'])
-        self.assertTrue(merged['inline_formatting'])  # untouched key inherited
-
-
-class TransformsShapeTests(unittest.TestCase):
-    def test_defaults_yaml_is_valid(self):
-        from ruamel.yaml import YAML
-        path = ROOT / "src" / "whisper_key" / "transforms.defaults.yaml"
-        self.assertTrue(path.exists())
-        with open(path, encoding="utf-8") as f:
-            data = YAML().load(f)
-        self.assertIn('transforms', data)
-        for t in data['transforms']:
-            self.assertIn('name', t)
-            self.assertIn('prompt', t)
-
-    def test_transforms_manager_loads(self):
-        # Against a throwaway config dir, never the developer's own: the
-        # manager writes to it now (it seeds and migrates transforms.yaml),
-        # and a test has no business touching a real install.
-        import tempfile
-        import unittest.mock as mock
-        import whisper_key.transforms as tr
-        with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.object(tr, 'get_user_app_data_path', return_value=tmp):
-                manager = tr.TransformsManager()
-            names = [t.get('name') for t in manager.list_transforms()]
-        self.assertIn('polish', names)
-        self.assertIn('prompt-engineer', names)
-
-
 class StreakComputationTests(unittest.TestCase):
     def test_streak_basic(self):
         import datetime
@@ -1042,17 +922,6 @@ class MinutesSavedTests(unittest.TestCase):
             config['stats']['typing_wpm'] = bad
             validate_config(config, defaults, logging.getLogger('test'))
             self.assertEqual(config['stats']['typing_wpm'], 40, bad)
-
-
-class ProfilesShapeTests(unittest.TestCase):
-    def test_defaults_yaml_is_valid(self):
-        from ruamel.yaml import YAML
-        path = ROOT / "src" / "whisper_key" / "profiles.defaults.yaml"
-        self.assertTrue(path.exists())
-        with open(path, encoding="utf-8") as f:
-            data = YAML().load(f)
-        self.assertIn('profiles', data)
-        self.assertIn('dictation', data['profiles'])
 
 
 class UtilsTests(unittest.TestCase):
@@ -1912,20 +1781,10 @@ class DefaultsTests(unittest.TestCase):
         self.assertEqual(cfg["whisper"]["model"], "auto")
         self.assertEqual(cfg["hotkey"]["recording_mode"], "push_to_talk")
 
-    def test_profiles_no_tiny_downgrade(self):
-        from ruamel.yaml import YAML
-        path = ROOT / "src" / "whisper_key" / "profiles.defaults.yaml"
-        with open(path, encoding="utf-8") as f:
-            data = YAML().load(f)
-        for name, prof in data["profiles"].items():
-            model = (prof.get("overrides", {}).get("whisper") or {}).get("model")
-            self.assertNotEqual(model, "tiny", f"profile '{name}' still pins tiny")
-
     def test_export_covers_all_user_files(self):
         # backup/restore must include every user-editable config file.
         from whisper_key.settings_io import EXPORTABLE_FILES
-        for f in ("user_settings.yaml", "commands.yaml", "profiles.yaml",
-                  "app_rules.yaml", "transforms.yaml"):
+        for f in ("user_settings.yaml", "commands.yaml"):
             self.assertIn(f, EXPORTABLE_FILES)
 
 
@@ -1968,31 +1827,23 @@ class StreamingDeliveryDecisionTests(unittest.TestCase):
 
     def test_off_by_default(self):
         from whisper_key.streaming_delivery import decide_stream_delivery
-        self.assertFalse(decide_stream_delivery({}, True, True, True, None))
+        self.assertFalse(decide_stream_delivery({}, True, True, True))
 
     def test_all_conditions_met(self):
         from whisper_key.streaming_delivery import decide_stream_delivery
-        self.assertTrue(decide_stream_delivery(self._cfg(), True, True, True, None))
+        self.assertTrue(decide_stream_delivery(self._cfg(), True, True, True))
 
     def test_requires_streaming_available(self):
         from whisper_key.streaming_delivery import decide_stream_delivery
-        self.assertFalse(decide_stream_delivery(self._cfg(), False, True, True, None))
+        self.assertFalse(decide_stream_delivery(self._cfg(), False, True, True))
 
     def test_requires_auto_paste(self):
         from whisper_key.streaming_delivery import decide_stream_delivery
-        self.assertFalse(decide_stream_delivery(self._cfg(), True, False, True, None))
+        self.assertFalse(decide_stream_delivery(self._cfg(), True, False, True))
 
     def test_requires_textable_foreground(self):
         from whisper_key.streaming_delivery import decide_stream_delivery
-        self.assertFalse(decide_stream_delivery(self._cfg(), True, True, False, None))
-
-    def test_respects_app_rule_suppress_and_copyonly(self):
-        from whisper_key.streaming_delivery import decide_stream_delivery
-        self.assertFalse(decide_stream_delivery(self._cfg(), True, True, True, {'suppress': True}))
-        self.assertFalse(decide_stream_delivery(self._cfg(), True, True, True, {'auto_paste': False}))
-        # a rule that doesn't touch delivery is fine
-        self.assertTrue(decide_stream_delivery(self._cfg(), True, True, True, {'initial_prompt': 'x'}))
-
+        self.assertFalse(decide_stream_delivery(self._cfg(), True, True, False))
 
 class StreamingDeliveryWorkerTests(unittest.TestCase):
     def test_segments_delivered_in_order_and_recorded(self):
@@ -2618,32 +2469,12 @@ class UserReportedSeptemberTests(unittest.TestCase):
 
     def test_recovery_paths_check_the_policy(self):
         source = (ROOT / 'src' / 'whisper_key' / 'state_manager.py').read_text(encoding='utf-8')
-        # Every path that copies without the user asking: the suppress and
-        # no-text-field recoveries, and Retry last dictation.
-        self.assertEqual(source.count('silent_copy_allowed'), 3,
-                         'every silent-copy path (suppress, no text field, retry) must check it')
+        # Every path that copies without the user asking: the no-text-field
+        # recovery and Retry last dictation.
+        self.assertEqual(source.count('silent_copy_allowed'), 2,
+                         'every silent-copy path (no text field, retry) must check it')
         retry = source[source.index('def _retry_worker'):]
         self.assertIn('silent_copy_allowed', retry[:retry.index(LF + '    def ', 10)])
-
-    # --- #11: an app rule silencing paste looked like a broken app ---
-    def test_copy_only_is_announced_once_per_rule(self):
-        import unittest.mock as mock
-        try:
-            from whisper_key.state_manager import StateManager
-        except Exception:
-            self.skipTest('state_manager not importable on this platform')
-        sm = StateManager.__new__(StateManager)
-        sm.logger = __import__('logging').getLogger('test')
-        sm.system_tray = mock.Mock()
-        rule = {'match': ['code.exe', 'cursor.exe'], 'auto_paste': False}
-        sm._announce_copy_only(rule)
-        sm._announce_copy_only(rule)                    # same rule again
-        sm._announce_copy_only({'match': ['slack.exe']})
-        self.assertEqual(sm.system_tray.notify.call_count, 2,
-                         'once per rule, not once per dictation')
-        said = sm.system_tray.notify.call_args_list[0].args[0]
-        self.assertIn('code.exe', said)
-        self.assertIn('app_rules.yaml', said, 'tell them where to change it')
 
     # --- #13: macOS 27 SIGTRAP from off-main-thread tray writes ---
     def test_platform_exposes_ui_thread_marshal(self):
@@ -3151,31 +2982,10 @@ class WisprStyleFeatureTests(unittest.TestCase):
         custom = resolve_style('shouty', {'styles': {'shouty': {'capitalize_first': True, 'ollama': True}}})
         self.assertEqual(custom, {'capitalize_first': True}, 'a style can only set formatting toggles')
 
-    def test_style_precedence(self):
-        from whisper_key.app_rules import effective_postprocess_config
-        global_cfg = {'style': 'formal', 'capitalize_first': False}
-        cfg = effective_postprocess_config(global_cfg)
-        self.assertTrue(cfg['capitalize_first'], 'the global style wins over global toggles')
-        self.assertNotIn('style', cfg, 'resolved once, so postprocess() cannot re-apply it')
-        cfg = effective_postprocess_config(global_cfg, {'style': 'very_casual'})
-        self.assertTrue(cfg['lowercase'])
-        self.assertFalse(cfg['ensure_punctuation'], "the app's style beats the global one")
-        cfg = effective_postprocess_config(global_cfg, {'style': 'very_casual', 'lowercase': False})
-        self.assertFalse(cfg['lowercase'], "a rule's own toggle beats its style")
-
     def test_postprocess_applies_a_style_key(self):
         from whisper_key.text_postprocess import postprocess
         self.assertEqual(postprocess('Hello There', {'style': 'formal'}), 'Hello There.')
         self.assertEqual(postprocess('Hello There.', {'style': 'very_casual'}), 'hello there')
-
-    def test_shipped_app_rules_use_known_styles(self):
-        from ruamel.yaml import YAML
-        from whisper_key.styles import STYLE_PRESETS
-        rules = YAML().load((ROOT / 'src' / 'whisper_key' / 'app_rules.defaults.yaml').read_text(encoding='utf-8'))['rules']
-        styles = [r['style'] for r in rules if 'style' in r]
-        self.assertTrue(styles)
-        for style in styles:
-            self.assertIn(style, STYLE_PRESETS)
 
     # --- Snippets ---
     _SNIPPETS = [{'trigger': 'my signature', 'expansion': 'Best,\nRohit'},
@@ -3446,14 +3256,6 @@ class ReleaseReviewFixTests(unittest.TestCase):
         self.assertNotIn('inline_formatting', resolve_style('verbatim'),
                          '"new line" / "comma" must keep working in code editors')
 
-    def test_specific_app_rules_come_before_title_matches(self):
-        from ruamel.yaml import YAML
-        rules = YAML().load((ROOT / 'src' / 'whisper_key' / 'app_rules.defaults.yaml').read_text(encoding='utf-8'))['rules']
-        order = [r['match'][0] for r in rules]
-        self.assertLess(order.index('code.exe'), order.index('slack.exe'),
-                        'a VS Code window titled "slack_bot.py" must not auto-send')
-        self.assertLess(order.index('code.exe'), order.index('outlook.exe'))
-
     # --- Hands-free lock vs a stop key inside the record chord ---
     def _latch(self, recording=True):
         from whisper_key.hotkey_gestures import TapLatch
@@ -3490,29 +3292,6 @@ class ReleaseReviewFixTests(unittest.TestCase):
         latch.press()
         self.assertEqual(events, ['start'], 'later presses work normally')
 
-    # --- Paste-last honours app rules ---
-    def _paste_sm(self, rule):
-        import unittest.mock as mock
-        helper = WisprStyleFeatureTests('test_paste_last_retypes_without_auto_send')
-        helper.addCleanup = self.addCleanup
-        helper.skipTest = self.skipTest
-        sm = helper._state_manager(last='rm -rf build\n')
-        sm.app_rules = mock.Mock()
-        sm.app_rules.match_for_foreground.return_value = rule
-        return sm
-
-    def test_paste_last_skips_suppressed_apps(self):
-        sm = self._paste_sm({'match': ['1password.exe'], 'suppress': True})
-        self.assertFalse(sm.paste_last_transcription())
-        sm.clipboard_manager.deliver_transcription.assert_not_called()
-        sm.clipboard_manager.copy_text.assert_not_called()
-
-    def test_paste_last_only_copies_in_copy_only_apps(self):
-        sm = self._paste_sm({'match': ['wt.exe'], 'auto_paste': False})
-        self.assertTrue(sm.paste_last_transcription())
-        sm.clipboard_manager.deliver_transcription.assert_not_called()
-        sm.clipboard_manager.copy_text.assert_called_once()
-
     # --- Whisper mode config is validated, and boosts after the trims ---
     def test_whisper_mode_config_is_validated(self):
         helper = WisprStyleFeatureTests('test_paste_last_retypes_without_auto_send')
@@ -3544,287 +3323,6 @@ class ReleaseReviewFixTests(unittest.TestCase):
         self.assertEqual(postprocess('first, milk. second, eggs', {'list_formatting': 'yes'}),
                          '1. Milk\n2. Eggs')
         self.assertEqual(postprocess('hello', {'capitalize_first': True}), 'Hello')
-
-
-# ── Layered defaults (0.21.0) ────────────────────────────────────────────────
-# Until 0.21 each of app_rules / commands / transforms / profiles was copied out
-# of the package once, on first launch, and never touched again. Every later
-# improvement to a shipped file reached new installs only: a machine set up in
-# May still had May's rules eleven releases on, including the ordering bug that
-# let a code editor showing "slack_bot.py" match the chat rule and auto-send.
-# The shipped entries now load from the package every time, and the user's file
-# holds only their own entries plus per-id overrides.
-class LayeredDefaultsTests(unittest.TestCase):
-    def setUp(self):
-        import tempfile
-        self.dir = Path(tempfile.mkdtemp(prefix='wl-layer-'))
-
-    def _read(self, name):
-        from ruamel.yaml import YAML
-        with open(self.dir / name, encoding='utf-8') as f:
-            return YAML().load(f) or {}
-
-    def _write(self, name, text):
-        (self.dir / name).write_text(text, encoding='utf-8')
-
-    # A user file in the pre-0.21 shape: a full copy of the defaults as they
-    # were, chat rules ahead of code editors, and no styles.
-    def _write_old_app_rules(self):
-        self._write('app_rules.yaml', (
-            'rules:\n'
-            '  - match: ["slack.exe", "discord.exe", "telegram.exe", "whatsapp.exe", "Slack", "Discord",'
-            ' "com.tinyspeck.slackmacgap", "com.hnc.discord", "ru.keepcoder.telegram", "net.whatsapp.whatsapp"]\n'
-            '    auto_send: true\n'
-            '    initial_prompt: "Casual chat message. Conversational tone."\n'
-            '  - match: ["code.exe", "cursor.exe", "windsurf.exe", "rider64.exe", "pycharm64.exe", "idea64.exe",'
-            ' "com.microsoft.vscode", "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf",'
-            ' "com.jetbrains.", "dev.zed.zed", "com.sublimetext.", "com.apple.dt.xcode"]\n'
-            '    auto_paste: false\n'
-            '    initial_prompt: "Programming context. Identifiers, snake_case, camelCase, file paths, regex."\n'
-            '  - match: ["mytool.exe"]\n'
-            '    suppress: true\n'))
-
-    def _load_rules(self):
-        import unittest.mock as mock
-        import whisper_key.app_rules as ar
-        with mock.patch.object(ar, 'get_user_app_data_path', return_value=str(self.dir)):
-            return ar.AppRules().rules
-
-    def test_shipped_rules_load_with_no_user_file(self):
-        rules = self._load_rules()
-        self.assertEqual([r.get('id') for r in rules],
-                         ['password-managers', 'terminals', 'code-editors',
-                          'chat-apps', 'email-clients'])
-        self.assertEqual(self._read('app_rules.yaml').get('rules'), [],
-                         'a fresh user file must start empty, not as a copy of the defaults')
-
-    def test_every_shipped_rule_has_an_id(self):
-        # An id-less shipped rule could never be overridden or disabled, and a
-        # migration would keep re-adding the user's copy of it as a duplicate.
-        from ruamel.yaml import YAML
-        path = ROOT / 'src' / 'whisper_key' / 'app_rules.defaults.yaml'
-        with open(path, encoding='utf-8') as f:
-            shipped = YAML().load(f)['rules']
-        ids = [r.get('id') for r in shipped]
-        self.assertTrue(all(ids), f'shipped rule without an id: {ids}')
-        self.assertEqual(len(ids), len(set(ids)), f'duplicate shipped ids: {ids}')
-
-    def test_editors_are_matched_before_chat(self):
-        # The slack_bot.py bug: window titles match by substring, so the code
-        # editor rule has to come first.
-        ids = [r.get('id') for r in self._load_rules()]
-        self.assertLess(ids.index('code-editors'), ids.index('chat-apps'))
-
-    def test_old_file_gains_later_shipped_rules_and_order(self):
-        self._write_old_app_rules()
-        rules = self._load_rules()
-        ids = [r.get('id') for r in rules]
-        self.assertIn('email-clients', ids, 'a rule added after the user first launched')
-        self.assertLess(ids.index('code-editors'), ids.index('chat-apps'))
-        editors = next(r for r in rules if r.get('id') == 'code-editors')
-        self.assertEqual(editors.get('style'), 'verbatim',
-                         'a key added to a shipped rule after the copy was made')
-
-    def test_migration_keeps_the_users_own_rule_and_drops_the_copies(self):
-        self._write_old_app_rules()
-        rules = self._load_rules()
-        own = [r for r in rules if not r.get('id')]
-        self.assertEqual([r['match'] for r in own], [['mytool.exe']])
-        self.assertEqual(self._read('app_rules.yaml').get('rules'),
-                         [{'match': ['mytool.exe'], 'suppress': True}],
-                         'unedited copies of shipped rules should not survive migration')
-
-    def test_migration_backs_up_the_original(self):
-        self._write_old_app_rules()
-        before = (self.dir / 'app_rules.yaml').read_text(encoding='utf-8')
-        self._load_rules()
-        backups = list(self.dir.glob('app_rules.yaml.*.bak'))
-        self.assertEqual(len(backups), 1)
-        self.assertEqual(backups[0].read_text(encoding='utf-8'), before)
-
-    def test_migration_runs_once(self):
-        self._write_old_app_rules()
-        first = self._load_rules()
-        second = self._load_rules()
-        self.assertEqual([r.get('id') for r in first], [r.get('id') for r in second])
-        self.assertEqual(len(list(self.dir.glob('*.bak'))), 1)
-
-    def test_an_edited_shipped_rule_becomes_an_override(self):
-        # Only the edited key is kept, so every other key keeps following the
-        # shipped rule as it changes.
-        self._write('app_rules.yaml', (
-            'rules:\n'
-            '  - match: ["outlook.exe", "thunderbird.exe", "Mail",'
-            ' "com.microsoft.outlook", "com.apple.mail", "org.mozilla.thunderbird"]\n'
-            '    style: casual\n'
-            '    initial_prompt: "Professional email body. Polite, clear sentences."\n'))
-        rules = self._load_rules()
-        self.assertEqual(self._read('app_rules.yaml')['rules'],
-                         [{'id': 'email-clients', 'style': 'casual'}])
-        email = next(r for r in rules if r.get('id') == 'email-clients')
-        self.assertEqual(email['style'], 'casual')
-        self.assertEqual(email['match'], ['outlook.exe', 'thunderbird.exe', 'Mail',
-                                          'com.microsoft.outlook', 'com.apple.mail', 'org.mozilla.thunderbird'])
-
-    def test_user_rules_are_matched_before_shipped_rules(self):
-        self._write('app_rules.yaml',
-                    'format: 2\nrules:\n  - match: ["code.exe"]\n    style: casual\n')
-        rules = self._load_rules()
-        self.assertEqual(rules[0]['match'], ['code.exe'])
-        self.assertEqual(rules[0]['style'], 'casual')
-
-    def test_disabled_drops_a_shipped_rule(self):
-        self._write('app_rules.yaml',
-                    'format: 2\nrules:\n  - id: terminals\n    disabled: true\n')
-        rules = self._load_rules()
-        self.assertNotIn('terminals', [r.get('id') for r in rules])
-        self.assertTrue(all('disabled' not in r for r in rules))
-
-    def test_override_inherits_the_keys_it_does_not_set(self):
-        self._write('app_rules.yaml',
-                    'format: 2\nrules:\n  - id: chat-apps\n    auto_send: false\n')
-        chat = next(r for r in self._load_rules() if r.get('id') == 'chat-apps')
-        self.assertIs(chat['auto_send'], False)
-        self.assertEqual(chat['style'], 'casual')
-        self.assertIn('slack.exe', chat['match'])
-
-    def test_a_broken_package_falls_back_to_the_user_file(self):
-        # Losing the shipped file must not throw the user's own rules away.
-        import unittest.mock as mock
-        import whisper_key.defaults_merge as dm
-        self._write('app_rules.yaml', 'format: 2\nrules:\n  - match: ["mytool.exe"]\n')
-        with mock.patch.object(dm, 'resolve_asset_path', return_value=str(self.dir / 'nope.yaml')):
-            merged, _ = dm.load_layered('nope.yaml', self.dir / 'app_rules.yaml',
-                                        'rules', '', id_key='id')
-        self.assertEqual(merged, [{'match': ['mytool.exe']}])
-
-    def test_profiles_active_falls_back_to_the_shipped_default(self):
-        import unittest.mock as mock
-        import whisper_key.profiles as pf
-        with mock.patch.object(pf, 'get_user_app_data_path', return_value=str(self.dir)):
-            manager = pf.ProfileManager(config_manager=mock.MagicMock())
-        self.assertEqual(manager.active, 'dictation')
-        self.assertEqual(sorted(manager.profiles),
-                         ['chat', 'code', 'dictation', 'notes', 'translate'])
-
-    def test_profiles_migration_preserves_the_active_choice(self):
-        import unittest.mock as mock
-        import whisper_key.profiles as pf
-        self._write('profiles.yaml',
-                    'active: code\nprofiles:\n  code:\n    description: Mine\n')
-        with mock.patch.object(pf, 'get_user_app_data_path', return_value=str(self.dir)):
-            manager = pf.ProfileManager(config_manager=mock.MagicMock())
-        self.assertEqual(manager.active, 'code')
-        self.assertEqual(manager.profiles['code']['description'], 'Mine')
-        self.assertIn('overrides', manager.profiles['code'], 'the shipped body should survive')
-
-    def test_transform_override_inherits_the_prompt(self):
-        import unittest.mock as mock
-        try:
-            import whisper_key.transforms as tr
-        except ImportError as e:
-            self.skipTest(f'transforms needs deps the lean env lacks: {e}')
-        self._write('transforms.yaml',
-                    'format: 2\ntransforms:\n  - name: polish\n    hotkey: "win+alt+9"\n'
-                    '  - name: expand\n    disabled: true\n')
-        with mock.patch.object(tr, 'get_user_app_data_path', return_value=str(self.dir)):
-            manager = tr.TransformsManager()
-        names = [t.get('name') for t in manager.transforms]
-        self.assertNotIn('expand', names)
-        polish = next(t for t in manager.transforms if t['name'] == 'polish')
-        self.assertEqual(polish['hotkey'], 'win+alt+9')
-        self.assertTrue(polish.get('prompt'), 'the shipped prompt should still be there')
-
-    def test_a_null_action_lets_an_override_swap_a_commands_action(self):
-        # The merge keeps the shipped `hotkey` key, so clearing it has to mean
-        # "no action here" to both the validator and the dispatcher.
-        import unittest.mock as mock
-        reimport_under(self, fake_platform_modules())
-        try:
-            import whisper_key.voice_commands as vc
-        except ImportError as e:
-            self.skipTest(f'voice_commands needs deps the lean env lacks: {e}')
-        self._write('commands.yaml',
-                    'format: 2\ncommands:\n  - trigger: "maximize"\n'
-                    '    hotkey: null\n    type: "maximised"\n')
-        with mock.patch.object(vc, 'get_user_app_data_path', return_value=str(self.dir)):
-            manager = vc.VoiceCommandManager(enabled=True)
-        swapped = next(c for c in manager.commands if c.get('trigger') == 'maximize')
-        self.assertIsNone(swapped['hotkey'])
-        self.assertEqual(swapped['type'], 'maximised')
-
-    def test_dispatcher_tests_action_values_not_key_presence(self):
-        source = (ROOT / 'src' / 'whisper_key' / 'voice_commands.py').read_text(encoding='utf-8')
-        body = source[source.index('def _execute_action'):]
-        body = body[:body.index('def ', 10)]
-        for key in ('run', 'hotkey', 'type', 'rephrase'):
-            self.assertIn("command.get('" + key + "') is not None", body,
-                          f"a cleared '{key}' would still be dispatched")
-
-    def test_doctor_reports_the_effective_counts(self):
-        # The user file holds overrides only, so counting its entries would tell
-        # someone they have 0 rules while five are in force.
-        source = (ROOT / 'src' / 'whisper_key' / 'doctor.py').read_text(encoding='utf-8')
-        self.assertIn('rules in effect', source)
-        self.assertIn('Voice commands in effect', source)
-
-    def test_an_edited_match_list_overrides_instead_of_duplicating(self):
-        # Dropping an app from a shipped rule has to actually drop it. If the
-        # edited rule were kept as a separate one, the shipped rule would sit
-        # behind it and go on auto-sending in the app that was removed.
-        self._write('app_rules.yaml',
-                    'rules:' + LF +
-                    '  - match: ["slack.exe", "telegram.exe"]' + LF +
-                    '    auto_send: true' + LF)
-        rules = self._load_rules()
-        chat = [r for r in rules if r.get('id') == 'chat-apps']
-        self.assertEqual(len(chat), 1, 'the edited rule and the shipped one both loaded')
-        self.assertEqual(chat[0]['match'], ['slack.exe', 'telegram.exe'])
-        self.assertEqual([r for r in rules if not r.get('id')], [],
-                         'it should have become an override, not a rule of its own')
-        import whisper_key.app_rules as ar
-        matcher = ar.AppRules._matches
-        self.assertFalse(any(matcher(None, r, 'discord.exe', '') for r in rules),
-                         'discord was removed from the list but still matches')
-        self.assertTrue(any(matcher(None, r, 'slack.exe', '') for r in rules))
-
-    def test_broken_user_yaml_is_never_overwritten(self):
-        # A typo in their file must not read as "no entries" and trigger the
-        # migration, which would rewrite what they were in the middle of
-        # editing. The app runs on the shipped rules until they fix it.
-        broken = 'rules:' + LF + '  - match: ["a.exe"' + LF + '    style: casual' + LF
-        self._write('app_rules.yaml', broken)
-        rules = self._load_rules()
-        self.assertEqual([r.get('id') for r in rules],
-                         ['password-managers', 'terminals', 'code-editors',
-                          'chat-apps', 'email-clients'])
-        self.assertEqual((self.dir / 'app_rules.yaml').read_text(encoding='utf-8'), broken)
-        self.assertEqual(list(self.dir.glob('*.bak')), [])
-
-    def test_broken_package_hands_back_the_right_container(self):
-        # A list-shaped section must not come back as a dict just because the
-        # shipped file is unreadable: the callers iterate it.
-        import unittest.mock as mock
-        import whisper_key.defaults_merge as dm
-        missing = str(self.dir / 'nope.yaml')
-        with mock.patch.object(dm, 'resolve_asset_path', return_value=missing):
-            commands, _ = dm.load_layered('nope.yaml', self.dir / 'commands.yaml',
-                                          'commands', '', id_key='trigger')
-            profiles, _ = dm.load_layered('nope.yaml', self.dir / 'profiles.yaml',
-                                          'profiles', '', mapping=True)
-        self.assertEqual(commands, [])
-        self.assertEqual(profiles, {})
-
-    def test_a_corrupt_shipped_file_does_not_crash_the_loader(self):
-        import unittest.mock as mock
-        import whisper_key.defaults_merge as dm
-        bad = self.dir / 'bad.defaults.yaml'
-        bad.write_text('rules:' + LF + '  - match: ["a.exe"' + LF, encoding='utf-8')
-        self._write('app_rules.yaml', 'format: 2' + LF + 'rules: []' + LF)
-        with mock.patch.object(dm, 'resolve_asset_path', return_value=str(bad)):
-            merged, _ = dm.load_layered('bad.defaults.yaml', self.dir / 'app_rules.yaml',
-                                        'rules', '', id_key='id')
-        self.assertEqual(merged, [])
 
 
 class DefaultInputFollowTests(unittest.TestCase):
@@ -4837,17 +4335,7 @@ class StopAndPolishTests(unittest.TestCase):
         listener._auto_send_key_pressed()
         listener.state_manager.stop_recording.assert_called_with(use_auto_enter=True)
 
-    def test_forcing_polish_beats_the_global_setting_and_the_app_rule(self):
-        from whisper_key.app_rules import effective_postprocess_config
-        base = {'ai': {'provider': 'auto', 'polish': False, 'polish_prompt': 'p'}}
-        forced = effective_postprocess_config(base, {'polish': False}, force_polish=True)
-        self.assertEqual(forced['ai'], {'provider': 'auto', 'polish': True, 'polish_prompt': 'p'})
-        self.assertIs(effective_postprocess_config({}, None, force_polish=True)['ai']['polish'], True)
-        self.assertIs(effective_postprocess_config(base, None)['ai']['polish'], False)
-        self.assertIs(base['ai']['polish'], False, 'the global config must not be mutated')
-
-    # Runs the real pipeline for one dictation in a code editor (rule: polish off)
-    # with the AI mocked. Returns (text handed to delivery, tray notices).
+    # Runs the real pipeline for one dictation (global polish off) with the AI mocked. Returns (text handed to delivery, tray notices).
     def _run_dictation(self, force_polish, polish_result):
         import unittest.mock as mock
         sm = OctoberReviewTests._bare_state_manager(self)
@@ -4862,8 +4350,6 @@ class StopAndPolishTests(unittest.TestCase):
         sm.whisper_engine = mock.Mock()
         sm.whisper_engine.transcribe_audio.return_value = 'send me the report'
         sm.audio_recorder.get_audio_duration.return_value = 2.0
-        sm.app_rules = mock.Mock()
-        sm.app_rules.match_for_foreground.return_value = {'match': ['code.exe'], 'polish': False}
         sm.config_manager = mock.Mock()
         sm.config_manager.get_postprocess_config.return_value = {'ai': {'provider': 'ollama', 'polish': False}}
         sm.clipboard_manager = mock.Mock()
@@ -4917,3 +4403,51 @@ class StopAndPolishTests(unittest.TestCase):
         polish_row = next(row for row in rows if row['label'] == 'Stop & polish (AI)')
         self.assertEqual(polish_row['key'], 'alt+p')
         self.assertIsNone(next(row for row in collect_hotkey_rows({}) if row['label'] == 'Stop & polish (AI)')['key'])
+
+
+# The shipped commands load under the user's commands.yaml: their own entries
+# first, per-trigger overrides merged in, and a broken file never rewritten.
+class CommandsLayeringTests(unittest.TestCase):
+    SHIPPED = ('commands:' + LF +
+               '  - trigger: "undo"' + LF + '    hotkey: ctrl+z' + LF +
+               '  - trigger: "select all"' + LF + '    hotkey: ctrl+a' + LF)
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+        (self.dir / 'shipped.yaml').write_text(self.SHIPPED, encoding='utf-8')
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _load(self, defaults='shipped.yaml'):
+        import unittest.mock as mock
+        import whisper_key.defaults_merge as dm
+        with mock.patch.object(dm, 'resolve_asset_path', return_value=str(self.dir / defaults)):
+            merged, _ = dm.load_layered(defaults, self.dir / 'commands.yaml', 'commands',
+                                        '# header' + LF, id_key='trigger')
+        return merged
+
+    def test_no_user_file_gives_the_shipped_commands_and_creates_the_file(self):
+        self.assertEqual([c['trigger'] for c in self._load()], ['undo', 'select all'])
+        self.assertTrue((self.dir / 'commands.yaml').read_text(encoding='utf-8').startswith('# header'))
+
+    def test_user_commands_come_first_and_overrides_keep_unset_keys(self):
+        (self.dir / 'commands.yaml').write_text(
+            'commands:' + LF +
+            '  - trigger: "mine"' + LF + '    type: hello' + LF +
+            '  - trigger: "undo"' + LF + '    confirm: true' + LF +
+            '  - trigger: "select all"' + LF + '    disabled: true' + LF, encoding='utf-8')
+        merged = self._load()
+        self.assertEqual([c['trigger'] for c in merged], ['mine', 'undo'])
+        self.assertEqual(merged[1], {'trigger': 'undo', 'hotkey': 'ctrl+z', 'confirm': True})
+
+    def test_broken_user_yaml_is_never_overwritten(self):
+        broken = 'commands:' + LF + '  - trigger: ["undo"' + LF
+        (self.dir / 'commands.yaml').write_text(broken, encoding='utf-8')
+        self.assertEqual([c['trigger'] for c in self._load()], ['undo', 'select all'])
+        self.assertEqual((self.dir / 'commands.yaml').read_text(encoding='utf-8'), broken)
+
+    def test_missing_shipped_file_falls_back_to_the_user_file(self):
+        self.assertEqual(self._load('nope.yaml'), [])

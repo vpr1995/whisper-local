@@ -20,23 +20,15 @@ class HomeApi:
             logger.warning(f"Could not summarise stats: {e}")
             return stats.summarize_usage()
 
-    # Configured hotkeys as {label, keys, help, group}. `keys` is the combo split
+    # Configured hotkeys as {label, keys, help}. `keys` is the combo split
     # into parts (e.g. ["ctrl", "option"]) so the UI can draw one keycap each.
     def get_hotkeys(self) -> list:
-        from ...cheat_sheet import collect_hotkey_rows, collect_transform_hotkey_rows
-        rows = [dict(row, group='core') for row in collect_hotkey_rows(self._load_config().config)]
-        try:
-            from ...transforms import TransformsManager
-            rows += [dict(row, group='transform')
-                     for row in collect_transform_hotkey_rows(TransformsManager().list_transforms())]
-        except Exception as e:
-            logger.debug(f"Transform hotkeys unavailable: {e}")
+        from ...cheat_sheet import collect_hotkey_rows
         return [{
             'label': row['label'],
             'keys': [part.strip() for part in row['key'].split('+') if part.strip()],
             'help': row['help'],
-            'group': row['group'],
-        } for row in rows if row['key']]
+        } for row in collect_hotkey_rows(self._load_config().config) if row['key']]
 
     # Newest-first transcripts for the Recent card. Text is the full transcript
     # (the UI clamps it); timestamps are the journal's local ISO strings.

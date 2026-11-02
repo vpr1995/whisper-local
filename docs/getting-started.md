@@ -94,7 +94,7 @@ Click **Check again** after you fix an item.
 whisper-local --doctor
 ```
 
-`--doctor` checks the Python version, packages, config files, audio devices, the model cache, the hotkey backend, Accessibility, the AI provider, per-app rules and recent errors. It does not change your settings. It exits with 0 when all checks pass.
+`--doctor` checks the Python version, packages, config files, audio devices, the model cache, the hotkey backend, Accessibility, the AI provider and recent errors. It does not change your settings. It exits with 0 when all checks pass.
 
 ```bash
 whisper-local --selftest

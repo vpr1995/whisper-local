@@ -1,5 +1,6 @@
 # platform/macos/foreground.py
-# Identifies the frontmost application for per-app rules.
+# Identifies the frontmost application: the app name in history, and whether
+# a text field can take the dictation.
 # Windows mirror: platform/windows/foreground.py.
 import logging
 

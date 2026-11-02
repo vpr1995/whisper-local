@@ -1,6 +1,6 @@
-# AI polish, transforms and rephrase
+# AI polish and rephrase
 
-Whisper Local has three features that use a small AI language model. **Polish** cleans up each dictation: it removes filler words, repeats and false starts, and fixes punctuation and capital letters. **Transforms** rewrite selected text with a stored prompt. **Rephrase** rewrites selected text with an instruction you speak. All three run on your computer. [Back to the README](../README.md).
+Whisper Local has two features that use a small AI language model. **Polish** cleans up each dictation: it removes filler words, repeats and false starts, and fixes punctuation and capital letters. **Rephrase** rewrites selected text with an instruction you speak. Both run on your computer. [Back to the README](../README.md).
 
 **Contents**
 
@@ -9,7 +9,6 @@ Whisper Local has three features that use a small AI language model. **Polish** 
 - [Ollama](#ollama)
 - [Polish](#polish)
 - [Stop and polish](#stop-and-polish)
-- [Transforms](#transforms)
 - [Rephrase](#rephrase)
 - [Speed](#speed)
 
@@ -17,9 +16,7 @@ The AI steps are optional. Dictation works without them.
 
 ## Choose the AI
 
-All three features use one provider. Set it on the dashboard's Style page, or with `postprocess.ai.provider`.
-
-![The AI section of the Style page](screenshots/style-ai.png)
+Both features use one provider. Set it on the dashboard's Style page, or with `postprocess.ai.provider`.
 
 | Value | What happens |
 |---|---|
@@ -79,15 +76,7 @@ The AI can only remove words. It must not add, move or change words.
 
 With Apple Intelligence, the app starts to load the model when you push the hotkey. Usually the model is ready when you stop talking. A sentence takes about 0.5 seconds. A long paragraph takes about 3 seconds.
 
-Polish is **off** by default, with one exception: email apps polish by default when an AI is available. The "Polish in" row on the Style page has three switches.
-
-| Switch | What it controls |
-|---|---|
-| Email apps | The `email-clients` rule. On by default. |
-| Chat apps | The `chat-apps` rule. Off by default. |
-| Everywhere else | `postprocess.ai.polish`. Off by default. |
-
-To set polish for one app, add `polish: true` or `polish: false` to a rule in `app_rules.yaml`. See [Per-app rules](per-app-rules.md).
+Polish is **off** by default. It is one switch for every app: **AI polish** on the Style page, or `postprocess.ai.polish: true`.
 
 ### The word check
 
@@ -103,7 +92,7 @@ The check cannot find a removed clause when enough words stay. For example, "shi
 
 The app also skips polish for dictations over 1200 characters. The model is slower and changes more on long text.
 
-Polish does not apply to transforms and rephrase. You ask for a rewrite there, so the app does not check the result against the original.
+Polish does not apply to rephrase. You ask for a rewrite there, so the app does not check the result against the original.
 
 ### Settings
 
@@ -122,42 +111,11 @@ Capitalization, end punctuation and filler-word removal work without any AI. See
 
 ## Stop and polish
 
-This key stops the recording and polishes **that one dictation**. It works when polish is off. It also works in apps where a rule turns polish off.
+This key stops the recording and polishes **that one dictation**. It works when polish is off.
 
 Set it in **Settings > More shortcuts > Stop and polish**, or set `hotkey.stop_polish_key`. The key is **off** by default, because every simple key already has a use. If the AI cannot answer, the app types your original text and shows a notice with the reason.
 
 ![The More shortcuts view, with Stop and polish not set](screenshots/settings-more-shortcuts.png)
-
-## Transforms
-
-A transform rewrites the text you selected. You select text in any app, press the transform's hotkey, and the rewrite replaces the selection. If nothing is selected, the app uses the clipboard.
-
-These transforms ship with the app.
-
-| Name | What it does | Default hotkey |
-|---|---|---|
-| `polish` | Improves clarity and fixes grammar | `win+alt+1` |
-| `prompt-engineer` | Turns a dictation into a clear prompt for an AI assistant | `win+alt+2` |
-| `professional` | Rewrites in a professional tone | none |
-| `casual` | Rewrites in a casual tone | none |
-| `bullets` | Turns prose into a bullet list | none |
-| `expand` | Expands a short note into a paragraph | none |
-
-**macOS note.** On a Mac, `win` means the Command key. So `win+alt+1` is ⌘⌥1, as the dashboard shows it.
-
-Add your own in `transforms.yaml` in `~/.whisperkey`. Your file lays over the shipped transforms. It reloads when you save it.
-
-```yaml
-transforms:
-  - name: shorten
-    description: Cut it in half
-    hotkey: "option+7"
-    prompt: "Rewrite this in half the words. Output only the result:"
-  - name: expand
-    disabled: true          # turn off a shipped transform
-```
-
-A transform can also set `model` and `timeout`. They apply to the Ollama call for that transform.
 
 ## Rephrase
 

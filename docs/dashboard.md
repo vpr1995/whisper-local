@@ -64,19 +64,13 @@ Three cards. **Words** are hotwords that help the model spell names and jargon. 
 
 ## Style
 
-![The Style page](screenshots/dashboard-style.png)
-
 How your dictation is shaped before it is typed.
 
-- **Profile.** Dictation, Chat, Code, Notes or Translate. A profile overwrites some settings, including the model.
 - **Writing style.** None, Formal, Casual, Very casual, Verbatim, or your own.
 - **Clean-up.** Off, Light, Medium or High.
-- **AI.** The provider, and where polish is on. See [AI polish](ai-polish.md).
-- **AI transforms** and **Per-app rules.** Each card has an **Edit file** link.
+- **AI.** The provider, and the **AI polish** switch. See [AI polish](ai-polish.md).
 
-![The lower half of the Style page: AI provider, polish toggles, transforms and per-app rules](screenshots/style-ai.png)
-
-Details are in [Per-app rules](per-app-rules.md) and [AI polish](ai-polish.md).
+Details are in [Writing styles](writing-styles.md) and [AI polish](ai-polish.md).
 
 ## Settings
 
