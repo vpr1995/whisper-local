@@ -51,7 +51,22 @@
 - As a *user* I want **hotkey-activated commands** so I can bind specific voice commands to custom hotkeys and skip the speech step entirely
 - As a *user* I want **push-to-talk mode** so I can hold the hotkey to record and release to stop, as a configurable alternative to toggle mode
 
+- As a *user* I want a **desktop GUI** so that I can change settings without editing files (the dashboard)
+- As a *user* I want **on-screen hotkey hints** so I can see available controls at a glance (hotkey list on the dashboard Home page)
+- As a *user* I want a **transcriptions log** so I can review my past transcriptions and look at accidental cancels or overwrites
+- As a *user* I want to **search my transcription history** so I can find a past dictation
+- As a *user* I want **custom hotwords** so I can bias the transcription model toward rare words and names that I say often
+- As a *user* I want **post-transcription replacements** so consistent misrecognitions are automatically corrected after transcription
+- As a *user* I want **parakeet models** so I can get faster transcriptions with more accuracy
+- As a *user* I want **automatic punctuation and text formatting** so the output is human-friendly without an LLM (smart formatting)
+- As a *user* I want **real-time transcription** so I can preview text as I speak (live preview, experimental)
+- As a *user* I want **restricted language auto-detect** (`whisper.languages: [en, hi]`) so switching between the languages I speak never lands on one I don't
+- As a *user* I want a **short command alias** so I can launch the app by typing `wl`
+- As a *user* I want **wrapped model downloading** so I see a clean progress line instead of raw HuggingFace output
+
 ## Resolved Bugs
 
 - **Crash on model load** - bundled correct MSVCP140.dll instead of PyInstaller's incompatible version
 - Auto-pasting does not work in Notepad (Alt unfocuses text field) `[WON'T FIX]`
+- **Silent close when already running** - a windowless launch has no console, so the "already running" message went nowhere. It now shows a dialog (`instance_manager._notify_no_console`)
+- **No download progress shown** - the first-run download now shows a percentage and MB line (`model_download.py`)
