@@ -31,7 +31,7 @@ So the release flow is just:
 # 3. Commit, then tag and push:
 git commit -am "release: v0.10.1"
 git tag v0.10.1
-git push origin master --tags
+git push origin main --tags
 ```
 
 Watch it run at `https://github.com/vpr1995/whisper-local/actions`.
@@ -142,7 +142,7 @@ touches the user's system Python.
 [ ] Version bumped in pyproject.toml AND CITATION.cff (must match — test enforces it)
 [ ] CHANGELOG.md updated (move [Unreleased] → new version with date)
 [ ] Smoke tests green locally: python -m unittest tests.test_smoke
-[ ] git tag vX.Y.Z && git push origin master --tags
+[ ] git tag vX.Y.Z && git push origin main --tags
 [ ] Actions run is green (test → build → build-exe → publish-pypi → github-release)
 [ ] GitHub Release has whisper-local.exe + .sha256 + wheel
 [ ] (optional) winget: wingetcreate update / new

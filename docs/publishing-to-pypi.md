@@ -58,7 +58,7 @@ whisper-local
 # Add a CHANGELOG entry
 git commit -am "Bump to v0.9.1"
 git tag -a v0.9.1 -m "v0.9.1 — what changed"
-git push origin master --tags
+git push origin main --tags
 
 Remove-Item -Recurse -Force dist, build, *.egg-info -ErrorAction SilentlyContinue
 python -m build
