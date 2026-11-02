@@ -374,6 +374,13 @@ class StreamingModelFallbackTests(unittest.TestCase):
     # the default Moonshine model rather than fail to load.
     def test_unknown_streaming_model_falls_back_to_default(self):
         import types
+        import unittest.mock as mock
+        # rolling_recognizer imports soxr at the top, and CI does not install it.
+        modules = mock.patch.dict(sys.modules, {'soxr': _stand_in_module('soxr')})
+        modules.start()
+        self.addCleanup(modules.stop)
+        for name in ('whisper_key.streaming_manager', 'whisper_key.rolling_recognizer'):
+            sys.modules.pop(name, None)
         from whisper_key.streaming_manager import DEFAULT_STREAMING_MODEL, StreamingManager
         registry = types.SimpleNamespace(streaming_models={DEFAULT_STREAMING_MODEL: object()})
         manager = StreamingManager(streaming_enabled=True, streaming_model="zipformer.tiny.en",
@@ -1035,7 +1042,9 @@ class ModelDownloadProgressTests(unittest.TestCase):
                  [("model.bin", 100), ("vocabulary.txt", 5), ("README.md", 7), ("onnx/model.onnx", 900)]]
         fake_api = mock.Mock()
         fake_api.return_value.model_info.return_value = types.SimpleNamespace(siblings=files)
-        with mock.patch("huggingface_hub.HfApi", fake_api):
+        fake_hub = types.ModuleType("huggingface_hub")      # CI does not install huggingface_hub
+        fake_hub.HfApi = fake_api
+        with mock.patch.dict(sys.modules, {"huggingface_hub": fake_hub}):
             self.assertEqual(model_download._expected_bytes("org/repo", ["model.bin", "vocabulary.*"]), 105)
 
     def test_symlinked_snapshot_files_count_once(self):
@@ -1285,6 +1294,7 @@ class FirstLaunchDashboardTests(unittest.TestCase):
         import logging
         import tempfile
         import unittest.mock as mock
+        reimport_under(self, fake_platform_modules())   # CI has no Pillow or pyobjc
         from whisper_key import main as main_module
         tray = mock.Mock()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -2658,7 +2668,9 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
             from whisper_key.whisper_engine import WhisperEngine
             # The engine prints emoji progress lines; main() switches stdout to
             # UTF-8 first, but a cp1252 test console (Windows CI) would choke.
-            with self.assertRaises(RuntimeError) as ctx, contextlib.redirect_stdout(io.StringIO()):
+            # The first-run download needs the real faster_whisper: skip it.
+            with self.assertRaises(RuntimeError) as ctx, contextlib.redirect_stdout(io.StringIO()), \
+                    mock.patch.object(WhisperEngine, '_download_with_progress'):
                 WhisperEngine(model_key='base', device='cuda', compute_type='float16')
             fake_fw.WhisperModel.assert_not_called()
         self.assertIn('cudnn_ops64_9.dll', str(ctx.exception))
@@ -2676,7 +2688,8 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
                 'whisper_key.hardware_detection': self._fake_hardware_detection(['cublas64_12.dll'])}):
             sys.modules.pop('whisper_key.whisper_engine', None)
             from whisper_key.whisper_engine import WhisperEngine
-            with contextlib.redirect_stdout(io.StringIO()):  # emoji vs a cp1252 console
+            with contextlib.redirect_stdout(io.StringIO()), \
+                    mock.patch.object(WhisperEngine, '_download_with_progress'):  # emoji vs cp1252; no real download
                 WhisperEngine(model_key='base', device='cpu', compute_type='int8')
             fake_fw.WhisperModel.assert_called_once()
 
@@ -4310,6 +4323,9 @@ class StopAndPolishTests(unittest.TestCase):
     def test_the_listener_registers_the_key_only_when_it_is_set(self):
         import unittest.mock as mock
         helper = WisprStyleFeatureTests('test_paste_last_retypes_without_auto_send')
+        # The helper's fake modules must be undone when THIS test ends.
+        helper.addCleanup = self.addCleanup
+        helper.skipTest = self.skipTest
         HotkeyListener, _ = helper._import_app_modules()
         with mock.patch.object(HotkeyListener, 'start_listening'):
             unset = HotkeyListener(mock.Mock(), 'ctrl+win', 'ctrl')
@@ -4320,6 +4336,9 @@ class StopAndPolishTests(unittest.TestCase):
     def test_pressing_the_key_stops_with_polish_forced_only_while_recording(self):
         import unittest.mock as mock
         helper = WisprStyleFeatureTests('test_paste_last_retypes_without_auto_send')
+        # The helper's fake modules must be undone when THIS test ends.
+        helper.addCleanup = self.addCleanup
+        helper.skipTest = self.skipTest
         HotkeyListener, _ = helper._import_app_modules()
         with mock.patch.object(HotkeyListener, 'start_listening'):
             listener = HotkeyListener(mock.Mock(), 'ctrl+win', 'ctrl', stop_polish_key='alt+p')
