@@ -38,8 +38,8 @@ Delete the files in `~/.whisperkey/` (macOS) or `%APPDATA%\whisperkey\` (Windows
 
 ## Comparison
 
-### How is this different from Whisper.cpp directly?
-`whisper.cpp` is the inference runtime. Whisper Local is the full **desktop dictation app** wrapped around it — global hotkeys, push-to-talk, voice commands, transforms, system tray, audio capture with pre-roll buffer, fallback window, profile switching, per-app rules, AI rephrase (Apple Intelligence or Ollama), and more. You *can* swap our default `faster-whisper` backend for `whisper.cpp`: run `pip install -e '.[whispercpp]'` in your clone and set `whisper.backend: whisper_cpp`.
+### How is this different from faster-whisper directly?
+`faster-whisper` is the inference runtime. Whisper Local is the full **desktop dictation app** around it: global hotkeys, push-to-talk, voice commands, transforms, system tray, audio capture with pre-roll buffer, fallback window, profile switching, per-app rules and AI rephrase (Apple Intelligence or Ollama).
 
 ### How is this different from Windows Speech Recognition? (Windows, not validated yet)
 WSR uses an old Microsoft engine that's significantly less accurate than Whisper. Whisper Local is built on **modern AI transcription** (the same OpenAI Whisper model that powers most cloud dictation services), runs on your GPU, supports 99 languages, and has voice commands + transforms.
@@ -74,13 +74,10 @@ A lot. With a modern NVIDIA GPU (`device: cuda`, `compute_type: float16`):
 On CPU with the same `medium` model: 2–6 seconds. The first transcription after launch is always slower due to model warmup.
 
 ### What about AMD GPUs?
-Supported via ROCm on Linux/Windows (not validated yet in this fork). Run `whisper-local --setup` and accept the GPU install prompt; we use [PinW/ctranslate2-rocm-wheels](https://github.com/PinW/ctranslate2-rocm-wheels). Apple silicon Macs have no CUDA or ROCm. The default model runs on the CPU. The opt-in `whisper_cpp` backend (`pip install -e '.[whispercpp]'`) can be faster there, according to the config notes. See [Models](models.md).
+Supported via ROCm on Linux/Windows (not validated yet in this fork). Set `onboarding.gpu: pending` in `user_settings.yaml`, restart the app in a terminal and accept the GPU install prompt; we use [PinW/ctranslate2-rocm-wheels](https://github.com/PinW/ctranslate2-rocm-wheels). Apple silicon Macs have no CUDA or ROCm. The default model runs on the CPU. Parakeet v3 is the fast choice there. See [Models](models.md).
 
 ### How do I make hotwords work?
-`whisper-local --add-word "MyJargon"` or the dashboard's **Vocabulary** page. The app gives these words to the model as `hotwords` (Whisper only; Parakeet ignores them, so use History > "Fix this everywhere" for a name Parakeet gets wrong). Names, technical terms, codenames work best. For bulk import: `whisper-local --import-vocab FOLDER` scans a folder of text files and merges the top hotwords automatically.
-
-### Can I use this as a server / API?
-Yes! `whisper-local --serve` starts a **local OpenAI-compatible HTTP server** on `http://127.0.0.1:7777`. Drop-in for any tool that expects `POST /v1/audio/transcriptions` (Cursor, VS Code Continue, Open WebUI, etc.) — point them at your local server with a dummy API key. Fully offline, runs the same model you use for dictation.
+Use the dashboard's **Vocabulary** page. The app gives these words to the model as `hotwords` (Whisper only; Parakeet ignores them, so use History > "Fix this everywhere" for a name Parakeet gets wrong). Names, technical terms, codenames work best.
 
 ## App behaviour
 
@@ -88,7 +85,7 @@ Yes! `whisper-local --serve` starts a **local OpenAI-compatible HTTP server** on
 Windows 10/11 hides tray icons by default. Click the `^` arrow on the right of the taskbar and **drag** the Whisper Local icon out into the visible tray area to pin it.
 
 ### How do I autostart on login?
-It's built in (since v0.11.0). Tick **Start on login** on the dashboard's Settings page, check the box on the first-run welcome window, or run `whisper-local --enable-autostart` (`--disable-autostart` to undo). It launches windowless — no console window at boot. On Windows (not validated yet) this uses an `HKCU\…\Run` entry.
+It's built in (since v0.11.0). Tick **Start on login** on the dashboard's Settings page, or run `whisper-local --enable-autostart` (`--disable-autostart` to undo). It launches windowless — no console window at boot. On Windows (not validated yet) this uses an `HKCU\…\Run` entry.
 
 On macOS it's a LaunchAgent that starts the app through a small helper, `~/Library/Application Support/Whisper Local/Whisper Local.app`. At the first login after you turn it on, macOS asks you to allow "Whisper Local" under Accessibility, and later under Microphone. The app starts as soon as you allow it, or after a minute either way. Building the helper needs Apple's Command Line Tools (`xcode-select --install`). Without them, the LaunchAgent runs Python directly and macOS asks about Python instead.
 

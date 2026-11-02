@@ -1,19 +1,19 @@
 # engine_factory.py
-# Maps whisper.backend to a transcription engine. The dictation app, the local
-# server, self-test and system-audio capture all build their engine here, so a
-# new backend is wired in once. Engine imports stay lazy: each backend pulls in
-# a different ML runtime.
+# Maps whisper.backend to a transcription engine. The dictation app and the
+# self-test both build their engine here, so a new backend is wired in once.
+# Engine imports stay lazy: each backend pulls in a different ML runtime.
+
+import logging
 
 from .auto_model import AUTO, pick_model
 
-BACKENDS = ('faster_whisper', 'whisper_cpp', 'parakeet')
+BACKENDS = ('faster_whisper', 'parakeet')
+
+logger = logging.getLogger(__name__)
 
 
 # Backend name -> engine class, imported only when chosen.
 def engine_class(backend: str):
-    if backend == 'whisper_cpp':
-        from .whisper_engine_cpp import WhisperEngineCpp
-        return WhisperEngineCpp
     if backend == 'parakeet':
         from .parakeet_engine import ParakeetEngine
         return ParakeetEngine
@@ -25,6 +25,11 @@ def engine_class(backend: str):
 # machine (auto_model.py), then ModelRegistry.resolve matches it to a backend.
 def resolve_backend(whisper_cfg: dict, model_registry) -> tuple:
     backend = whisper_cfg.get('backend', 'faster_whisper')
+    # A backend this version no longer ships (e.g. the removed whisper_cpp)
+    # runs on faster-whisper instead of failing at startup.
+    if backend not in BACKENDS:
+        logger.warning(f"whisper.backend '{backend}' is not supported; using faster_whisper")
+        backend = 'faster_whisper'
     model_key = whisper_cfg.get('model', AUTO)
     if model_key == AUTO:
         model_key, _reason = pick_model(whisper_cfg)
@@ -59,12 +64,6 @@ def create_engine(whisper_cfg: dict, vad_manager, model_registry, **overrides):
 
 # (problem, fix) when the backend's runtime is not importable, else None.
 def missing_backend_dependency(backend: str):
-    if backend == 'whisper_cpp':
-        try:
-            import pywhispercpp  # noqa: F401
-        except ImportError:
-            return ("whisper_cpp backend selected but pywhispercpp not installed",
-                    "pip install 'whisper-local[whispercpp]'")
     if backend == 'parakeet':
         try:
             import sherpa_onnx  # noqa: F401

@@ -5,7 +5,7 @@
 # heard as Welsh or Malay). Listing the languages you dictate in restricts the
 # choice to those. Speech that is clearly in some other language is reported,
 # so the user can add it, instead of being silently forced into the wrong one.
-# Pure functions; both engines (faster-whisper and whisper.cpp) use them.
+# Pure functions; the faster-whisper engine uses them.
 
 import re
 

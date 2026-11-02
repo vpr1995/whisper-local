@@ -8,7 +8,7 @@
 #                     WhisperEngine.transcribe ──► ClipboardManager.deliver
 #                                                     │
 #                                                     ▼
-#                                            stats + transcripts + audit
+#                                              stats + transcripts
 #
 # Also owns the floating overlay + FallbackWindow lifecycle and the cross-cutting
 # concerns: profile activation, app-rule application, AI rephrase, command mode,
@@ -42,8 +42,6 @@ from .streaming_delivery import StreamingDelivery, decide_stream_delivery
 from .transforms import TransformsManager
 from .text_postprocess import postprocess
 from .stats import record_transcription
-from .audit_log import record as audit_record
-from .terminal_title import TerminalTitle
 from .transcript_log import record_transcript
 from .platform import foreground, audio_endpoints
 from .platform import overlay as platform_overlay
@@ -59,15 +57,13 @@ class StateManager:
                  vad_manager: VadManager,
                  system_tray: Optional[SystemTray] = None,
                  audio_feedback: Optional[AudioFeedback] = None,
-                 voice_command_manager: Optional[VoiceCommandManager] = None,
-                 terminal_title: Optional[TerminalTitle] = None):
+                 voice_command_manager: Optional[VoiceCommandManager] = None):
 
         self.audio_recorder = audio_recorder
         self.whisper_engine = whisper_engine
         self.whisper_engine.on_model_state_change = self._on_model_state_change
         self.clipboard_manager = clipboard_manager
         self.system_tray = OptionalComponent(system_tray)
-        self.terminal_title = OptionalComponent(terminal_title)
         self.config_manager = config_manager
         self.audio_feedback = OptionalComponent(audio_feedback)
         self.vad_manager = vad_manager
@@ -408,8 +404,6 @@ class StateManager:
         record_transcription(char_count=len(text), duration_seconds=duration, app=fg.get('exe', ''))
         record_transcript(text, app=fg.get('exe', ''), duration_s=duration,
                           retention_days=self._history_retention_days())
-        audit_enabled = (self.config_manager.config.get('audit') or {}).get('enabled', False)
-        audit_record('delivered', text, fg.get('exe', ''), audit_enabled)
 
         self.logger.info(f"Streaming delivery complete: {len(text)} chars")
         self._maybe_restart_continuous()
@@ -807,8 +801,6 @@ class StateManager:
                 )
                 record_transcript(transcribed_text, app=fg.get('exe', ''), duration_s=duration,
                                   retention_days=self._history_retention_days())
-                audit_enabled = (self.config_manager.config.get('audit') or {}).get('enabled', False)
-                audit_record('delivered', transcribed_text, fg.get('exe', ''), audit_enabled)
                 self._maybe_restart_continuous()
             elif self.level_overlay:
                 self.level_overlay.flash_failure()
@@ -904,17 +896,15 @@ class StateManager:
             print(f"❌ Test failed: {e}")
 
     # Single place that fans a state change out to every status surface, so
-    # the tray icon, the terminal tab title and the dashboard's status bar can
-    # never drift apart. The tray and title are OptionalComponent-wrapped (a
-    # disabled tray or a non-TTY terminal is a silent no-op) and the dashboard
-    # push does nothing while no dashboard is open.
+    # the tray icon and the dashboard's status bar can never drift apart. The
+    # tray is OptionalComponent-wrapped (a disabled tray is a silent no-op) and
+    # the dashboard push does nothing while no dashboard is open.
     def _update_ui_state(self, state: str):
         # Idle with the model unloaded (whisper.unload_after_minutes) is shown
         # as "sleeping", so the tray tells the user the next dictation reloads.
         if state == "idle" and not self.whisper_engine.is_model_loaded:
             state = "sleeping"
         self.system_tray.update_state(state)
-        self.terminal_title.update_state(state)
         window_launcher.publish_app_state(state)
 
     # Engine callback after an idle unload or reload. Only repaints when the
@@ -924,8 +914,7 @@ class StateManager:
             self._update_ui_state("idle")
 
     
-    def shutdown(self):        
-        self.terminal_title.stop()
+    def shutdown(self):
         print("Whisper Local is shutting down... goodbye!")
 
         if self.idle_unloader:

@@ -11,8 +11,6 @@
 whisper: # Whisper AI Model Settings
     # Backend engine
     # - faster_whisper (default): CTranslate2-based, GPU-friendly, mature
-    # - whisper_cpp: opt-in via `pip install whisper-local[whispercpp]`.
-    #   Better Apple Silicon perf, GGUF model format, lower memory.
     # - parakeet (experimental): NVIDIA Parakeet TDT v3 via sherpa-onnx. About
     #   3x faster than Whisper small on CPU, 7x on short dictations. Picks the
     #   language itself from 25 European languages. It cannot translate and
@@ -169,20 +167,16 @@ streaming: # Real-time STT (Experimental)
     # command/rephrase modes and copy-only/suppressed apps are unaffected.
     deliver_to_cursor: false
 
-    # Streaming model type. Moonshine models are offline models re-decoded
-    # live: much better on fast speech than the tiny streaming Zipformer, and
-    # they add punctuation. English only; the final pasted text is still Whisper.
+    # Live preview model. Moonshine v2 models are offline models re-decoded a
+    # few times a second; they handle fast speech and add punctuation. English
+    # only; the final pasted text still comes from the main model.
     streaming_model: moonshine.base.en
 
-    # Available streaming models
-    # Requires sherpa-onnx streaming transducer models (e.g., Zipformer)
-    # Browse models: https://k2-fsa.github.io/sherpa/onnx/pretrained_models/index.html
-    #   engine: transducer (default, true streaming) | moonshine_v2 (re-decoded live)
+    # Available live preview models (sherpa-onnx Moonshine v2 exports)
     models:
         moonshine.base.en:
             source: csukuangfj2/sherpa-onnx-moonshine-base-en-quantized-2026-02-27
             label: "Moonshine v2 English Base (140MB)"
-            engine: moonshine_v2
             files:
                 encoder: encoder_model.ort
                 decoder: decoder_model_merged.ort
@@ -190,18 +184,9 @@ streaming: # Real-time STT (Experimental)
         moonshine.tiny.en:
             source: csukuangfj2/sherpa-onnx-moonshine-tiny-en-quantized-2026-02-27
             label: "Moonshine v2 English Tiny (44MB)"
-            engine: moonshine_v2
             files:
                 encoder: encoder_model.ort
                 decoder: decoder_model_merged.ort
-                tokens: tokens.txt
-        zipformer.tiny.en:
-            source: csukuangfj/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17
-            label: "Zipformer English Tiny (20MB)"
-            files:
-                encoder: encoder-epoch-99-avg-1.int8.onnx
-                decoder: decoder-epoch-99-avg-1.int8.onnx
-                joiner: joiner-epoch-99-avg-1.int8.onnx
                 tokens: tokens.txt
 
 hotkey: # Hotkey Configuration
@@ -439,25 +424,6 @@ audio_feedback: # Audio Feedback Settings
     transcription_complete_sound: assets/sounds/transcription_complete.wav
     ready_sound: assets/sounds/app_ready.wav
 
-terminal_title: # Terminal Tab Title Status
-    # Shows "<prefix> Whisper Local" in the terminal tab, reflecting app state.
-    # Useful when the tray icon is hidden in the overflow area. Ignored entirely
-    # when stdout isn't a terminal (windowless launch, piped output).
-    #
-    # Each state is either a static prefix string, or a list of [prefix, seconds]
-    # frames cycled as an animation.
-    # Examples:
-    #   idle: "🎤"
-    #   processing:
-    #       - ["⠂", 0.25]
-    #       - ["⠐", 0.25]
-    idle: ""
-    recording:
-        - ["🔴", 1.5]
-        - ["⠀⠀", 1.0]
-    processing: ""
-    sleeping: "💤" # model unloaded after idle (whisper.unload_after_minutes)
-
 system_tray: # System Tray Settings
     # Enable/disable system tray icon
     # true = show icon in system tray with status and menu
@@ -479,13 +445,6 @@ onboarding: # First-run setup state (managed automatically)
     # Detected GPU class (set automatically)
     # nvidia | amd_rdna2+ | amd_rdna1 | null
     gpu_class: null
-
-audit: # Append-only audit log (off by default)
-    # When enabled, every successful delivery appends a line to
-    # %APPDATA%/whisperkey/audit.log: timestamp + event + app +
-    # char count. The transcript text itself is NOT logged.
-    # Useful for compliance / journalists / accountability.
-    enabled: false
 
 voice_commands: # Voice Command Settings
     # Enable/disable voice commands feature
@@ -720,7 +679,7 @@ postprocess: # Transcription post-processing pipeline
         model: llama3.2
         timeout: 5
 
-history: # Transcript history (the History page, --history, and the tray's Recent list)
+history: # Transcript history (the dashboard History page)
     # How long to keep the text of past dictations on this machine, in days.
     #   null = keep them (the newest 2000)
     #   0    = don't store them at all; the History page stays empty
@@ -728,7 +687,7 @@ history: # Transcript history (the History page, --history, and the tray's Recen
     # Usage stats (counts and durations, never text) are kept regardless.
     retention_days: null
 
-stats: # Usage stats (--stats and the daily "min saved" summary)
+stats: # Usage stats (the Home stat tiles and the daily "min saved" summary)
     # Your typing speed in words per minute, used to estimate the time dictation
     # saves you. 40 is a typical average; a one-minute online typing test gives yours.
     typing_wpm: 40

@@ -39,7 +39,7 @@ The shipped defaults are in the package: [`config.defaults.yaml`](../src/whisper
 | Setting | Default | Notes |
 |---|---|---|
 | `whisper.model` | `auto` | A model name, or `auto`. See [Models](models.md). |
-| `whisper.backend` | `faster_whisper` | `whisper_cpp` and `parakeet` are the other choices |
+| `whisper.backend` | `faster_whisper` | `parakeet` is the other choice |
 | `whisper.device` | `cpu` | `cuda` for an NVIDIA or AMD GPU. See [GPU setup](gpu-setup.md). |
 | `whisper.compute_type` | `int8` | `int8`, `float16` or `float32` |
 | `whisper.language` | `auto` | Auto-detect, or a language code |
@@ -102,27 +102,13 @@ The command is `whisper-local`. The short name is `wl`. Run a second copy and it
 | Command | What it does |
 |---|---|
 | `whisper-local` | Run the app |
-| `--setup` | An interactive setup wizard (model, mode, microphone) |
 | `--doctor` | Run diagnostics |
 | `--selftest` | Test the microphone, model, transcription and clipboard |
 | `--version` | Print the version |
 | `--quit` | Stop the running app |
-| `--settings` | Open the dashboard on Settings |
-| `--history` | Open the dashboard on History |
-| `--cheat-sheet` | Open the dashboard on About (your hotkeys) |
-| `--stats` | Print usage statistics |
 | `--export-settings DIR` | Back up `user_settings.yaml` and `commands.yaml` |
 | `--import-settings DIR` | Restore from a backup |
-| `--export-transcripts FILE` | Save your history as `.txt`, `.md` or `.csv` |
-| `--add-word WORD` | Add a hotword |
-| `--remove-word WORD` | Remove a hotword |
-| `--list-dictionary` | List your hotwords |
-| `--import-vocab FOLDER` | Find hotwords in a folder of text files |
-| `--export-model [DEST]` | Copy the model to a folder for an offline computer. See [Offline models](offline-models.md). |
-| `--import-model SRC` | Install a model folder from `--export-model`. Add `--keep-in-place` to use the folder where it is. |
 | `--bundle-logs [PATH]` | Make a redacted zip for a bug report |
-| `--serve` | Run the [local API](local-api.md). `--serve-host` and `--serve-port` set the address. |
 | `--enable-autostart`, `--disable-autostart` | Start the app when you log in, or stop doing it |
-| `--transcribe-system [SECONDS]` | Transcribe system audio (experimental). Needs `pip install -e '.[loopback]'`. |
 | `--uninstall` | Remove settings, data and the autostart entry. It asks before it removes models. |
 | `--test` | Run a separate test copy of the app |

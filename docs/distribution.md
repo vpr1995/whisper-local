@@ -90,7 +90,7 @@ it's noted here as a future polish item, not a blocker.
 Once trusted publishing is set up, every tag publishes. Users then:
 
 ```bash
-pip install whisper-local      # or: pip install 'whisper-local[whispercpp]' for the cpp backend
+pip install whisper-local
 ```
 
 To test a release on TestPyPI first, see `docs/publishing-to-pypi.md`.

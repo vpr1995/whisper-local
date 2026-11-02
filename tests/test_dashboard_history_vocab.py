@@ -155,6 +155,14 @@ class VocabularyApiTests(TempDataDirTestCase):
         super().setUp()
         self.api = VocabularyApi()
 
+    # The Words card warns only when the selected engine ignores words.
+    def test_engine_note_follows_the_selected_engine(self):
+        from whisper_key.dashboard.api.vocabulary import selected_engine_ignores_words
+        models = {'parakeet-v3': {'backend': 'parakeet'}, 'base': {}}
+        self.assertTrue(selected_engine_ignores_words({'model': 'parakeet-v3', 'models': models}))
+        self.assertTrue(selected_engine_ignores_words({'backend': 'parakeet', 'model': 'base', 'models': models}))
+        self.assertFalse(selected_engine_ignores_words({'model': 'base', 'models': models}))
+
     def test_hotword_add_remove_round_trip(self):
         self.assertTrue(self.api.add_word('Kubernetes'))
         self.assertFalse(self.api.add_word('Kubernetes'))

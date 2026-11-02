@@ -185,7 +185,7 @@ class SystemTray:
         threading.Thread(target=work, daemon=True, name='tray-dictation-toggle').start()
 
     # Shows the dashboard on `page`; if it is already open it just navigates.
-    def _open_dashboard(self, page: str = "home", icon=None, item=None):
+    def open_dashboard(self, page: str = "home"):
         from . import window_launcher
         window_launcher.open_dashboard(page, on_app_command=self._handle_dashboard_command)
 
@@ -278,12 +278,12 @@ class SystemTray:
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
                     "Open Whisper Local…",
-                    lambda icon, item: self._open_dashboard(page="home"),
+                    lambda icon, item: self.open_dashboard(page="home"),
                     default=not owns_console,
                 ),
                 pystray.MenuItem(
                     "Settings…",
-                    lambda icon, item: self._open_dashboard(page="settings"),
+                    lambda icon, item: self.open_dashboard(page="settings"),
                 ),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("Quit Whisper Local", self._quit_application_from_tray),

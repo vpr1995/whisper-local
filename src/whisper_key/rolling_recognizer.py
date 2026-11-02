@@ -2,8 +2,8 @@
 # Live preview from an offline model (Moonshine v2 via sherpa-onnx). Offline
 # models are far more accurate on fast speech than small streaming models, so we
 # re-decode the current phrase a few times a second on a worker thread, and a
-# pause closes the phrase. Mirrors StreamingRecognizer's API, so
-# ContinuousStreamingRecognizer drives either one.
+# pause closes the phrase. ContinuousStreamingRecognizer (streaming_manager.py)
+# drives it.
 import logging
 import os
 import threading
@@ -77,9 +77,15 @@ class RollingRecognizer:
                 self.logger.warning(f"Missing streaming model file: {name}")
                 return False
 
-        self.recognizer = sherpa_onnx.OfflineRecognizer.from_moonshine_v2(
-            encoder=paths['encoder'], decoder=paths['decoder'], tokens=paths['tokens'],
-            num_threads=self.NUM_THREADS)
+        # A model that is not Moonshine v2 fails here; streaming then stays off
+        # instead of taking the app down.
+        try:
+            self.recognizer = sherpa_onnx.OfflineRecognizer.from_moonshine_v2(
+                encoder=paths['encoder'], decoder=paths['decoder'], tokens=paths['tokens'],
+                num_threads=self.NUM_THREADS)
+        except Exception as e:
+            self.logger.warning(f"Streaming model '{self.model_type}' failed to load: {e}")
+            return False
         self._worker = threading.Thread(target=self._decode_loop, daemon=True,
                                         name='rolling-recognizer')
         self._worker.start()

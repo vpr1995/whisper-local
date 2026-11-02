@@ -88,8 +88,6 @@ Once published:
 
 ```bash
 pip install whisper-local                    # base install
-pip install 'whisper-local[whispercpp]'      # with whisper.cpp backend
-whisper-local --setup                        # interactive setup
 whisper-local                                # run the app
 ```
 

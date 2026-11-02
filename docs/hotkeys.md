@@ -14,7 +14,7 @@ Whisper Local has global shortcuts. They work in every app. This page lists each
 
 ## All shortcuts
 
-The dashboard shows your current shortcuts on Home ("Your hotkeys") and on About ("Hotkey cheat sheet"). The command `whisper-local --cheat-sheet` opens that list.
+The dashboard shows your current shortcuts on Home ("Your hotkeys") and on About ("Hotkey cheat sheet").
 
 | Action | Setting | macOS default | What it does |
 |---|---|---|---|

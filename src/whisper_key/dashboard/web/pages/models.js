@@ -394,7 +394,7 @@ registerPage('models', {
       ]);
 
       advancedView.append(ui.card(null, [
-        row('whisper.backend', 'Engine', 'faster-whisper suits most computers. whisper.cpp and Parakeet are optional installs.', controlFactories.select),
+        row('whisper.backend', 'Engine', 'faster-whisper suits most computers. Parakeet is faster on the CPU.', controlFactories.select),
         row('whisper.compute_type', 'Compute type', 'int8 is smallest and fastest. float16 needs a GPU.', controlFactories.select),
         row('whisper.beam_size', 'Beam size', 'Higher is a little more accurate but slower (1 to 10). Parakeet ignores it.', controlFactories.input),
         row('whisper.initial_prompt', 'Initial prompt', 'A sentence that nudges style, spelling or language variant. Parakeet ignores it.', controlFactories.input),

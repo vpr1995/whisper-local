@@ -24,6 +24,12 @@
 .vocab-words-add .vocab-input { width: 220px; }
 .vocab-words-add .button { height: 28px; padding: 0 12px; }
 .vocab-words-body { padding: 4px 14px 12px; }
+/* Set expectations when the selected engine ignores words */
+.vocab-engine-note {
+  margin: 4px 14px 2px; padding: 6px 10px; border-left: 3px solid var(--warning); border-radius: 4px;
+  background: var(--bg-active); color: var(--fg-secondary); font-size: 12.5px; line-height: 1.4;
+}
+.vocab-engine-note[hidden] { display: none; }
 .vocab-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .vocab-more { font-size: 12px; margin-left: 4px; }
 

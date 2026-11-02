@@ -35,7 +35,7 @@ The first rows are for macOS. The rows about the Windows `.exe` come after them.
 | Tray icon missing (Windows, not validated yet) | Windows hides tray icons by default | Click the `^` in the taskbar, drag the Whisper Local icon out |
 | App seems frozen on launch | Whisper model is downloading (first run) | Wait — `tiny` is ~75 MB, `large` is ~2.9 GB. Watch `~/.whisperkey/app.log` |
 | "Could not register hotkeys" | Another instance is already running, or another app owns the combo | `whisper-local --quit` then relaunch. Or change the hotkey |
-| GPU not used despite `device: cuda` | CTranslate2 CUDA runtime not installed | Run `whisper-local --setup` and accept the GPU install prompt |
+| GPU not used despite `device: cuda` | CTranslate2 CUDA runtime not installed | Set `onboarding.gpu: pending` in `user_settings.yaml`, restart in a terminal and accept the GPU install prompt |
 | Transcription accuracy is poor | Tiny model + noisy environment | Models page: pick `base` or `small`. Settings > Recording options > Reduce background noise (run `pip install -e '.[noise]'` first) |
 | `Rephrase failed: Ollama did not answer` in tray | Ollama is the active AI and is not running | `ollama serve` in a terminal, or use Apple Intelligence (dashboard > Style > AI) |
 | `Apple Intelligence is getting ready` / `needs Command Line Tools` | The Apple Intelligence helper is not built yet | Run `xcode-select --install`, then restart. Run `--doctor` for the reason |

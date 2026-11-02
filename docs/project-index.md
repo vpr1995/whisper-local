@@ -32,20 +32,17 @@ Open-source project maintained as `vpr1995/whisper-local` by Prudhvi Reddy Vemir
 | **Diagnostics** | `doctor.py` | `--doctor` health checks across all subsystems | - |
 | **Self-Test** | `selftest.py` | `--selftest` automated mic/model/transcribe/clipboard check | sounddevice |
 | **Log Bundler** | `bundle_logs.py` | `--bundle-logs` redacted diagnostic zip for bug reports | zipfile, re |
-| **Local API Server** | `local_server.py` | `--serve` OpenAI-compatible Whisper HTTP endpoint | http.server |
 | **Dashboard** | `dashboard/` | One pywebview window with a sidebar: Home, History, Models, Vocabulary, Style, Settings, About. Vanilla HTML/CSS/JS in `dashboard/web/`, no build step. Always runs in a child process (`--window dashboard`, opened via `window_launcher.open_dashboard(page)`). Python API per area in `dashboard/api/` (`shell.py` is shared); one `web/pages/<page>.js` per page | pywebview |
 | **Transcript History** | `transcript_log.py` + dashboard History page | Journal of past transcriptions: stored log plus the search and "Fix this everywhere" actions | json |
 | **Requirements Checklist** | `requirements_check.py` | The "What Whisper Local needs" rows on the dashboard About page (microphone, Accessibility, speech model, Apple Intelligence, Ollama) and their whitelisted fix actions. No UI | - |
 | **Hotkey Cheat Sheet** | `cheat_sheet.py` | Pure builder of the configured-hotkey rows shown on the dashboard's Home and About pages. No UI | - |
 | **Window Launcher** | `window_launcher.py` | Runs the dashboard (always) and the Tk fallback window (macOS) in child processes. The dashboard talks to the app over stdin/stdout JSON: the app sends `navigate` and the dashboard sends back `retry_last_dictation`, `toggle_pause_hotkeys` and `restart` | subprocess, json |
-| **First-Run Welcome** | `first_run.py` | One-time onboarding window on first launch | tkinter |
-| **Terminal Title** | `terminal_title.py` | Animated terminal tab title reflecting app state | - |
 | **Apple Intelligence** | `platform/macos/apple_intelligence.py` (+ Windows stub, `assets/apple_intelligence_helper.swift`) | `availability()`, `prepare()` (compiles the Swift helper once into `<app data>/apple_intelligence/`), `prewarm()` (loads the model at hotkey press) and `generate()` for Apple's on-device model. One `helper serve` process stays running between requests; a timeout kills it. Windows always reports unavailable | swiftc (Command Line Tools) |
 | **Floating Overlay** | `platform/*/overlay.py` | Floating pill: level meter, timer, streaming text. Native AppKit panel on macOS, Tk `level_overlay.py` on Windows | pyobjc / tkinter |
 | **Fallback Window** | `fallback_window.py` | Capture window when no text field is focused | tkinter |
 | **AI Provider** | `ai_provider.py` | One front door for polish, transforms and rephrase: picks Apple Intelligence (macOS 26+) or Ollama from `postprocess.ai.provider`, checks that polish (fillers, repeats, false starts, punctuation) only deleted words, holds the Ollama call and the user-facing reason texts. The helper is built in the background at app start | urllib |
 | **Transforms** | `transforms.py` | Wispr-style AI text transforms through the AI provider | ruamel.yaml |
-| **Dictionary** | `dictionary.py` | Hotword add/remove/list (`--add-word`, `--remove-word`, `--list-dictionary`) and history mining. The dashboard Vocabulary page is the GUI | ruamel.yaml |
+| **Dictionary** | `dictionary.py` | Hotword add/remove/list and history mining for the dashboard Vocabulary page | ruamel.yaml |
 | **Profiles** | `profiles.py` | Dictation/Chat/Code/Notes/Translate presets | ruamel.yaml |
 | **Per-App Rules** | `app_rules.py` | Foreground-app-specific behaviour overrides (delivery, formatting, per-app `polish`) | ruamel.yaml |
 | **Layered Defaults** | `defaults_merge.py` | Loads shipped defaults under the user's app_rules/commands/transforms/profiles, and migrates pre-0.21 full copies | ruamel.yaml |
@@ -57,23 +54,16 @@ Open-source project maintained as `vpr1995/whisper-local` by Prudhvi Reddy Vemir
 | **Hotkey Gestures** | `hotkey_gestures.py` | Double-tap-to-lock state machine for push-to-talk | threading |
 | **Whisper Mode** | `audio_gain.py` | Boosts quiet recordings before transcription | numpy |
 | **Corrections** | `corrections.py` | Persist post-transcription replacements (history "Fix this everywhere") | ruamel.yaml |
-| **System Audio** | `system_audio.py` | `--transcribe-system` loopback capture (experimental, opt-in) | soundcard |
-| **Streaming** | `streaming_manager.py` + `streaming_recognizer.py` + `rolling_recognizer.py` | Real-time partial transcription (experimental): Moonshine v2 re-decoded live (default) or a streaming Zipformer | sherpa-onnx |
+| **Streaming** | `streaming_manager.py` + `rolling_recognizer.py` | Live preview in the overlay (experimental): a Moonshine v2 model re-decoded a few times a second | sherpa-onnx |
 | **Noise Suppression** | `noise_suppression.py` | Optional spectral-gating noise reduction | noisereduce |
 | **Stats** | `stats.py` | Usage stats, streaks, daily summary | json |
-| **Audit Log** | `audit_log.py` | Optional append-only delivery audit trail | - |
 | **Update Check** | `update_check.py` | Opt-in daily GitHub release check | urllib |
 | **Uninstall** | `uninstall.py` | `--uninstall` removes settings/data/autostart, models opt-in | shutil |
 | **Settings I/O** | `settings_io.py` | `--export-settings` / `--import-settings` | shutil |
 | **Settings Store** | `settings_store.py` | Pure helpers for the dashboard Settings page: coerce form values, write them to `user_settings.yaml`, reset to defaults. No UI | ruamel.yaml |
-| **Offline Models** | `model_transfer.py` | `--export-model` / `--import-model` for HF-blocked networks | shutil, ruamel.yaml |
-| **Vocab Import** | `vocab_import.py` | `--import-vocab` hotword mining from a folder | - |
-| **Setup Wizard** | `setup_wizard.py` | `--setup` interactive first-time configuration | - |
 | **Autostart** | `autostart.py` | Opt-in launch-on-login (Windows Run key / macOS LaunchAgent) | winreg |
-| **Console Welcome** | `onboarding_tutorial.py` | One-time first-launch console welcome banner | - |
-| **Whisper.cpp Backend** | `whisper_engine_cpp.py` | Opt-in `whisper_cpp` backend mirroring WhisperEngine's API | pywhispercpp |
 | **Parakeet Backend** | `parakeet_engine.py` | Opt-in `parakeet` backend (NVIDIA Parakeet TDT v3) mirroring WhisperEngine's API | sherpa-onnx |
-| **Engine Factory** | `engine_factory.py` | Maps `whisper.backend` (or a Parakeet model) to an engine for the app, server, self-test and system audio | - |
+| **Engine Factory** | `engine_factory.py` | Maps `whisper.backend` (or a Parakeet model) to an engine for the app and self-test | - |
 | **Foreground App** | `platform/*/foreground.py` | Detects the active window/app for per-app rules | pywin32 / pyobjc |
 | **Console Control** | `platform/windows/console.py` | Show/hide/own the console window (pyapp builds) | ctypes |
 
@@ -145,4 +135,4 @@ whisper-local/
 
 ---
 
-*Last Updated: 2026-10-28 | Project Status: Active Development*
+*Last Updated: 2026-11-02 | Project Status: Active Development*

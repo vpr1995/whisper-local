@@ -57,7 +57,7 @@ class ModelRegistry:
     def get_groups_ordered(self) -> list:
         return ["official", "custom", "parakeet"]
 
-    # Whisper models load in both Whisper backends; Parakeet models only in theirs.
+    # Whisper models load on faster-whisper; Parakeet models only on Parakeet.
     @staticmethod
     def fits_backend(model: "ModelDefinition", backend: str) -> bool:
         if model.backend == "parakeet":
@@ -158,11 +158,8 @@ class ModelDefinition:
         self.group = config.get("group", "custom")
         self.enabled = config.get("enabled", True)
         self.files = config.get("files", {})
-        # Streaming models only: "transducer" (true streaming, sherpa-onnx
-        # OnlineRecognizer) or "moonshine_v2" (offline model re-decoded live).
-        self.engine = config.get("engine", "transducer")
         # Main models only: which whisper.backend can load this model.
-        # "whisper" (faster_whisper / whisper_cpp) or "parakeet".
+        # "whisper" (faster_whisper) or "parakeet".
         self.backend = config.get("backend", "whisper")
         self.is_local_path = self._check_is_local_path()
         self.cache_folder = self._derive_cache_folder()

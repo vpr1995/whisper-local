@@ -9,7 +9,7 @@
 #   5. Driving the platform event loop until shutdown
 #
 # Most --flags short-circuit and exit before the heavy app is even constructed,
-# so utility commands like --version, --doctor, --settings stay fast.
+# so utility commands like --version and --doctor stay fast.
 
 from .utils import setup_nvidia_dll_path, setup_portaudio_path
 # PortAudio DLLs ship inside the package on Windows; this prepends the right
@@ -28,13 +28,12 @@ import threading
 
 from .platform import app, permissions, console
 from .config_manager import ConfigManager
-from .terminal_title import TerminalTitle
 from .instance_manager import cleanup_pid_file, guard_against_multiple_instances
 from .utils import get_user_app_data_path, get_version
 # The audio, model, tray and hotkey stacks are imported inside the functions
 # that build them, not here. Most --flags never need them, and the model stack
-# (faster_whisper, ctranslate2) is the slowest import in the app, so --version,
-# --settings and the windows the tray opens must not wait for it.
+# (faster_whisper, ctranslate2) is the slowest import in the app, so --version
+# and the windows the tray opens must not wait for it.
 
 def setup_logging(config_manager: ConfigManager):
     log_config = config_manager.get_logging_config()
@@ -154,10 +153,10 @@ def setup_vad(vad_config):
     )
 
 def setup_streaming(streaming_config, model_registry):
-    from .streaming_manager import StreamingManager
+    from .streaming_manager import DEFAULT_STREAMING_MODEL, StreamingManager
     return StreamingManager(
         streaming_enabled=streaming_config.get('streaming_enabled', False),
-        streaming_model=streaming_config.get('streaming_model', 'standard'),
+        streaming_model=streaming_config.get('streaming_model', DEFAULT_STREAMING_MODEL),
         model_registry=model_registry
     )
 
@@ -303,6 +302,24 @@ def _int_setting(value, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
+# Marker written once the dashboard has greeted a new user. The name predates
+# the dashboard (it marked the old Tk welcome window), so people who saw that
+# window are not greeted again.
+FIRST_LAUNCH_MARKER = 'first_run_complete.txt'
+
+# First launch: open the dashboard on Home, which lists the hotkeys and links to
+# Settings (start on login) and About (diagnostics). Never blocks startup.
+def open_dashboard_on_first_launch(system_tray, logger: logging.Logger):
+    from pathlib import Path
+    marker = Path(get_user_app_data_path()) / FIRST_LAUNCH_MARKER
+    if marker.exists():
+        return
+    try:
+        system_tray.open_dashboard("home")
+        marker.write_text("ok", encoding='utf-8')
+    except Exception as e:
+        logger.debug(f"First-launch dashboard skipped: {e}")
+
 def shutdown_app(hotkey_listener, state_manager, logger: logging.Logger):
     try:
         if hotkey_listener and hotkey_listener.is_active():
@@ -345,15 +362,6 @@ def main():
     parser.add_argument('--quit', action='store_true', help='Stop a running instance and exit')
     parser.add_argument('--export-settings', metavar='PATH', help='Export user settings + commands to a directory')
     parser.add_argument('--import-settings', metavar='PATH', help='Restore user settings + commands from an export directory')
-    parser.add_argument('--stats', action='store_true', help='Show transcription stats and exit')
-    parser.add_argument('--setup', action='store_true', help='Run interactive setup wizard')
-    parser.add_argument('--export-transcripts', metavar='PATH', help='Export transcription history to .txt / .md / .csv')
-    parser.add_argument('--import-vocab', metavar='PATH', help='Scan a folder for terms and merge into whisper.hotwords')
-    parser.add_argument('--add-word', metavar='WORD', help='Add a word to your hotwords dictionary')
-    parser.add_argument('--remove-word', metavar='WORD', help='Remove a word from your hotwords dictionary')
-    parser.add_argument('--list-dictionary', action='store_true', help='Show all words in your hotwords dictionary')
-    parser.add_argument('--settings', action='store_true', help='Open the dashboard on the Settings page')
-    parser.add_argument('--history', action='store_true', help='Open the dashboard on the History page')
     # Internal: how window_launcher opens a window in its own process (the
     # dashboard everywhere; the Tk fallback window where Tk must own the main thread, macOS).
     # Not meant to be typed by users.
@@ -362,41 +370,14 @@ def main():
     parser.add_argument('--enable-autostart', action='store_true', help='Launch Whisper Local automatically at login')
     parser.add_argument('--disable-autostart', action='store_true', help='Stop launching at login')
     parser.add_argument('--selftest', action='store_true', help='Run automated self-test (mic, model, transcription, clipboard)')
-    parser.add_argument('--cheat-sheet', action='store_true', help='Open the dashboard on About, which lists your configured hotkeys')
     parser.add_argument('--bundle-logs', metavar='PATH', nargs='?', const='', help='Create a redacted diagnostic zip for bug reports')
-    parser.add_argument('--serve', action='store_true', help='Run a local OpenAI-compatible Whisper API server')
-    parser.add_argument('--serve-host', default='127.0.0.1', help='Server bind host (default: 127.0.0.1)')
-    parser.add_argument('--serve-port', type=int, default=7777, help='Server bind port (default: 7777)')
     parser.add_argument('--uninstall', action='store_true',
                         help='Remove settings, data, autostart entry and (optionally) downloaded models')
-    parser.add_argument('--export-model', metavar='DEST', nargs='?', const='',
-                        help='Copy the configured model into a portable folder for an offline '
-                             'machine (defaults to your Desktop)')
-    parser.add_argument('--import-model', metavar='SRC',
-                        help='Install a model folder produced by --export-model and make it active')
-    parser.add_argument('--keep-in-place', action='store_true',
-                        help='With --import-model: reference the folder where it is (e.g. a network share) instead of copying')
-    parser.add_argument('--transcribe-system', metavar='SECONDS', nargs='?', const=10, type=int,
-                        help='Transcribe N seconds of system audio / loopback (default 10). '
-                             'Needs the loopback extra: pip install whisper-local[loopback]. EXPERIMENTAL.')
     args = parser.parse_args()
 
-    # '' means the flag was given with no path → export_model picks the default.
     if args.uninstall:
         from .uninstall import run_uninstall
         sys.exit(run_uninstall())
-
-    if args.export_model is not None:
-        from .model_transfer import export_model
-        sys.exit(export_model(args.export_model or None))
-
-    if args.import_model:
-        from .model_transfer import import_model
-        sys.exit(import_model(args.import_model, keep_in_place=args.keep_in_place))
-
-    if args.transcribe_system is not None:  # 0 is a valid (if silly) value; None = flag absent
-        from .system_audio import run_cli
-        sys.exit(run_cli(args.transcribe_system))
 
     if args.version:
         print(f"whisper-local {get_version()}")
@@ -417,47 +398,9 @@ def main():
         from .settings_io import import_settings
         sys.exit(import_settings(args.import_settings))
 
-    if args.stats:
-        from .stats import show_stats
-        stats_config = ConfigManager(quiet=True).config.get('stats') or {}
-        sys.exit(show_stats(stats_config.get('typing_wpm')))
-
-    if args.setup:
-        from .setup_wizard import run_wizard
-        sys.exit(run_wizard())
-
-    if args.export_transcripts:
-        from .stats import export_transcripts
-        sys.exit(export_transcripts(args.export_transcripts))
-
-    if args.import_vocab:
-        from .vocab_import import import_vocab
-        sys.exit(import_vocab(args.import_vocab))
-
-    if args.add_word:
-        from .dictionary import add_word
-        sys.exit(0 if add_word(args.add_word) else 1)
-
-    if args.remove_word:
-        from .dictionary import remove_word
-        sys.exit(0 if remove_word(args.remove_word) else 1)
-
-    if args.list_dictionary:
-        from .dictionary import show_dictionary
-        sys.exit(show_dictionary())
-
     if args.window:
         from .window_launcher import run_window
         sys.exit(run_window(args.window, sys.stdin))
-
-    # Dashboard CLI shortcuts: no app is running here, so the dashboard takes
-    # this process's main thread directly (pywebview needs it) and blocks until
-    # the window closes.
-    dashboard_page = ('settings' if args.settings else 'history' if args.history
-                      else 'about' if args.cheat_sheet else None)
-    if dashboard_page:
-        from .dashboard import run_dashboard
-        sys.exit(run_dashboard(dashboard_page))
 
     if args.enable_autostart:
         from . import autostart
@@ -480,10 +423,6 @@ def main():
     if args.bundle_logs is not None:
         from .bundle_logs import bundle_logs
         sys.exit(bundle_logs(args.bundle_logs or None))
-
-    if args.serve:
-        from .local_server import run_server
-        sys.exit(run_server(args.serve_host, args.serve_port))
 
     console.setup()
     sys.stdout.write("\033]0;Whisper Local\007")
@@ -559,10 +498,6 @@ def main():
         audio_feedback = setup_audio_feedback(audio_feedback_config)
         voice_command_manager = setup_voice_commands(voice_commands_config, clipboard_manager, log_transcriptions, config_manager)
 
-        # Terminal tab title mirrors app state for people running in a visible
-        # terminal. Self-disables when stdout isn't a TTY, so it costs nothing
-        # under a windowless launch.
-        terminal_title = TerminalTitle(config_manager.get_terminal_title_config())
         state_manager = StateManager(
             audio_recorder=None,
             whisper_engine=whisper_engine,
@@ -572,7 +507,6 @@ def main():
             audio_feedback=audio_feedback,
             vad_manager=vad_manager,
             voice_command_manager=voice_command_manager,
-            terminal_title=terminal_title
         )
         audio_recorder = setup_audio_recorder(audio_config, state_manager, vad_manager, streaming_manager)
         system_tray = setup_system_tray(tray_config, config_manager, state_manager, model_registry, console_config)
@@ -591,7 +525,6 @@ def main():
             raise
 
         system_tray.start()
-        terminal_title.start()
 
         # Without Accessibility, hotkeys and auto-paste are dead. Ask, keep
         # running, and restart the hotkey listener once it is granted.
@@ -611,33 +544,7 @@ def main():
         config_manager.print_startup_hotkey_instructions()
         print("   [CTRL+C] to quit", flush=True)
 
-        try:
-            from .onboarding_tutorial import needs_tutorial, show_console_welcome
-            from .utils import beautify_hotkey
-            if needs_tutorial():
-                hk = {
-                    'record': beautify_hotkey(hotkey_config.get('recording_hotkey', '')),
-                    'rephrase': beautify_hotkey(hotkey_config.get('rephrase_hotkey', '')),
-                    'command': beautify_hotkey(hotkey_config.get('command_hotkey', '')) if voice_commands_config['enabled'] else '',
-                    'cancel': beautify_hotkey(hotkey_config.get('cancel_combination', '')),
-                    'pause': beautify_hotkey(hotkey_config.get('pause_hotkey', '')),
-                }
-                show_console_welcome(hotkeys=hk, notify=lambda msg: system_tray.notify(msg))
-        except Exception as e:
-            logger.debug(f"Onboarding skipped: {e}")
-
-        try:
-            from .first_run import is_first_run, show_welcome_window
-            from .utils import beautify_hotkey
-            if is_first_run():
-                # Blocks here on macOS, where Tk must own the main thread for
-                # as long as the window is open (issue #14).
-                show_welcome_window(
-                    hotkey_label=beautify_hotkey(hotkey_config.get('recording_hotkey', 'ctrl+win')),
-                    shutdown_event=shutdown_event,
-                )
-        except Exception as e:
-            logger.debug(f"First-run welcome skipped: {e}")
+        open_dashboard_on_first_launch(system_tray, logger)
 
         try:
             from .stats import maybe_show_daily_summary

@@ -16,8 +16,6 @@ Apple Intelligence makes no network call. It runs on your Mac.
 
 During dictation there is **zero network traffic**. The entry points are in [`onboarding.py`](../src/whisper_key/onboarding.py), [`update_check.py`](../src/whisper_key/update_check.py), [`ai_provider.py`](../src/whisper_key/ai_provider.py) and the model download code. Each is behind a setting or a prompt. Search the source for `urllib` if you want to check.
 
-The local API server (`--serve`) listens on your own computer. It does not call out. See [Local API](local-api.md).
-
 ## What the app stores
 
 All files are in `~/.whisperkey` on your Mac.
@@ -27,7 +25,6 @@ All files are in `~/.whisperkey` on your Mac.
 | `transcripts.jsonl` | The text of your last 2000 dictations. This feeds the History page. |
 | `stats.jsonl` | Counts, durations and app names. Never the text. |
 | `app.log` | Logs. It holds your dictated text only if `logging.log_transcriptions` is `true`. The default is `false`. |
-| `audit.log` | Off by default. Records when text was delivered, without the text. |
 
 The "Retry last dictation" feature keeps your last recording in memory only. The app never writes it to disk.
 

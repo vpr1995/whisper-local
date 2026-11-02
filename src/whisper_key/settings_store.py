@@ -99,7 +99,7 @@ MODEL_SETTING_RULES = {
     'whisper.device': dict(kind='select', options=[('cpu', 'Processor (CPU)'), ('cuda', 'Graphics card (GPU)')]),
     'whisper.unload_after_minutes': dict(kind='number', min=0, max=1440, integer=False, unit='min'),
     'whisper.backend': dict(kind='select', options=[('faster_whisper', 'faster-whisper'),
-                                                    ('whisper_cpp', 'whisper.cpp'), ('parakeet', 'Parakeet')]),
+                                                    ('parakeet', 'Parakeet')]),
     'whisper.compute_type': dict(kind='select', options=[('int8', 'int8'), ('float16', 'float16'),
                                                          ('float32', 'float32')]),
     'whisper.beam_size': dict(kind='number', min=1, max=10, integer=True),

@@ -53,11 +53,11 @@ whisper-local
 1. Run `whisper-local` in a terminal.
 2. The app picks a speech model for your computer and language. It prints the choice and the reason. For English on a Mac, the choice is Parakeet v3 (about 670 MB).
 3. The app downloads the model. One progress line shows the percentage and the megabytes.
-4. A small welcome window opens on the first start only. It has three tips.
-5. Open the dashboard from the menu bar icon: **Open Whisper Local**. Or run `whisper-local --settings`.
+4. On the first start only, the dashboard opens on Home. Home lists your hotkeys.
+5. To open the dashboard again, click the menu bar icon, then **Open Whisper Local**.
 6. Click in any text field. Hold `fn+ctrl`, speak, and release.
 
-After the download, the app works offline. To pick a model yourself, see [Models](models.md). To use the app without access to huggingface.co, see [Offline models](offline-models.md).
+After the download, the app works offline. To pick a model yourself, see [Models](models.md).
 
 ## macOS permissions
 

@@ -25,7 +25,7 @@ The History page keeps a searchable list of what you dictated. The Vocabulary pa
 - **Delete** needs a second click on the same button. The app cannot recover a deleted dictation.
 - The page loads 200 dictations at a time. Click **Load more** for older ones.
 
-Open the page from the sidebar, or run `whisper-local --history`.
+Open the page from the sidebar.
 
 ## Delete many dictations at once
 
@@ -46,8 +46,6 @@ The fix is a whole-word, case-insensitive replacement. It applies to your next d
 ## Export
 
 Click **Export...** to save the dictations that match your search. The save dialog offers Markdown (`.md`) or text (`.txt`).
-
-From the terminal, `whisper-local --export-transcripts FILE` writes `.txt`, `.md` or `.csv`, by the file name you give.
 
 ## How long history is kept
 
@@ -74,15 +72,6 @@ Hotwords are names and terms that you want the model to spell right. The **Words
 The **Heard often** row suggests words from your own history. Click one to add it.
 
 Hotwords work with Whisper only. Parakeet ignores them, because they made it return empty or wrong text on short dictations. If Parakeet spells a name wrong, use **Fix this everywhere** in History.
-
-From the terminal:
-
-```bash
-whisper-local --add-word "Kubernetes"
-whisper-local --remove-word "Kubernetes"
-whisper-local --list-dictionary
-whisper-local --import-vocab ~/Documents/notes     # find terms in a folder of text files
-```
 
 The words are stored in `whisper.hotwords` in `user_settings.yaml`.
 

@@ -161,78 +161,11 @@ class WhisperBackendTests(unittest.TestCase):
             cfg = YAML().load(f)
         self.assertEqual(cfg["whisper"].get("backend"), "faster_whisper")
 
-    def test_whisper_cpp_module_imports_lazily(self):
-        # Import the module — the heavy pywhispercpp import is lazy inside __init__
-        from whisper_key import whisper_engine_cpp
-        self.assertTrue(hasattr(whisper_engine_cpp, 'WhisperEngineCpp'))
-
-    def test_optional_dep_declared(self):
-        import tomllib
-        with open(ROOT / "pyproject.toml", "rb") as f:
-            data = tomllib.load(f)
-        extras = data.get("project", {}).get("optional-dependencies", {})
-        self.assertIn("whispercpp", extras)
-        self.assertTrue(any("pywhispercpp" in d for d in extras["whispercpp"]))
-
-
-class WhisperCppTranscribeTests(unittest.TestCase):
-    # A stand-in for pywhispercpp's Model: records each transcribe call's
-    # kwargs and returns segments without the leading space whisper.cpp omits.
-    def _make_engine(self, **engine_kwargs):
-        import contextlib
-        import io
-        import types
-        from unittest import mock
-        import numpy as np
-        # The engine prints emoji progress lines, and the Windows runner's
-        # console is cp1252. The app itself switches stdout to UTF-8 first.
-        quiet = contextlib.redirect_stdout(io.StringIO())
-        quiet.__enter__()
-        self.addCleanup(quiet.__exit__, None, None, None)
-
-        calls = []
-
-        class FakeModel:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def transcribe(self, audio, **kwargs):
-                calls.append(kwargs)
-                return [types.SimpleNamespace(text="Bonjour."),
-                        types.SimpleNamespace(text="Ensuite ")]
-
-        fake_module = types.ModuleType("pywhispercpp.model")
-        fake_module.Model = FakeModel
-        with mock.patch.dict(sys.modules, {"pywhispercpp": types.ModuleType("pywhispercpp"),
-                                           "pywhispercpp.model": fake_module}):
-            from whisper_key.whisper_engine_cpp import WhisperEngineCpp
-            engine = WhisperEngineCpp(model_key="small", **engine_kwargs)
-        calls.clear()  # drop the warmup call
-        return engine, calls, np.zeros(16000, dtype=np.float32)
-
-    def test_auto_language_is_passed_explicitly(self):
-        # pywhispercpp defaults to 'en', which silently translates French speech
-        engine, calls, audio = self._make_engine(language="auto")
-        engine.transcribe_audio(audio)
-        self.assertEqual(calls[-1]["language"], "auto")
-
-    def test_translate_is_reset_after_a_translated_call(self):
-        # pywhispercpp keeps params between calls, so translate must be sent as False too
-        engine, calls, audio = self._make_engine(task="translate")
-        engine.transcribe_audio(audio)
-        engine.task = "transcribe"
-        engine.transcribe_audio(audio)
-        self.assertEqual([c["translate"] for c in calls], [True, False])
-
-    def test_segments_are_joined_with_spaces(self):
-        engine, calls, audio = self._make_engine()
-        self.assertEqual(engine.transcribe_audio(audio), "Bonjour. Ensuite")
-
 
 class IdleModelUnloaderTests(unittest.TestCase):
     # The policy around the engine: unload only when enabled, the app is
     # between recordings, and no model switch is running. The engine's own
-    # "idle long enough" check is exercised by WhisperCppIdleUnloadTests.
+    # "idle long enough" check is exercised by EngineIdleUnloadTests.
     class FakeEngine:
         def __init__(self):
             self.loading = False
@@ -279,69 +212,6 @@ class IdleModelUnloaderTests(unittest.TestCase):
     def test_short_timeout_polls_at_least_that_often(self):
         unloader, _, _ = self._make(minutes=0.25)
         self.assertEqual(unloader.poll_seconds, 15.0)
-
-
-class WhisperCppIdleUnloadTests(unittest.TestCase):
-    # Engine half of idle unload, on the whisper.cpp engine because it runs
-    # without the ML stack. WhisperEngine mirrors the same methods.
-    _make_engine = WhisperCppTranscribeTests._make_engine
-
-    def _make_counting_engine(self):
-        engine, calls, audio = self._make_engine()
-        created = []
-        original_create = engine._create_model
-        engine._create_model = lambda key: created.append(key) or original_create(key)
-        return engine, calls, audio, created
-
-    def test_recent_use_is_not_idle(self):
-        engine, _, _, _ = self._make_counting_engine()
-        self.assertFalse(engine.unload_if_idle(60))
-        self.assertIsNotNone(engine.model)
-
-    def test_unload_then_transcribe_reloads_the_model(self):
-        engine, calls, audio, created = self._make_counting_engine()
-        self.assertTrue(engine.unload_if_idle(0))
-        self.assertIsNone(engine.model)
-        self.assertEqual(engine.transcribe_audio(audio), "Bonjour. Ensuite")
-        self.assertEqual(created, ["small"])
-
-    def test_unload_gives_up_while_a_transcription_holds_the_model(self):
-        engine, _, _, _ = self._make_counting_engine()
-        import threading
-        holder_ready, release = threading.Event(), threading.Event()
-
-        def hold_lock():
-            with engine._model_lock:
-                holder_ready.set()
-                release.wait(5)
-
-        holder = threading.Thread(target=hold_lock)
-        holder.start()
-        holder_ready.wait(5)
-        try:
-            self.assertFalse(engine.unload_if_idle(0))
-        finally:
-            release.set()
-            holder.join()
-        self.assertIsNotNone(engine.model)
-
-    def test_unload_and_reload_notify_the_ui(self):
-        engine, _, audio, _ = self._make_counting_engine()
-        events = []
-        engine.on_model_state_change = lambda: events.append(engine.is_model_loaded)
-        engine.unload_if_idle(0)
-        engine.transcribe_audio(audio)
-        self.assertEqual(events, [False, True])
-
-    def test_failed_reload_is_reported_as_an_error(self):
-        engine, _, audio, _ = self._make_counting_engine()
-        engine.unload_if_idle(0)
-
-        def broken_create(key):
-            raise OSError("disk gone")
-        engine._create_model = broken_create
-        self.assertIsNone(engine.transcribe_audio(audio))
-        self.assertIn("disk gone", engine.last_error)
 
 
 class ParakeetEngineTests(unittest.TestCase):
@@ -435,6 +305,83 @@ class ParakeetEngineTests(unittest.TestCase):
             engine._create_model("parakeet-v3")
 
 
+class EngineIdleUnloadTests(unittest.TestCase):
+    # Engine half of idle unload, on the Parakeet engine because its fake runs
+    # without the ML stack. WhisperEngine mirrors the same methods.
+    def _make_engine(self, **engine_kwargs):
+        return ParakeetEngineTests._make_engine(self, **engine_kwargs)
+
+    def _make_counting_engine(self):
+        engine, calls, audio = self._make_engine()
+        created = []
+        original_create = engine._create_model
+        engine._create_model = lambda key: created.append(key) or original_create(key)
+        return engine, calls, audio, created
+
+    def test_recent_use_is_not_idle(self):
+        engine, _, _, _ = self._make_counting_engine()
+        self.assertFalse(engine.unload_if_idle(60))
+        self.assertIsNotNone(engine.model)
+
+    def test_unload_then_transcribe_reloads_the_model(self):
+        engine, calls, audio, created = self._make_counting_engine()
+        self.assertTrue(engine.unload_if_idle(0))
+        self.assertIsNone(engine.model)
+        self.assertEqual(engine.transcribe_audio(audio), "Bonjour, ensuite.")
+        self.assertEqual(created, ["parakeet-v3"])
+
+    def test_unload_gives_up_while_a_transcription_holds_the_model(self):
+        engine, _, _, _ = self._make_counting_engine()
+        import threading
+        holder_ready, release = threading.Event(), threading.Event()
+
+        def hold_lock():
+            with engine._model_lock:
+                holder_ready.set()
+                release.wait(5)
+
+        holder = threading.Thread(target=hold_lock)
+        holder.start()
+        holder_ready.wait(5)
+        try:
+            self.assertFalse(engine.unload_if_idle(0))
+        finally:
+            release.set()
+            holder.join()
+        self.assertIsNotNone(engine.model)
+
+    def test_unload_and_reload_notify_the_ui(self):
+        engine, _, audio, _ = self._make_counting_engine()
+        events = []
+        engine.on_model_state_change = lambda: events.append(engine.is_model_loaded)
+        engine.unload_if_idle(0)
+        engine.transcribe_audio(audio)
+        self.assertEqual(events, [False, True])
+
+    def test_failed_reload_is_reported_as_an_error(self):
+        engine, _, audio, _ = self._make_counting_engine()
+        engine.unload_if_idle(0)
+
+        def broken_create(key):
+            raise OSError("disk gone")
+        engine._create_model = broken_create
+        self.assertIsNone(engine.transcribe_audio(audio))
+        self.assertIn("disk gone", engine.last_error)
+
+
+class StreamingModelFallbackTests(unittest.TestCase):
+    # Old settings can name the removed Zipformer models; live preview must use
+    # the default Moonshine model rather than fail to load.
+    def test_unknown_streaming_model_falls_back_to_default(self):
+        import types
+        from whisper_key.streaming_manager import DEFAULT_STREAMING_MODEL, StreamingManager
+        registry = types.SimpleNamespace(streaming_models={DEFAULT_STREAMING_MODEL: object()})
+        manager = StreamingManager(streaming_enabled=True, streaming_model="zipformer.tiny.en",
+                                   model_registry=registry)
+        manager._fall_back_from_unknown_model()
+        self.assertEqual(manager.streaming_model, DEFAULT_STREAMING_MODEL)
+
+
 class BackendSelectionTests(unittest.TestCase):
     MODELS = {
         'base': {'label': 'Base', 'group': 'official'},
@@ -459,7 +406,6 @@ class BackendSelectionTests(unittest.TestCase):
 
     def test_whisper_backends_keep_whisper_models(self):
         registry = self._registry()
-        self.assertEqual(registry.resolve('base', 'whisper_cpp'), ('whisper_cpp', 'base'))
         self.assertEqual(registry.resolve('base', 'faster_whisper'), ('faster_whisper', 'base'))
 
     def test_model_menu_only_lists_loadable_models(self):
@@ -484,15 +430,14 @@ class BackendSelectionTests(unittest.TestCase):
                 self.assertTrue(registry.is_model_cached('parakeet-v3'))
 
     def test_factory_maps_every_backend_to_an_engine(self):
-        import types
-        from unittest import mock
         from whisper_key import engine_factory
-        fake_cpp = types.ModuleType("pywhispercpp.model")
-        fake_cpp.Model = object
-        with mock.patch.dict(sys.modules, {"pywhispercpp": types.ModuleType("pywhispercpp"),
-                                           "pywhispercpp.model": fake_cpp}):
-            self.assertEqual(engine_factory.engine_class('whisper_cpp').__name__, 'WhisperEngineCpp')
         self.assertEqual(engine_factory.engine_class('parakeet').__name__, 'ParakeetEngine')
+
+    def test_removed_backend_falls_back_to_faster_whisper(self):
+        # An old user_settings.yaml naming a backend this version dropped must still start
+        from whisper_key import engine_factory
+        self.assertEqual(engine_factory.resolve_backend({'backend': 'whisper_cpp', 'model': 'base'}, None),
+                         ('faster_whisper', 'base'))
 
     def test_factory_applies_overrides(self):
         from unittest import mock
@@ -560,7 +505,7 @@ class AutoModelTests(unittest.TestCase):
 
 class SleepingTrayStateTests(unittest.TestCase):
     # With the model unloaded after idle, "idle" is shown as "sleeping" in the
-    # tray and terminal title, and the engine's unload/reload callback repaints
+    # tray, and the engine's unload/reload callback repaints
     # only while the app is idle.
     def _state_manager(self, model_loaded):
         import logging
@@ -584,7 +529,6 @@ class SleepingTrayStateTests(unittest.TestCase):
         sm.audio_recorder = mock.Mock()
         sm.audio_recorder.get_recording_status.return_value = False
         sm.system_tray = mock.Mock()
-        sm.terminal_title = mock.Mock()
         sm.whisper_engine = mock.Mock(is_model_loaded=model_loaded)
         return sm
 
@@ -592,7 +536,6 @@ class SleepingTrayStateTests(unittest.TestCase):
         sm = self._state_manager(model_loaded=False)
         sm._update_ui_state("idle")
         sm.system_tray.update_state.assert_called_with("sleeping")
-        sm.terminal_title.update_state.assert_called_with("sleeping")
 
     def test_idle_with_model_loaded_stays_idle(self):
         sm = self._state_manager(model_loaded=True)
@@ -1195,222 +1138,6 @@ class TranscriptLogTests(unittest.TestCase):
         self.assertEqual(len(entries), 0)
 
 
-class ModelTransferTests(unittest.TestCase):
-    # Offline model transfer for locked-down networks where huggingface.co is
-    # blocked. These use a stub model folder so they never need a real download.
-    def _stub_model(self, root, name="whisper-local-model-base"):
-        from pathlib import Path
-        folder = Path(root) / name
-        folder.mkdir(parents=True)
-        (folder / "model.bin").write_bytes(b"weights")
-        (folder / "config.json").write_text('{"model_type":"whisper"}', encoding="utf-8")
-        (folder / "tokenizer.json").write_text("{}", encoding="utf-8")
-        return folder
-
-    def test_export_destination_with_a_dot_is_not_rewritten(self):
-        # Regression: an earlier version treated any dot in DEST as a file
-        # extension and stripped it, so "D:\transfer.v2" silently became
-        # "D:\transfer" and the model landed in the wrong directory.
-        import tempfile
-        import unittest.mock as mock
-        from pathlib import Path
-        from whisper_key import model_transfer
-        # export_model pulls ModelRegistry -> faster_whisper, absent in lean CI.
-        try:
-            import faster_whisper  # noqa: F401
-        except Exception:
-            self.skipTest("faster_whisper not installed")
-        with tempfile.TemporaryDirectory() as root:
-            dest = Path(root) / "transfer.v2"
-            snapshot = self._stub_model(root, name="snap")
-            with mock.patch.object(model_transfer, '_find_cached_snapshot', return_value=snapshot):
-                with mock.patch('whisper_key.config_manager.ConfigManager') as CM:
-                    CM.return_value.get_whisper_config.return_value = {'model': 'base', 'models': {}}
-                    rc = model_transfer.export_model(str(dest))
-            # Assert INSIDE the context — the temp tree is gone once it exits.
-            self.assertEqual(rc, 0)
-            self.assertTrue((dest / "whisper-local-model-base" / "model.bin").exists(),
-                            "export must land inside the dotted destination, not a truncated one")
-            self.assertFalse((Path(root) / "transfer").exists(),
-                             "must not create a truncated path")
-
-    def test_export_to_missing_drive_explains_itself(self):
-        # Reported in use: `--export-model D:\transfer` on a machine with no D:
-        # drive produced a raw "[WinError 3] cannot find the path", which doesn't
-        # tell the user the actual problem. The message must name the drive and
-        # offer a destination that exists.
-        import io
-        import contextlib
-        from pathlib import Path
-        from whisper_key import model_transfer
-        if sys.platform != 'win32':
-            self.skipTest("drive-letter validation is Windows-only")
-        # Find a drive letter that genuinely doesn't exist on this machine.
-        import os
-        import string
-        free = [d for d in string.ascii_uppercase if not os.path.exists(d + ':' + os.sep)]
-        if not free:
-            self.skipTest("no unused drive letter to test with")
-        problem = model_transfer._validate_destination(Path(f"{free[0]}:\\transfer"))
-        self.assertTrue(problem, "missing drive must be reported as a problem")
-        self.assertIn(f"{free[0]}:", problem)
-        self.assertIn("Drives on this machine", problem)
-        self.assertIn("--export-model", problem)  # actionable suggestion
-
-    def test_export_default_destination_is_usable(self):
-        from pathlib import Path
-        from whisper_key import model_transfer
-        default = model_transfer._default_export_dir()
-        self.assertTrue(Path(default).is_dir(), "default export dir must exist")
-        self.assertEqual(model_transfer._validate_destination(Path(default)), "")
-
-    def test_import_rejects_non_model_folder(self):
-        import tempfile
-        from whisper_key import model_transfer
-        with tempfile.TemporaryDirectory() as d:
-            self.assertEqual(model_transfer.import_model(d), 1)  # empty dir
-            self.assertEqual(model_transfer.import_model(d + "/nope"), 1)  # missing
-
-    def test_import_registers_and_activates_model(self):
-        import tempfile
-        import unittest.mock as mock
-        from pathlib import Path
-        from ruamel.yaml import YAML
-        from whisper_key import model_transfer
-        with tempfile.TemporaryDirectory() as src_root, tempfile.TemporaryDirectory() as appdata:
-            bundle = self._stub_model(src_root)
-            with mock.patch.object(model_transfer, 'get_user_app_data_path', return_value=appdata):
-                rc = model_transfer.import_model(str(bundle))
-            self.assertEqual(rc, 0)
-            settings = Path(appdata) / "user_settings.yaml"
-            data = YAML().load(settings.read_text(encoding="utf-8"))
-            key = data["whisper"]["model"]
-            self.assertEqual(key, "local-base")
-            entry = data["whisper"]["models"][key]
-            self.assertTrue(Path(entry["source"]).is_dir())
-            # Model files must have been copied, not just referenced.
-            self.assertTrue((Path(entry["source"]) / "model.bin").exists())
-
-    def test_import_keep_in_place_does_not_copy(self):
-        # The network-share case: IT hosts one copy, every machine points at it.
-        import tempfile
-        import unittest.mock as mock
-        from pathlib import Path
-        from ruamel.yaml import YAML
-        from whisper_key import model_transfer
-        with tempfile.TemporaryDirectory() as src_root, tempfile.TemporaryDirectory() as appdata:
-            bundle = self._stub_model(src_root)
-            with mock.patch.object(model_transfer, 'get_user_app_data_path', return_value=appdata):
-                rc = model_transfer.import_model(str(bundle), keep_in_place=True)
-            self.assertEqual(rc, 0)
-            data = YAML().load((Path(appdata) / "user_settings.yaml").read_text(encoding="utf-8"))
-            entry = data["whisper"]["models"][data["whisper"]["model"]]
-            self.assertEqual(Path(entry["source"]), bundle)
-            self.assertFalse((Path(appdata) / "models").exists())
-
-    def test_imported_model_is_seen_as_cached_by_registry(self):
-        # The whole point: a local path must count as "already downloaded" so the
-        # app never tries to reach huggingface.co for it.
-        import tempfile
-        try:
-            from whisper_key.model_registry import ModelRegistry
-        except Exception:
-            self.skipTest("model_registry not importable (faster_whisper absent)")
-        with tempfile.TemporaryDirectory() as d:
-            bundle = self._stub_model(d)
-            reg = ModelRegistry(whisper_models_config={
-                'local-base': {'source': str(bundle), 'label': 'x', 'group': 'custom'}})
-            self.assertTrue(reg.get_model('local-base').is_local_path)
-            self.assertTrue(reg.is_model_cached('local-base'))
-            self.assertEqual(reg.get_source('local-base'), str(bundle))
-
-    def test_registered_settings_survive_existing_content(self):
-        # Registering must not wipe the user's other settings/comments.
-        import tempfile
-        import unittest.mock as mock
-        from pathlib import Path
-        from ruamel.yaml import YAML
-        from whisper_key import model_transfer
-        with tempfile.TemporaryDirectory() as src_root, tempfile.TemporaryDirectory() as appdata:
-            settings = Path(appdata) / "user_settings.yaml"
-            settings.write_text(
-                "# my header\nwhisper:\n  hotwords:\n    - Kubernetes\naudio:\n  max_duration: 90\n",
-                encoding="utf-8")
-            bundle = self._stub_model(src_root)
-            with mock.patch.object(model_transfer, 'get_user_app_data_path', return_value=appdata):
-                model_transfer.import_model(str(bundle))
-            data = YAML().load(settings.read_text(encoding="utf-8"))
-            self.assertEqual(list(data["whisper"]["hotwords"]), ["Kubernetes"])
-            self.assertEqual(data["audio"]["max_duration"], 90)
-            self.assertEqual(data["whisper"]["model"], "local-base")
-
-
-class SystemAudioTests(unittest.TestCase):
-    # The real capture path needs audio hardware (verified separately); here we
-    # test the plumbing: graceful absence of soundcard, and mono/rate shaping.
-    def test_capture_without_soundcard_returns_none(self):
-        import io
-        import contextlib
-        # Simulate soundcard being ABSENT even when it's actually installed:
-        # binding the name to None in sys.modules makes `import soundcard` raise
-        # ImportError (documented CPython behaviour). Merely popping it would let
-        # a real installed copy be re-imported, so this test would pass only on
-        # machines without the optional extra.
-        saved = sys.modules.get('soundcard')
-        sys.modules['soundcard'] = None
-        try:
-            from whisper_key import system_audio
-            self.assertFalse(system_audio.is_available())
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                out = system_audio.capture_loopback(1)
-            self.assertIsNone(out)
-            self.assertIn('loopback', buf.getvalue().lower())
-        finally:
-            # Restore exactly: put back a real module, or REMOVE the None
-            # sentinel entirely — leaving it would break soundcard imports for
-            # every later test in this process.
-            if saved is not None:
-                sys.modules['soundcard'] = saved
-            else:
-                sys.modules.pop('soundcard', None)
-
-    def test_capture_with_mock_soundcard_returns_mono_float32(self):
-        import types
-        import numpy as np
-
-        class _Rec:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-            def record(self, numframes):
-                return np.full((numframes, 2), 0.5, dtype=np.float32)  # stereo
-
-        class _Mic:
-            def recorder(self, samplerate, channels):
-                return _Rec()
-
-        class _Spk:
-            name = 'Speakers'
-
-        fake = types.ModuleType('soundcard')
-        fake.default_speaker = lambda: _Spk()
-        fake.get_microphone = lambda id, include_loopback=False: _Mic()
-        sys.modules['soundcard'] = fake
-        try:
-            from whisper_key import system_audio
-            out = system_audio.capture_loopback(1, samplerate=16000)
-            self.assertIsNotNone(out)
-            self.assertEqual(out.ndim, 1)              # collapsed to mono
-            self.assertEqual(str(out.dtype), 'float32')
-            self.assertEqual(len(out), 16000)          # 1s @ 16 kHz
-        finally:
-            del sys.modules['soundcard']
-
-
 class ModelDownloadProgressTests(unittest.TestCase):
     # First-run UX: a download shows a percentage of the real size, not silence.
     def test_progress_line_shows_percent_and_sizes(self):
@@ -1558,34 +1285,6 @@ class HotwordSuggestTests(unittest.TestCase):
         self.assertEqual(suggest_hotwords(texts, min_count=2), [])
 
 
-class OnboardingBannerTests(unittest.TestCase):
-    # UX #4b: the first-launch banner must reflect the user's ACTUAL configured
-    # hotkeys (and notify message), not hardcoded Windows defaults.
-    def test_banner_uses_supplied_hotkeys(self):
-        import io
-        import contextlib
-        import unittest.mock as mock
-        from whisper_key import onboarding_tutorial
-        seen = {}
-
-        def fake_notify(msg):
-            seen['notify'] = msg
-
-        buf = io.StringIO()
-        with mock.patch.object(onboarding_tutorial, 'mark_complete', lambda: None):
-            with contextlib.redirect_stdout(buf):
-                onboarding_tutorial.show_console_welcome(
-                    hotkeys={'record': 'F9', 'rephrase': 'F10', 'command': 'F11',
-                             'cancel': 'F12', 'pause': 'F8'},
-                    notify=fake_notify,
-                )
-        out = buf.getvalue()
-        self.assertIn('F9', out)
-        self.assertIn('F10', out)
-        self.assertNotIn('Ctrl+Win', out)  # no leaked default
-        self.assertEqual(seen.get('notify'), 'Welcome! Hold F9 to start dictating.')
-
-
 class PostprocessHotReloadTests(unittest.TestCase):
     # UX #1/#3: editing postprocess in user_settings.yaml applies on next dictation
     # (get_postprocess_config) without an app restart.
@@ -1711,21 +1410,19 @@ class SelftestModuleTests(unittest.TestCase):
         self.assertEqual(failures[0][0], "fake-2")
 
 
-class FirstRunTests(unittest.TestCase):
-    def test_flag_file_lifecycle(self):
+class FirstLaunchDashboardTests(unittest.TestCase):
+    # The dashboard's Home page is the welcome: shown once, then never again.
+    def test_dashboard_opens_on_home_only_on_the_first_launch(self):
+        import logging
         import tempfile
         import unittest.mock as mock
-        from whisper_key import first_run
-
+        from whisper_key import main as main_module
+        tray = mock.Mock()
         with tempfile.TemporaryDirectory() as tmpdir:
-            with mock.patch('whisper_key.first_run.get_user_app_data_path', return_value=tmpdir):
-                self.assertTrue(first_run.is_first_run())
-                first_run.mark_first_run_complete()
-                self.assertFalse(first_run.is_first_run())
-
-    def test_show_welcome_module_importable(self):
-        from whisper_key import first_run
-        self.assertTrue(hasattr(first_run, 'show_welcome_window'))
+            with mock.patch.object(main_module, 'get_user_app_data_path', return_value=tmpdir):
+                main_module.open_dashboard_on_first_launch(tray, logging.getLogger())
+                main_module.open_dashboard_on_first_launch(tray, logging.getLogger())
+        tray.open_dashboard.assert_called_once_with("home")
 
 
 class CheatSheetTests(unittest.TestCase):
@@ -1777,38 +1474,19 @@ class BundleLogsTests(unittest.TestCase):
                 self.assertIn('doctor.txt', names)
 
 
-class LocalServerTests(unittest.TestCase):
-    def test_module_importable(self):
-        from whisper_key import local_server
-        self.assertTrue(hasattr(local_server, 'run_server'))
-        self.assertEqual(local_server.DEFAULT_PORT, 7777)
-
-    def test_decode_wav_fallback(self):
-        import io
-        import wave
-        import numpy as np
-        from whisper_key.local_server import _decode_wav_fallback
-
-        with io.BytesIO() as buf:
-            with wave.open(buf, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(16000)
-                samples = (np.sin(2 * np.pi * 440 * np.arange(16000) / 16000) * 32767).astype(np.int16)
-                wf.writeframes(samples.tobytes())
-            wav_bytes = buf.getvalue()
-
-        decoded = _decode_wav_fallback(wav_bytes)
-        self.assertEqual(decoded.dtype, np.float32)
-        self.assertEqual(len(decoded), 16000)
-        self.assertGreater(float(np.max(np.abs(decoded))), 0.5)
-
-
 class MainCliFlagsTests(unittest.TestCase):
     def test_main_registers_new_flags(self):
         main_src = (ROOT / "src" / "whisper_key" / "main.py").read_text(encoding="utf-8")
-        for flag in ('--selftest', '--cheat-sheet', '--bundle-logs', '--serve'):
+        for flag in ('--selftest', '--bundle-logs', '--doctor'):
             self.assertIn(flag, main_src, f"main.py should register {flag}")
+
+    # Dashboard duplicates and niche tools were removed in 0.23; the dashboard
+    # is the one place for history, stats, vocabulary and settings.
+    def test_removed_flags_stay_removed(self):
+        main_src = (ROOT / "src" / "whisper_key" / "main.py").read_text(encoding="utf-8")
+        for flag in ('--stats', '--history', '--settings', '--cheat-sheet', '--setup',
+                     '--export-transcripts', '--add-word', '--remove-word', '--list-dictionary'):
+            self.assertNotIn(f"'{flag}'", main_src, flag)
 
 
 class TroubleshootingDocTests(unittest.TestCase):
@@ -1833,53 +1511,6 @@ class VersionBumpTests(unittest.TestCase):
         citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
         self.assertIn(f"version: {pyproject_version}", citation,
                       "CITATION.cff version must match pyproject.toml")
-
-
-class _FakeHandler:
-    """Minimal stand-in for BaseHTTPRequestHandler for parser tests."""
-    def __init__(self, body: bytes, boundary: str, content_length=None):
-        import io
-        self.headers = {
-            'Content-Type': f'multipart/form-data; boundary={boundary}',
-            'Content-Length': str(content_length if content_length is not None else len(body)),
-        }
-        self.rfile = io.BytesIO(body)
-
-
-def _build_multipart(boundary: str, file_bytes: bytes) -> bytes:
-    b = boundary.encode()
-    return (
-        b'--' + b + b'\r\n'
-        b'Content-Disposition: form-data; name="file"; filename="a.wav"\r\n'
-        b'Content-Type: application/octet-stream\r\n\r\n'
-        + file_bytes + b'\r\n'
-        b'--' + b + b'--\r\n'
-    )
-
-
-class LocalServerSecurityTests(unittest.TestCase):
-    # SRV-1: binary audio ending in 0x2D ('-') must NOT be truncated.
-    def test_parse_multipart_preserves_trailing_dashes(self):
-        from whisper_key.local_server import _parse_multipart
-        audio = b'\x00\x01\x02\x2d\x2d\x2d'  # ends in three dashes
-        body = _build_multipart('BoUnDaRy123', audio)
-        fields = _parse_multipart(_FakeHandler(body, 'BoUnDaRy123'))
-        self.assertEqual(fields['file']['data'], audio)
-
-    # SRV-2: oversized Content-Length is rejected before the body is read.
-    def test_oversized_content_length_rejected(self):
-        from whisper_key import local_server
-        huge = local_server.MAX_UPLOAD_BYTES + 1
-        handler = _FakeHandler(b'x', 'B', content_length=huge)
-        with self.assertRaises(ValueError):
-            local_server._parse_multipart(handler)
-
-    # SEC #3: negative Content-Length must be rejected (read(-1) would drain socket).
-    def test_negative_content_length_rejected(self):
-        from whisper_key import local_server
-        handler = _FakeHandler(b'x', 'B', content_length=-1)
-        with self.assertRaises(ValueError):
-            local_server._parse_multipart(handler)
 
 
 class BundleRedactionTests(unittest.TestCase):
@@ -2493,30 +2124,6 @@ class MergedFeatureTests(unittest.TestCase):
                'replacements': [{'from': 'budget', 'to': 'spend'}]}
         self.assertEqual(postprocess('the cap x budget', cfg), 'the CAPEX spend')
 
-    # --- Terminal tab title ---
-    def test_terminal_title_parses_static_and_animated_states(self):
-        from whisper_key.terminal_title import TerminalTitle
-        t = TerminalTitle({'idle': '', 'recording': [['R', 0.1], ['  ', 0.2]],
-                           'processing': '...'})
-        self.assertEqual(t._frames['idle'], [('Whisper Local', 60.0)])
-        self.assertEqual(t._frames['recording'],
-                         [('R Whisper Local', 0.1), ('   Whisper Local', 0.2)])
-        self.assertEqual(t._frames['processing'], [('... Whisper Local', 60.0)])
-
-    def test_terminal_title_falls_back_on_bad_frames(self):
-        from whisper_key.terminal_title import TerminalTitle
-        t = TerminalTitle({'recording': [['R', 'not-a-number']], 'idle': {'bad': 1}})
-        # Bad frames fall back to the shipped defaults rather than raising.
-        self.assertTrue(t._frames['recording'])
-        self.assertEqual(t._frames['idle'], [('Whisper Local', 60.0)])
-
-    def test_terminal_title_lifecycle_is_safe_without_a_tty(self):
-        from whisper_key.terminal_title import TerminalTitle
-        t = TerminalTitle({})
-        t.update_state('recording')
-        t.start()
-        t.stop()  # must not raise even when disabled
-
     # --- Startup ready sound ---
     def test_ready_sound_wired_and_asset_present(self):
         import inspect
@@ -2543,9 +2150,6 @@ class MergedFeatureTests(unittest.TestCase):
         self.assertTrue(cfg['audio_feedback']['ready_enabled'])
         self.assertEqual(cfg['audio_feedback']['ready_sound'],
                          'assets/sounds/app_ready.wav')
-        self.assertIn('terminal_title', cfg)
-        for state in ('idle', 'recording', 'processing'):
-            self.assertIn(state, cfg['terminal_title'])
         # Shipping defaults must not alter ordinary text.
         from whisper_key.text_postprocess import postprocess
         self.assertEqual(postprocess('hello world', dict(cfg['postprocess'])), 'hello world')
@@ -3392,159 +2996,6 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
         overlay.show_recording()
         overlay.flash_failure('still safe')
 
-    def test_welcome_runs_inline_on_macos_and_threaded_elsewhere(self):
-        import threading
-        import unittest.mock as mock
-        from whisper_key import first_run
-        seen = []
-        done = threading.Event()
-
-        def fake_run(on_close, hotkey_label, shutdown_event):
-            seen.append(threading.current_thread() is threading.main_thread())
-            done.set()
-        event = threading.Event()
-        with mock.patch.object(first_run, '_run_welcome', fake_run):
-            with mock.patch('whisper_key.utils.tk_requires_main_thread', return_value=True):
-                first_run.show_welcome_window(shutdown_event=event)
-            with mock.patch('whisper_key.utils.tk_requires_main_thread', return_value=False):
-                done.clear()
-                first_run.show_welcome_window(shutdown_event=event)
-                self.assertTrue(done.wait(2))
-        self.assertEqual(seen, [True, False])
-
-    # A just-enough tkinter for the welcome window. mainloop() models the real
-    # one: it only returns once quit() has been called, because with the macOS
-    # preload root alive, destroy() alone never ends it.
-    def _run_welcome_with_fake_tk(self, drive, shutdown_event=None, text_class=None):
-        import types
-        import unittest.mock as mock
-        calls = []
-
-        class Widget:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def __getattr__(self, name):
-                return lambda *args, **kwargs: None
-
-        # Only a variable owned by the window sees its checkbox's tick. Real
-        # tkinter puts a variable with no master on the process's first root.
-        class BooleanVar(Widget):
-            def __init__(self, master=None, value=False):
-                self.value = value
-                if master is not None:
-                    master.variables.append(self)
-
-            def get(self):
-                return self.value
-
-        class Tk(Widget):
-            def __init__(self):
-                self.after_callbacks = []
-                self.close_handler = None
-                self.variables = []
-
-            def protocol(self, name, handler):
-                self.close_handler = handler
-
-            def after(self, ms, callback, *args):
-                self.after_callbacks.append(lambda: callback(*args))
-
-            def quit(self):
-                calls.append('quit')
-
-            # Real destroy() deletes the Tcl commands behind the window's
-            # callbacks, which drops their references to it.
-            def destroy(self):
-                calls.append('destroy')
-                self.after_callbacks.clear()
-                self.close_handler = None
-
-            def mainloop(self):
-                calls.append('mainloop')
-                drive(self)
-                if 'quit' not in calls:
-                    raise AssertionError('mainloop() would never return: quit() was not called')
-                calls.append('mainloop returned')
-
-        tkinter = types.ModuleType('tkinter')
-        tkinter.Tk = Tk
-        tkinter.Frame = tkinter.Label = tkinter.Button = tkinter.Checkbutton = Widget
-        tkinter.Text = text_class or Widget
-        tkinter.BooleanVar = BooleanVar
-        on_close = mock.Mock()
-        from whisper_key import first_run
-        with mock.patch.dict(sys.modules, {'tkinter': tkinter}), \
-             mock.patch.object(first_run, 'mark_first_run_complete') as mark:
-            first_run._run_welcome(on_close, 'CTRL+WIN', shutdown_event)
-        return calls, on_close, mark
-
-    def test_welcome_dismissal_quits_before_destroying(self):
-        calls, on_close, mark = self._run_welcome_with_fake_tk(lambda root: root.close_handler())
-        self.assertEqual(calls, ['mainloop', 'quit', 'mainloop returned', 'destroy'])
-        mark.assert_called_once()
-        on_close.assert_called_once()
-
-    # The welcome window has a box to dictate into right away, so the first
-    # launch proves the hotkey, the mic and the paste before it closes.
-    def test_welcome_offers_a_box_to_try_dictation_in(self):
-        boxes = []
-
-        class Text:
-            def __init__(self, *args, **kwargs):
-                self.inserted = []
-                self.bound = []
-                boxes.append(self)
-
-            def insert(self, index, text):
-                self.inserted.append(text)
-
-            def bind(self, sequence, handler, add=None):
-                self.bound.append(sequence)
-
-            def __getattr__(self, name):
-                return lambda *args, **kwargs: None
-
-        self._run_welcome_with_fake_tk(lambda root: root.close_handler(), text_class=Text)
-        self.assertEqual(len(boxes), 1, 'exactly one try-it box')
-        hint = ''.join(boxes[0].inserted)
-        self.assertIn('CTRL+WIN', hint, 'the hint names the actual recording hotkey')
-        self.assertIn('<<Paste>>', boxes[0].bound,
-                      'the hint must clear on paste, or the dictation lands after it')
-
-    def test_welcome_closes_on_shutdown_without_counting_as_dismissed(self):
-        import threading
-        event = threading.Event()
-
-        def drive(root):
-            event.set()  # SIGTERM arrives while the window is open
-            for callback in list(root.after_callbacks):
-                callback()
-        calls, on_close, mark = self._run_welcome_with_fake_tk(drive, shutdown_event=event)
-        self.assertIn('quit', calls)
-        self.assertEqual(calls[-1], 'destroy')
-        mark.assert_not_called()
-        on_close.assert_not_called()
-
-    def test_main_hands_the_welcome_window_the_shutdown_event(self):
-        source = (ROOT / 'src' / 'whisper_key' / 'main.py').read_text(encoding='utf-8')
-        call = source[source.index('show_welcome_window('):]
-        call = call[:call.index(')\n')]
-        self.assertIn('shutdown_event=shutdown_event', call)
-
-    # --- #17: the welcome window's "start on login" box did nothing on macOS ---
-    def test_welcome_autostart_tick_enables_autostart(self):
-        import unittest.mock as mock
-
-        def tick_then_dismiss(root):
-            for variable in root.variables:
-                variable.value = True  # what clicking the Checkbutton does
-            root.close_handler()
-        with mock.patch('whisper_key.autostart.is_supported', return_value=True), \
-             mock.patch('whisper_key.autostart.enable') as enable:
-            self._run_welcome_with_fake_tk(tick_then_dismiss)
-        enable.assert_called_once()
-
     # --- #14 follow-through: every other Tk window on macOS ---
     def test_windows_stay_in_process_where_tk_threads_are_fine(self):
         import unittest.mock as mock
@@ -3603,20 +3054,6 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
         self.assertFalse(payload['allow_clipboard'])
         self.assertTrue(payload['reason'], 'the default reason must travel with it')
 
-    # --settings / --history / --cheat-sheet open the dashboard in this process
-    # (a standalone CLI run owns the main thread pywebview needs).
-    def test_cli_flags_open_the_dashboard_on_their_page(self):
-        import unittest.mock as mock
-        from whisper_key import main as main_module
-        for flag, page in (('--settings', 'settings'), ('--history', 'history'),
-                           ('--cheat-sheet', 'about')):
-            with mock.patch('whisper_key.dashboard.run_dashboard', return_value=0) as run, \
-                 mock.patch.object(sys, 'argv', ['whisper-local', flag]):
-                with self.assertRaises(SystemExit) as raised:
-                    main_module.main()
-            self.assertEqual(raised.exception.code, 0, flag)
-            run.assert_called_once_with(page)
-
     def test_removed_tk_windows_are_gone(self):
         src_dir = ROOT / 'src' / 'whisper_key'
         for removed in ('settings_ui.py', 'history_window.py'):
@@ -3629,30 +3066,6 @@ class UserReportedLateSeptemberTests(unittest.TestCase):
         line = line[:line.index('\n')]
         for name in WINDOW_NAMES:
             self.assertIn(repr(name), line)
-
-    # --- #18: SIGTRAP after the welcome window closed on macOS ---
-    def test_welcome_window_is_freed_when_it_closes(self):
-        # Tcl aborts the process if an interpreter is deleted off the thread
-        # that created it. The window's root has to be freed when _run_welcome()
-        # returns, on this thread. The garbage collector runs on whichever thread
-        # happens to trigger it, so it must not be the one to free it.
-        import gc
-        import threading
-        import weakref
-        roots = []
-
-        def dismiss(root):
-            roots.append(weakref.ref(root))
-            root.close_handler()
-        gc_was_enabled = gc.isenabled()
-        gc.disable()
-        try:
-            self._run_welcome_with_fake_tk(dismiss, shutdown_event=threading.Event())
-            self.assertIsNone(roots[0](), 'a reference cycle is keeping the closed window alive')
-        finally:
-            if gc_was_enabled:
-                gc.enable()
-
 
 class WisprStyleFeatureTests(unittest.TestCase):
     """Wispr Flow–style editing added in 0.20.0: backtrack, stutters, spoken
@@ -5244,12 +4657,6 @@ class WisprOctoberFeatureTests(unittest.TestCase):
         self.assertEqual(coerce('en, fr', 'whisper.languages'), ['en', 'fr'])
         self.assertEqual(coerce('', 'whisper.languages'), [])
 
-    def test_whisper_cpp_engine_mirrors_the_language_api(self):
-        src = (ROOT / 'src' / 'whisper_key' / 'whisper_engine_cpp.py').read_text(encoding='utf-8')
-        self.assertIn('languages: Optional[list] = None', src)
-        self.assertIn('def _language_from_allowed', src)
-        self.assertIn('auto_detect_language', src)
-
     # --- retry last dictation ---
     def test_retry_with_nothing_recorded_says_so(self):
         sm = self._state_manager()
@@ -5267,7 +4674,6 @@ class WisprOctoberFeatureTests(unittest.TestCase):
         sm.clipboard_manager = mock.Mock(silent_copy_allowed=True)
         sm.fallback_window = mock.Mock()
         sm.recent_transcriptions = __import__('collections').deque(maxlen=10)
-        sm.terminal_title = mock.Mock()
         sm._retry_worker(sm._last_audio)
         sm.whisper_engine.transcribe_audio.assert_called_once_with(sm._last_audio)
         self.assertEqual(sm.fallback_window.show.call_args[0][0], 'hello there')

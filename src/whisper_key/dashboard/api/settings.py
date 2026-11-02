@@ -273,8 +273,6 @@ def _build_catalogue(config: dict) -> list:
                     _options(*[(level, level.capitalize()) for level in ('DEBUG', 'INFO', 'WARNING', 'ERROR')])),
             _toggle('logging.log_transcriptions', 'Log transcribed text',
                     'Writes what you say into the log file. Off keeps your words private.'),
-            _toggle('audit.enabled', 'Delivery audit log',
-                    'Keeps a private record of when text was delivered, without the text.'),
         ]),
         _section('experimental', 'Experimental', 'app-more', [
             _toggle('streaming.streaming_enabled', 'Live preview (experimental)',

@@ -5,8 +5,8 @@
 # happen on a background thread with progress callbacks so the UI stays live.
 # With idle unload on (see idle_unload.py) the model may be dropped between
 # dictations; transcribe_audio() reloads it on demand.
-# `whisper_engine_cpp.py` mirrors this class's API for the opt-in whisper.cpp
-# backend — keep the two signatures in sync.
+# `parakeet_engine.py` mirrors this class's API for the Parakeet backend; keep
+# the two signatures in sync.
 
 import gc
 import logging
@@ -281,14 +281,13 @@ class WhisperEngine:
         except Exception as e:
             self.logger.debug(f"Whisper warmup skipped: {e}")
 
-    # Mono float32 @ 16 kHz in, plain text out (None/'' when there's no speech).
-    # An optional VAD pre-check short-circuits silent clips so we don't pay for a
-    # full decode on an accidental hotkey press. Callers rely on this contract —
-    # whisper_engine_cpp and system_audio both feed it the same array shape.
     # Dictionary words, refreshed before each transcription (state_manager).
     def set_hotwords(self, hotwords: Optional[list]):
         self.hotwords = ", ".join(hotwords) if hotwords else None
 
+    # Mono float32 @ 16 kHz in, plain text out (None/'' when there's no speech).
+    # An optional VAD pre-check short-circuits silent clips so we don't pay for a
+    # full decode on an accidental hotkey press.
     def transcribe_audio(self,
                          audio_data: np.ndarray) -> Optional[str]:
         if audio_data is None or len(audio_data) == 0:

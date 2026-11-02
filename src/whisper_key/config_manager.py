@@ -379,8 +379,8 @@ class ConfigManager:
                 fresh = resolved.get(section)
                 if fresh is not None:
                     self.config[section] = fresh
-            # Dictionary words too: Settings, the dashboard and
-            # --add-word all write the file while the app runs.
+            # Dictionary words too: the dashboard's Settings and
+            # Vocabulary pages write the file while the app runs.
             self.config.setdefault('whisper', {})['hotwords'] = \
                 (resolved.get('whisper') or {}).get('hotwords') or []
             self.logger.debug("Reloaded postprocess/history config from disk")
@@ -392,9 +392,6 @@ class ConfigManager:
     def get_hotwords(self) -> list:
         self._reload_postprocess_if_changed()
         return list(self.config.get('whisper', {}).get('hotwords') or [])
-
-    def get_terminal_title_config(self) -> Dict[str, Any]:
-        return self.config.get('terminal_title', {}).copy()
 
     def get_streaming_config(self) -> Dict[str, Any]:
         return self.config.get('streaming', {}).copy()

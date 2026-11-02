@@ -128,11 +128,13 @@ class ModelsApiTests(unittest.TestCase):
     def setUp(self):
         from whisper_key.model_registry import ModelRegistry
         cached = mock.patch.object(ModelRegistry, 'is_model_cached', lambda self, key: key == 'base')
+        # engine_factory binds pick_model at import, so patch it there too:
+        # whether it was imported before this test depends on test order.
         pick = mock.patch('whisper_key.auto_model.pick_model', return_value=('base', 'covers en'))
-        self.addCleanup(cached.stop)
-        self.addCleanup(pick.stop)
-        cached.start()
-        pick.start()
+        factory_pick = mock.patch('whisper_key.engine_factory.pick_model', return_value=('base', 'covers en'))
+        for patcher in (cached, pick, factory_pick):
+            self.addCleanup(patcher.stop)
+            patcher.start()
         self.config = FakeConfig(whisper=dict(WHISPER_CONFIG))
         self.api = make_api(models_api.ModelsApi, self.config)
 

@@ -4,18 +4,21 @@
 # plain edits of user_settings.yaml; the running app hot-reloads them, so changes
 # apply on the next dictation without a restart.
 
-import contextlib
-import io
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-# dictionary.add_word/remove_word print CLI feedback; swallow it so a GUI action
-# never writes to the launcher's stdout.
-def _quiet(function, *args):
-    with contextlib.redirect_stdout(io.StringIO()):
-        return function(*args)
+# True when the engine the user selected cannot use Words (hotwords). Parakeet
+# ignores them: its hotword search dropped or garbled short dictations, so
+# parakeet_engine.py turns them off. A Parakeet model runs on Parakeet whatever
+# whisper.backend says (ModelRegistry.resolve), and `auto` may pick one.
+# Reads only the config, so the page never imports the model stack.
+def selected_engine_ignores_words(whisper_cfg: dict) -> bool:
+    from ...engine_factory import resolve_backend
+    backend, model_key = resolve_backend(whisper_cfg, None)
+    model_cfg = (whisper_cfg.get('models') or {}).get(model_key) or {}
+    return backend == 'parakeet' or model_cfg.get('backend') == 'parakeet'
 
 
 class VocabularyApi:
@@ -33,14 +36,25 @@ class VocabularyApi:
                          for item in corrections.list_snippets()],
         }
 
+    # Lets the Words card say up front when the selected engine ignores words,
+    # so a word that "does nothing" is not a surprise.
+    def get_words_engine(self) -> dict:
+        from ...config_manager import ConfigManager
+        try:
+            whisper_cfg = ConfigManager(quiet=True).get_whisper_config()
+            return {'ignores_words': selected_engine_ignores_words(whisper_cfg), 'engine': 'Parakeet'}
+        except Exception as e:
+            logger.debug(f"Could not tell which engine is selected: {e}")
+            return {'ignores_words': False, 'engine': ''}
+
     # False when the word is empty or already present.
     def add_word(self, word: str) -> bool:
         from ... import dictionary
-        return _quiet(dictionary.add_word, word)
+        return dictionary.add_word(word)
 
     def remove_word(self, word: str) -> bool:
         from ... import dictionary
-        return _quiet(dictionary.remove_word, word)
+        return dictionary.remove_word(word)
 
     # Frequent proper-noun-like words from the user's history, as [{word, count}].
     # Never added automatically: the page offers them as one-click chips.

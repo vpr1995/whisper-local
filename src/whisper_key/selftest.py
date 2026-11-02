@@ -84,7 +84,7 @@ def _test_audio_capture():
 
 # Stage 2 — verify the configured Whisper model is resolvable without actually
 # loading it (model load itself happens in stage 3). Catches typos, deleted
-# custom models, and the whisper_cpp-without-pywhispercpp case.
+# custom models, and a backend whose runtime is not installed.
 def _test_model_loadable():
     try:
         from .config_manager import ConfigManager
@@ -148,7 +148,7 @@ def _test_end_to_end():
         return True, f"Transcribed 2s of silence in {elapsed:.2f}s (model warmup included)"
     except Exception as e:
         return False, (f"Transcription failed: {e}",
-                       "Run --doctor for more detail. Try `whisper-local --setup` if model never loaded.")
+                       "Run --doctor for more detail.")
 
 
 # Stage 4 — verify clipboard round-trip. The original clipboard contents are

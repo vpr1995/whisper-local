@@ -17,9 +17,7 @@ The dashboard is one window with a sidebar. It has seven pages and a status bar.
 ## Open the dashboard
 
 - Click the menu bar icon, then **Open Whisper Local**.
-- Run `whisper-local --settings` to open it on Settings.
-- Run `whisper-local --history` to open it on History.
-- Run `whisper-local --cheat-sheet` to open it on About.
+- On the first start, the dashboard opens on Home by itself.
 
 The dashboard runs in its own process. It never blocks the menu bar icon or your dictation. When you quit the app, the dashboard closes.
 

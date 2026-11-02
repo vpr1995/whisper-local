@@ -65,7 +65,6 @@ On the first start the app downloads one speech model, then works offline. macOS
 - **Your own words.** Hotwords, replacements and snippets. [History and vocabulary](docs/history-and-vocabulary.md)
 - **Voice commands.** Say a phrase to press a shortcut, type text or run a command. [Voice commands](docs/voice-commands.md)
 - **Live preview.** See words in the floating pill while you speak (experimental). [Streaming](docs/streaming.md)
-- **A local Whisper API.** `whisper-local --serve` gives an OpenAI-style endpoint on your machine. [Local API](docs/local-api.md)
 - **Checks and logs.** `--doctor`, `--selftest` and `--bundle-logs` find problems fast. [Troubleshooting](docs/troubleshooting.md)
 
 ## Documentation
@@ -81,10 +80,9 @@ On the first start the app downloads one speech model, then works offline. macOS
 | [Per-app rules](docs/per-app-rules.md) | Profiles, per-app behavior, writing styles |
 | [Voice commands](docs/voice-commands.md) | The `commands.yaml` format |
 | [Configuration](docs/configuration.md) | Config files, key settings, command-line flags |
-| [Local API](docs/local-api.md) | The OpenAI-style server |
 | [Privacy](docs/privacy.md) | Every network call the app can make |
 | [FAQ](docs/faq.md) and [Troubleshooting](docs/troubleshooting.md) | Questions and fixes |
-| [GPU setup](docs/gpu-setup.md), [Streaming](docs/streaming.md), [Offline models](docs/offline-models.md) | Special setups |
+| [GPU setup](docs/gpu-setup.md), [Streaming](docs/streaming.md) | Special setups |
 | [CHANGELOG](CHANGELOG.md) | Release notes |
 
 For maintainers: [distribution](docs/distribution.md), [publishing to PyPI](docs/publishing-to-pypi.md), [project index](docs/project-index.md), [CONTRIBUTING](CONTRIBUTING.md).

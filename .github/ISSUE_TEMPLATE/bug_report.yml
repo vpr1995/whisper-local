@@ -78,7 +78,7 @@ body:
       label: Whisper backend
       options:
         - faster_whisper (default)
-        - whisper_cpp
+        - parakeet
     validations:
       required: true
 

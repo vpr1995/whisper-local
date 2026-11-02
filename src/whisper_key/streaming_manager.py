@@ -1,22 +1,24 @@
 # streaming_manager.py
-# Lifecycle owner for the optional streaming recogniser: decides whether
-# streaming is available at all (model present, feature enabled), constructs
-# continuous recognisers, and feeds them audio chunks. Every method is safe to
-# call when streaming is disabled so callers need no feature checks.
+# Lifecycle owner for the optional live preview: decides whether streaming is
+# available at all (model present, feature enabled), builds the Moonshine
+# rolling recogniser and feeds it audio chunks. Every method is safe to call
+# when streaming is disabled so callers need no feature checks.
 import logging
 import threading
 from typing import TYPE_CHECKING, Optional, Callable
 
 from .rolling_recognizer import RollingRecognizer
-from .streaming_recognizer import StreamingRecognizer
 
 if TYPE_CHECKING:
     from .model_registry import ModelRegistry
 
+# Same as streaming.streaming_model in config.defaults.yaml.
+DEFAULT_STREAMING_MODEL = "moonshine.base.en"
+
 
 class ContinuousStreamingRecognizer:
     def __init__(self,
-                 recognizer: StreamingRecognizer,
+                 recognizer: RollingRecognizer,
                  result_callback: Optional[Callable[[str, bool], None]] = None):
         self.recognizer = recognizer
         self.result_callback = result_callback
@@ -72,12 +74,12 @@ class ContinuousStreamingRecognizer:
 class StreamingManager:
     def __init__(self,
                  streaming_enabled: bool = False,
-                 streaming_model: str = "standard",
+                 streaming_model: str = DEFAULT_STREAMING_MODEL,
                  model_registry: "ModelRegistry" = None):
         self.streaming_enabled = streaming_enabled
         self.streaming_model = streaming_model
         self.model_registry = model_registry
-        self.recognizer = None  # StreamingRecognizer or RollingRecognizer
+        self.recognizer = None
         self._model_loaded = False
         self.logger = logging.getLogger(__name__)
 
@@ -92,7 +94,8 @@ class StreamingManager:
         if self._model_loaded:
             return True
 
-        self.recognizer = self._recognizer_class()(
+        self._fall_back_from_unknown_model()
+        self.recognizer = RollingRecognizer(
             model_type=self.streaming_model,
             model_registry=self.model_registry
         )
@@ -108,12 +111,14 @@ class StreamingManager:
 
         return success
 
-    # Offline models (Moonshine) re-decode the phrase live; transducers stream.
-    def _recognizer_class(self):
-        model = self.model_registry.streaming_models.get(self.streaming_model) if self.model_registry else None
-        if model and model.engine == "moonshine_v2":
-            return RollingRecognizer
-        return StreamingRecognizer
+    # An old user_settings.yaml can still name a removed model (the Zipformer
+    # streaming models went in 0.23); use the default Moonshine model instead.
+    def _fall_back_from_unknown_model(self) -> None:
+        if not self.model_registry or self.streaming_model in self.model_registry.streaming_models:
+            return
+        self.logger.warning(f"Streaming model '{self.streaming_model}' is not defined; "
+                            f"using '{DEFAULT_STREAMING_MODEL}'")
+        self.streaming_model = DEFAULT_STREAMING_MODEL
 
     def is_available(self) -> bool:
         return self.streaming_enabled and self._model_loaded and self.recognizer is not None

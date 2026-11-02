@@ -1,6 +1,6 @@
 # transcript_log.py
 # Append-only journal of every successful transcription. Backs the
-# History page (`--history`) so users can search their dictation history.
+# History page so users can search their dictation history.
 # Separate from `stats.jsonl` (which only stores metadata) — this file
 # contains the actual transcribed text and is auto-rotated to keep the
 # last ~2000 entries.

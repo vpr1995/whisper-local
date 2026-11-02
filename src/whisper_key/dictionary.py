@@ -1,8 +1,8 @@
 # dictionary.py
 # Manages `whisper.hotwords` — the list of names and jargon Whisper is biased
 # toward, which is the cheapest way to fix recurring misrecognitions. Provides
-# CLI add/remove/list and history mining that suggests hotwords from words the
-# user actually dictates (the dashboard's Vocabulary page is the GUI). Writes
+# add/remove/list for the dashboard's Vocabulary page and history mining that
+# suggests hotwords from words the user actually dictates. Writes
 # user_settings.yaml directly (round-trip YAML) so it works without a running app.
 
 import logging
@@ -44,13 +44,11 @@ def add_word(word: str) -> bool:
     whisper = data.setdefault('whisper', {})
     current = list(whisper.get('hotwords') or [])
     if word in current:
-        print(f"   '{word}' already in dictionary")
         return False
     current.append(word)
     whisper['hotwords'] = current
     with open(user_path, 'w', encoding='utf-8') as f:
         yaml.dump(data, f)
-    print(f"   ✓ Added '{word}' to whisper.hotwords ({len(current)} total)")
     return True
 
 
@@ -67,14 +65,12 @@ def remove_word(word: str) -> bool:
     whisper = data.get('whisper') or {}
     current = list(whisper.get('hotwords') or [])
     if word not in current:
-        print(f"   '{word}' not found in dictionary")
         return False
     current.remove(word)
     whisper['hotwords'] = current
     data['whisper'] = whisper
     with open(user_path, 'w', encoding='utf-8') as f:
         yaml.dump(data, f)
-    print(f"   ✓ Removed '{word}' from dictionary ({len(current)} left)")
     return True
 
 
@@ -135,19 +131,3 @@ def suggest_hotwords_from_history(min_count: int = 3, limit: int = 20) -> List[t
     texts = [e.get('text', '') for e in load_transcripts()]
     return suggest_hotwords(texts, known=set(list_hotwords()),
                             min_count=min_count, limit=limit)
-
-
-def show_dictionary() -> int:
-    words = list_hotwords()
-    if not words:
-        print("Dictionary is empty. Add words with: whisper-local --add-word NAME")
-        return 0
-    print(f"\nWhisper Local — Dictionary ({len(words)} word{'s' if len(words) != 1 else ''})\n")
-    for w in sorted(words, key=str.lower):
-        print(f"  • {w}")
-    print()
-    print("Edit via:")
-    print("  whisper-local --add-word NAME")
-    print("  whisper-local --remove-word NAME")
-    print(f"  Or open {Path(get_user_app_data_path()) / USER_SETTINGS} directly\n")
-    return 0

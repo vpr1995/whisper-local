@@ -8,11 +8,9 @@ A speech model turns your voice into text. Whisper Local downloads a model once,
 - [Auto model choice](#auto-model-choice)
 - [Whisper sizes](#whisper-sizes)
 - [Parakeet v3](#parakeet-v3)
-- [whisper.cpp](#whispercpp)
 - [Language](#language)
 - [Free memory when idle](#free-memory-when-idle)
 - [GPU](#gpu)
-- [Offline models](#offline-models)
 - [Live preview](#live-preview)
 
 ## The Models page
@@ -65,17 +63,7 @@ Parakeet v3 is NVIDIA's Parakeet TDT model. It runs through sherpa-onnx, which i
 - On an M1 Pro CPU it was about 3 times faster than Whisper `small.en` over a mix of clips. On short dictations it was about 7 times faster (0.14 s against 1.0 s for a 3.6 s phrase). These figures come from the project's own tests.
 - It **cannot translate**. The Translate profile needs a Whisper model.
 - It ignores `beam_size` and `initial_prompt`.
-- It uses your hotwords. See [History and vocabulary](history-and-vocabulary.md#hotwords).
-
-## whisper.cpp
-
-An opt-in second backend. [whisper.cpp](https://github.com/ggerganov/whisper.cpp) can be faster on Apple silicon and uses less memory. The project's config notes say so. It is not the default.
-
-```bash
-pip install -e '.[whispercpp]'      # run in your clone, inside the venv
-```
-
-Then set `whisper.backend: whisper_cpp` in `user_settings.yaml`. Models download from huggingface.co on first use.
+- It ignores hotwords. Use **Fix this everywhere** in History for a name it gets wrong. See [History and vocabulary](history-and-vocabulary.md#hotwords).
 
 ## Language
 
@@ -91,10 +79,6 @@ This works on CPU only. With a GPU the setting is ignored. Set it on the Models 
 ## GPU
 
 A Mac has no CUDA GPU, so leave **Run on** at **CPU**. NVIDIA (CUDA) and AMD (ROCm) GPUs work on Windows and Linux in the code. That path is **not validated yet** in this fork. See [GPU setup](gpu-setup.md).
-
-## Offline models
-
-The app needs huggingface.co once, to download a model. If your network blocks it, copy the model from another computer. `whisper-local --export-model` and `whisper-local --import-model` do this. See [Offline models](offline-models.md).
 
 ## Live preview
 

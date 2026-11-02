@@ -52,6 +52,8 @@ function buildWordsCard(api, refresh) {
 
   const countLabel = el('span', { class: 'vocab-count' });
   const chipArea = el('div', { class: 'vocab-words-body' });
+  // Shown only when the selected engine ignores words (see setEngine below).
+  const engineNote = el('div', { class: 'vocab-engine-note', hidden: true });
 
   const addWord = async (word) => {
     const trimmed = word.trim();
@@ -97,7 +99,7 @@ function buildWordsCard(api, refresh) {
     el('div', { class: 'vocab-words-head' },
       el('h3', { class: 'compact-title', text: 'Words' }), countLabel,
       el('span', { class: 'vocab-words-add' }, wordInput, ui.button('Add', submitTypedWord, { variant: 'primary' }))),
-    chipArea);
+    engineNote, chipArea);
 
   return {
     node: card,
@@ -106,6 +108,14 @@ function buildWordsCard(api, refresh) {
       words = vocabulary.words;
       if (newSuggestions) suggestions = newSuggestions;
       redrawChips();
+    },
+    // `engine` = { ignores_words, engine } from get_words_engine.
+    setEngine(engine) {
+      engineNote.hidden = !engine?.ignores_words;
+      engineNote.textContent = engine?.ignores_words
+        ? `Your selected engine, ${engine.engine}, does not use these words. `
+          + 'To correct a word it gets wrong, add a replacement below. Whisper models use these words.'
+        : '';
     },
   };
 }
@@ -267,8 +277,10 @@ registerPage('vocabulary', {
       el('div', { class: 'vocab-duo' }, replacements.node, snippets.node));
 
     // Suggestions are mined from history once (can be slow) and reused until the page is reopened.
-    const [vocabulary, suggestions] = await Promise.all([
-      api.call('get_vocabulary'), api.call('suggest_words').catch(() => [])]);
+    const [vocabulary, suggestions, engine] = await Promise.all([
+      api.call('get_vocabulary'), api.call('suggest_words').catch(() => []),
+      api.call('get_words_engine').catch(() => null)]);
+    wordsCard.setEngine(engine);
     wordsCard.update(vocabulary, suggestions);
     replacements.update(vocabulary.replacements);
     snippets.update(vocabulary.snippets);

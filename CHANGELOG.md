@@ -90,8 +90,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   offline model re-decoded about three times a second, and a pause closes the
   phrase. On fast speech it gets the words right where the 20 MB Zipformer
   guessed ("pilf", "parrakeet"), and it adds capitals and punctuation. A
-  20-second phrase decodes in about half a second on an M-series CPU. The
-  Zipformer is still available as `zipformer.tiny.en`.
+  20-second phrase decodes in about half a second on an M-series CPU.
 - **The pill keeps the whole recording in view.** Earlier phrases no longer
   vanish after a pause; the newest words stay visible at the end.
 
@@ -100,10 +99,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
   Model (downloaded models only), Microphone, Auto-paste, Open Whisper
   Local…, Settings… and Quit. Profiles, history, retry, pause, restart,
   the config folder and the cheat sheet moved to the dashboard.
-- **Command-line flags.** `--settings`, `--history` and `--cheat-sheet` open
-  the dashboard on the Settings, History and About pages. `--window` accepts
-  only `fallback` and `dashboard`. It is an internal flag, so no user
-  command needs changing.
+- **`--window` accepts only `fallback` and `dashboard`.** It is an internal
+  flag, so no user command needs changing.
 - **New dependency: `pywebview` (6.2 or later).** On Windows the dashboard
   uses the WebView2 runtime, which comes with Windows 10 and 11 when Microsoft
   Edge is installed.
@@ -121,8 +118,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 - **The Tk Settings window** (`--settings`, `settings_ui.py`) and **the Tk
   History window** (`--history`, `history_window.py`). Their jobs are on the
   dashboard's Settings and History pages.
-- **The Tk add-word dialog.** Use the dashboard's Vocabulary page, or
-  `--add-word` in a terminal.
+- **The Tk add-word dialog.** Use the dashboard's Vocabulary page.
+- **The whisper.cpp backend** (`whisper.backend: whisper_cpp` and the
+  `whispercpp` extra). Use faster-whisper or Parakeet. An old setting of
+  `whisper_cpp` runs on faster-whisper.
+- **The Zipformer live preview model** (`zipformer.tiny.en`). Live preview
+  uses Moonshine v2 only. An old setting that names a removed model uses
+  `moonshine.base.en`.
+- **The welcome window, the console welcome text and the setup wizard**
+  (`--setup`). On the first start, the dashboard opens on Home. To see the
+  GPU prompt again, set `onboarding.gpu: pending`.
+- **The animated terminal tab title** (the `terminal_title` settings).
+- **Command-line flags that the dashboard does too:** `--settings`,
+  `--history`, `--cheat-sheet`, `--stats`, `--export-transcripts`,
+  `--add-word`, `--remove-word` and `--list-dictionary`.
+- **Little-used tools:** the local API server (`--serve`), system audio
+  capture (`--transcribe-system` and the `loopback` extra), `--import-vocab`,
+  `--export-model` / `--import-model` and the delivery audit log
+  (`audit.enabled`). Noise suppression stays.
 
 ### Fixed
 - **Parakeet no longer returns empty or wrong text when the dictionary has

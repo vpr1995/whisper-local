@@ -10,7 +10,7 @@ streamed text goes.
 ## What it does
 
 When enabled, a small speech model ([sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx);
-Moonshine v2 by default, or a streaming Zipformer) runs alongside your recording and feeds partial words into the
+Moonshine v2) runs alongside your recording and feeds partial words into the
 floating overlay pill in real time. When you stop, the **accurate** Whisper model
 still does the actual transcription that gets delivered to your cursor.
 
@@ -23,13 +23,11 @@ Turn it on in the dashboard: **Settings > App > More > Live preview (experimenta
 ```yaml
 streaming:
     streaming_enabled: true
-    streaming_model: moonshine.base.en   # the default, ~140 MB, English. Or zipformer.tiny.en (~20 MB)
+    streaming_model: moonshine.base.en   # the default, ~140 MB, English. Or moonshine.tiny.en (~44 MB)
 ```
 
 The streaming model downloads automatically on first use (separate from the
-Whisper model). Both built-in choices are English-only. Moonshine re-decodes the audio as it grows and adds punctuation. It handles fast speech better than the tiny Zipformer. Other sherpa-onnx streaming
-transducers can be added under `streaming.models` — browse them at
-<https://k2-fsa.github.io/sherpa/onnx/pretrained_models/index.html>.
+Whisper model). Both built-in choices are English-only. Moonshine re-decodes the audio as it grows and adds punctuation.
 
 It's **off by default** because it needs that extra model download and a little
 extra CPU while recording.
@@ -39,7 +37,7 @@ extra CPU while recording.
 A reasonable question: *why not type the partial words straight into my document
 as I speak, like some tools do?*
 
-Because streaming transducers **revise** their output as more audio arrives:
+Because the live preview **revises** its output as more audio arrives:
 
 ```
 "spag"  →  "spagetti"  →  "spaghetti"
