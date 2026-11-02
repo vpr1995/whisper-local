@@ -52,7 +52,7 @@ function buildWordsCard(api, refresh) {
 
   const countLabel = el('span', { class: 'vocab-count' });
   const chipArea = el('div', { class: 'vocab-words-body' });
-  // Shown only when the selected engine ignores words (see setEngine below).
+  // Shown only when the selected engine does not take words while it listens (see setEngine below).
   const engineNote = el('div', { class: 'vocab-engine-note', hidden: true });
 
   const addWord = async (word) => {
@@ -84,7 +84,9 @@ function buildWordsCard(api, refresh) {
     const openSuggestions = suggestions.filter((item) => !known.has(item.word.toLowerCase()))
       .slice(0, SUGGESTIONS_VISIBLE_COUNT);
 
-    chipArea.replaceChildren(
+    // filter(Boolean) drops a missing part (no suggestions): replaceChildren()
+    // would otherwise print a null argument as the text "null".
+    chipArea.replaceChildren(...[
       words.length
         ? el('div', { class: 'vocab-chips' }, visibleWords.map(wordChip),
             hiddenCount > 0 ? el('button', { type: 'button', class: 'link-button vocab-more',
@@ -92,7 +94,8 @@ function buildWordsCard(api, refresh) {
               onclick: () => { showAllWords = !showAllWords; redrawChips(); } }) : null)
         : el('div', { class: 'compact-empty', text: 'No words yet. Add names, products and jargon your dictation gets wrong.' }),
       openSuggestions.length ? el('div', { class: 'vocab-suggestions' },
-        el('span', { class: 'vocab-suggestions-label', text: 'Heard often' }), openSuggestions.map(suggestionChip)) : null);
+        el('span', { class: 'vocab-suggestions-label', text: 'Heard often' }), openSuggestions.map(suggestionChip)) : null,
+    ].filter(Boolean));
   };
 
   const card = el('section', { class: 'card compact-card' },
@@ -109,12 +112,11 @@ function buildWordsCard(api, refresh) {
       if (newSuggestions) suggestions = newSuggestions;
       redrawChips();
     },
-    // `engine` = { ignores_words, engine } from get_words_engine.
+    // `engine` = { skips_hotwords, engine } from get_words_engine.
     setEngine(engine) {
-      engineNote.hidden = !engine?.ignores_words;
-      engineNote.textContent = engine?.ignores_words
-        ? `Your selected engine, ${engine.engine}, does not use these words. `
-          + 'To correct a word it gets wrong, add a replacement below. Whisper models use these words.'
+      engineNote.hidden = !engine?.skips_hotwords;
+      engineNote.textContent = engine?.skips_hotwords
+        ? `${engine.engine} may still get some of these words wrong. Add a replacement below, or switch to a Whisper model.`
         : '';
     },
   };

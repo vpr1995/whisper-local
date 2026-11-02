@@ -41,6 +41,7 @@ Open-source project maintained as `vpr1995/whisper-local` by Prudhvi Reddy Vemir
 | **Floating Overlay** | `platform/*/overlay.py` | Floating pill: level meter, timer, streaming text. Native AppKit panel on macOS, Tk `level_overlay.py` on Windows | pyobjc / tkinter |
 | **Fallback Window** | `fallback_window.py` | Capture window when no text field is focused | tkinter |
 | **AI Provider** | `ai_provider.py` | One front door for polish and rephrase: picks Apple Intelligence (macOS 26+) or Ollama from `postprocess.ai.provider`, checks that polish (fillers, repeats, false starts, punctuation) only deleted words, holds the Ollama call and the user-facing reason texts. The helper is built in the background at app start | urllib |
+| **Word Snap** | `word_snap.py` | Changes a capitalized word that sounds like a Words entry into that entry, after transcription. Gives Parakeet a use for hotwords | difflib |
 | **Dictionary** | `dictionary.py` | Hotword add/remove/list and history mining for the dashboard Vocabulary page | ruamel.yaml |
 | **Layered Defaults** | `defaults_merge.py` | Loads the shipped voice commands under the user's `commands.yaml` | ruamel.yaml |
 | **Text Post-Process** | `text_postprocess.py` | Inline formatting, smart formatting, voice editing, corrections + optional AI polish (via `ai_provider.py`) | - |

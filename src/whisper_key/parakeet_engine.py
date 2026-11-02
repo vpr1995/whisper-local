@@ -4,8 +4,8 @@
 # the rest of the app is backend-agnostic. About 3x faster than Whisper small on
 # CPU (7x on short clips); it auto-detects 25 European languages, cannot
 # translate, take a prompt or use hotwords (sherpa-onnx's hotword beam search
-# dropped or garbled short real dictations), so dictionary names are fixed by
-# corrections instead.
+# dropped or garbled short real dictations), so dictionary names are fixed after
+# transcription by word_snap.py and the user's replacements instead.
 
 import gc
 import logging
@@ -75,7 +75,7 @@ class ParakeetEngine:
             self.model = self._create_model(self.model_key)
             print(f"   ✓ Parakeet model [{self.model_key}] ready! (CPU, threads={self.NUM_THREADS})")
             if self.hotwords or self.initial_prompt:
-                print("   ℹ Parakeet ignores hotwords and initial_prompt; corrections still apply")
+                print("   ℹ Parakeet ignores initial_prompt; your Words are fixed after transcription (word snap)")
             self._warmup()
         except Exception as e:
             self.logger.error(f"Failed to load Parakeet model '{self.model_key}': {e}")

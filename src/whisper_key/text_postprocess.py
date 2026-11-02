@@ -14,6 +14,7 @@ import re
 from . import ai_provider, dictation_cleanup
 from .snippets import expand_snippets
 from .styles import resolve_style
+from .word_snap import snap_to_words
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +166,11 @@ def postprocess(text: str, config: dict, on_polish_failed=None) -> str:
     if isinstance(replacements, (list, tuple)) and replacements:
         text = _apply_replacements(text, replacements)
 
+    # A capitalized word that sounds like a Words entry becomes that entry. It
+    # runs after the exact fixes, so the user's own entries always win.
+    if _on(config.get('word_snap')):
+        text = snap_to_words(text, config.get('vocabulary_words'))
+
     if _on(config.get('strip_filler_words')):
         text = _strip_fillers(text)
 
@@ -209,7 +215,7 @@ def postprocess(text: str, config: dict, on_polish_failed=None) -> str:
     return text
 
 
-# Terms the user has taught the app (corrections and replacement targets),
+# Terms the user has taught the app (corrections, replacement targets, Words),
 # whose casing the lowercase style must leave alone.
 def _protected_terms(config: dict) -> list:
     terms = []
@@ -219,6 +225,8 @@ def _protected_terms(config: dict) -> list:
     for item in config.get('replacements') or ():
         if isinstance(item, dict) and item.get('to'):
             terms.extend(str(item['to']).split())
+    for word in config.get('vocabulary_words') or ():
+        terms.extend(str(word).split())
     return terms
 
 

@@ -30,13 +30,13 @@ GROUP_TITLES = {
 MODEL_BLURBS = {
     'tiny': "Fastest, least accurate. Fine for quick notes.",
     'base': "A good balance of speed and accuracy on most laptops.",
-    'small': "Clearly more accurate than Base, still fast on a CPU.",
+    'small': "Clearly more accurate than Whisper Base, still fast on a CPU.",
     'medium': "High accuracy, but slow without a GPU.",
     'large': "The most accurate Whisper (large-v3). Wants a GPU.",
     'large-v3-turbo': "Near-large accuracy at several times the speed. Best on a GPU.",
     'distil-small.en': "Distilled: smaller and faster than Whisper Small.",
     'distil-medium.en': "Distilled: smaller and faster than Whisper Medium.",
-    'distil-large-v3.5': "About 1.5x faster than Large-V3-Turbo with similar accuracy.",
+    'distil-large-v3.5': "About 1.5x faster than Whisper Large-V3-Turbo with similar accuracy.",
     'parakeet-v3': "About 3x faster than Whisper Small on a CPU. Picks the language itself; cannot translate.",
 }
 # Two or three words for the tile subtitle, next to the size. Models not listed fall

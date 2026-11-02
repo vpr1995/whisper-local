@@ -77,7 +77,7 @@ On CPU with the same `medium` model: 2–6 seconds. The first transcription afte
 Supported via ROCm on Linux/Windows (not validated yet in this fork). Set `onboarding.gpu: pending` in `user_settings.yaml`, restart the app in a terminal and accept the GPU install prompt; we use [PinW/ctranslate2-rocm-wheels](https://github.com/PinW/ctranslate2-rocm-wheels). Apple silicon Macs have no CUDA or ROCm. The default model runs on the CPU. Parakeet v3 is the fast choice there. See [Models](models.md).
 
 ### How do I make hotwords work?
-Use the dashboard's **Vocabulary** page. The app gives these words to the model as `hotwords` (Whisper only; Parakeet ignores them, so use History > "Fix this everywhere" for a name Parakeet gets wrong). Names, technical terms, codenames work best.
+Use the dashboard's **Vocabulary** page. The app gives these words to the model as `hotwords` (Whisper only). With Parakeet, the app fixes them after transcription: a capitalized word that sounds like one of your words becomes that word. For a name it still gets wrong, use History > "Fix this everywhere". Names, technical terms, codenames work best.
 
 ## App behaviour
 

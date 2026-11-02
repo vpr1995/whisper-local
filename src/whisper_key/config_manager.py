@@ -354,7 +354,10 @@ class ConfigManager:
         # restart. Scoped to postprocess only — the one section read fresh per
         # delivery with no separately-cached consumer.
         self._reload_postprocess_if_changed()
-        return self.config.get('postprocess', {}).copy()
+        postprocess_cfg = self.config.get('postprocess', {}).copy()
+        # The Words list lives under whisper.hotwords; word snap needs it here too.
+        postprocess_cfg['vocabulary_words'] = list(self.config.get('whisper', {}).get('hotwords') or [])
+        return postprocess_cfg
 
     def _reload_postprocess_if_changed(self):
         if not self.use_user_settings:

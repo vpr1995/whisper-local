@@ -5,6 +5,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 ## [Unreleased]
 
 ### Added
+- **Word snap: Parakeet now uses your Words.** After transcription, a
+  capitalized word that sounds like one of your Words becomes that word
+  ("Pradvi" becomes "Prudhvi"). It is strict: it skips "Prithvi", "Proud" and
+  "Llama", and your replacements still win. Works with Whisper too. Turn it off
+  with `postprocess.word_snap: false`.
 - **Delete many dictations at once in History.** Click "Select", then click
   the dictations to delete, or click "Select all". "Select all" includes the
   dictations that are not loaded yet and follows your search. Click "Delete"

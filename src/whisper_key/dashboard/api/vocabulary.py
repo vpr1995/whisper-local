@@ -9,12 +9,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# True when the engine the user selected cannot use Words (hotwords). Parakeet
-# ignores them: its hotword search dropped or garbled short dictations, so
-# parakeet_engine.py turns them off. A Parakeet model runs on Parakeet whatever
+# True when the engine the user selected does not take Words (hotwords) while it
+# listens. Parakeet does not: its hotword search dropped or garbled short
+# dictations, so parakeet_engine.py turns it off and word snap fixes names after. A Parakeet model runs on Parakeet whatever
 # whisper.backend says (ModelRegistry.resolve), and `auto` may pick one.
 # Reads only the config, so the page never imports the model stack.
-def selected_engine_ignores_words(whisper_cfg: dict) -> bool:
+def selected_engine_skips_hotwords(whisper_cfg: dict) -> bool:
     from ...engine_factory import resolve_backend
     backend, model_key = resolve_backend(whisper_cfg, None)
     model_cfg = (whisper_cfg.get('models') or {}).get(model_key) or {}
@@ -36,16 +36,16 @@ class VocabularyApi:
                          for item in corrections.list_snippets()],
         }
 
-    # Lets the Words card say up front when the selected engine ignores words,
-    # so a word that "does nothing" is not a surprise.
+    # Lets the Words card say up front how the selected engine uses words, so a
+    # word that Parakeet only fixes afterwards is not a surprise.
     def get_words_engine(self) -> dict:
         from ...config_manager import ConfigManager
         try:
             whisper_cfg = ConfigManager(quiet=True).get_whisper_config()
-            return {'ignores_words': selected_engine_ignores_words(whisper_cfg), 'engine': 'Parakeet'}
+            return {'skips_hotwords': selected_engine_skips_hotwords(whisper_cfg), 'engine': 'Parakeet'}
         except Exception as e:
             logger.debug(f"Could not tell which engine is selected: {e}")
-            return {'ignores_words': False, 'engine': ''}
+            return {'skips_hotwords': False, 'engine': ''}
 
     # False when the word is empty or already present.
     def add_word(self, word: str) -> bool:

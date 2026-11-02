@@ -71,7 +71,13 @@ Hotwords are names and terms that you want the model to spell right. The **Words
 
 The **Heard often** row suggests words from your own history. Click one to add it.
 
-Hotwords work with Whisper only. Parakeet ignores them, because they made it return empty or wrong text on short dictations. If Parakeet spells a name wrong, use **Fix this everywhere** in History.
+Whisper uses hotwords while it listens. Parakeet does not, because hotwords made it return empty or wrong text on short dictations. Instead, the app fixes your words after Parakeet finishes. This is called **word snap**:
+
+- The app checks each capitalized word. If it sounds like one of your words, the app changes it to that word. For example, "Pradvi" becomes "Prudhvi".
+- The app is strict. It skips a word when it is not sure. For example, it does not change "Prithvi", "Proud" or "Llama".
+- Your replacements run first, so they always win.
+
+Word snap works with Whisper too. To stop it, set `postprocess.word_snap: false`. If a name is still wrong, use **Fix this everywhere** in History.
 
 The words are stored in `whisper.hotwords` in `user_settings.yaml`.
 

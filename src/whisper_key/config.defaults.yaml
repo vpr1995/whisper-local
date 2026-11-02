@@ -14,7 +14,8 @@ whisper: # Whisper AI Model Settings
     # - parakeet (experimental): NVIDIA Parakeet TDT v3 via sherpa-onnx. About
     #   3x faster than Whisper small on CPU, 7x on short dictations. Picks the
     #   language itself from 25 European languages. It cannot translate and
-    #   ignores beam_size and initial_prompt; hotwords work. Uses the parakeet-v3
+    #   ignores beam_size and initial_prompt. Your Words are fixed after it
+    #   listens (postprocess.word_snap), not while. Uses the parakeet-v3
     #   model below when `model` names a Whisper model.
     backend: faster_whisper
 
@@ -82,62 +83,62 @@ whisper: # Whisper AI Model Settings
     models:
         # Official whisper models
         tiny:
-            label: "Tiny (75MB)"
+            label: "Whisper Tiny (75MB)"
             group: official
             enabled: true
         base:
-            label: "Base (141MB)"
+            label: "Whisper Base (141MB)"
             group: official
             enabled: true
         small:
-            label: "Small (464MB)"
+            label: "Whisper Small (464MB)"
             group: official
             enabled: true
         medium:
-            label: "Medium (1.4GB)"
+            label: "Whisper Medium (1.4GB)"
             group: official
             enabled: true
         large: # Uses the large-v3 version
-            label: "Large (2.9GB)"
+            label: "Whisper Large (2.9GB)"
             group: official
             enabled: true
         large-v3-turbo: # 8x faster and only slightly less accurate (transcription optimized)
-            label: "Large-V3-Turbo (1.5GB)"
+            label: "Whisper Large-V3-Turbo (1.5GB)"
             group: official
             enabled: true
 
         # English-only models — same architecture as above, trained exclusively on English
         tiny.en:
-            label: "Tiny.En (English, 74MB)"
+            label: "Whisper Tiny.En (English, 74MB)"
             group: custom
             enabled: true
         base.en:
-            label: "Base.En (English, 141MB)"
+            label: "Whisper Base.En (English, 141MB)"
             group: custom
             enabled: true
         small.en:
-            label: "Small.En (English, 464MB)"
+            label: "Whisper Small.En (English, 464MB)"
             group: custom
             enabled: true
         medium.en:
-            label: "Medium.En (English, 1.5GB)"
+            label: "Whisper Medium.En (English, 1.5GB)"
             group: custom
             enabled: true
 
         # Distilled models — smaller and faster than standard Whisper, English only
         distil-small.en:
             source: Systran/faster-distil-whisper-small.en
-            label: "Distil-Small.En (English, 320MB)"
+            label: "Whisper Distil-Small.En (English, 320MB)"
             group: custom
             enabled: true
         distil-medium.en:
             source: Systran/faster-distil-whisper-medium.en
-            label: "Distil-Medium.En (English, 755MB)"
+            label: "Whisper Distil-Medium.En (English, 755MB)"
             group: custom
             enabled: true
         distil-large-v3.5: # ~1.5x faster than Large-V3-Turbo with comparable accuracy
             source: distil-whisper/distil-large-v3.5-ct2
-            label: "Distil-Large-V3.5 (English, 1.4GB)"
+            label: "Whisper Distil-Large-V3.5 (English, 1.4GB)"
             group: custom
             enabled: true
 
@@ -536,6 +537,12 @@ postprocess: # Transcription post-processing pipeline
     #   - from: my sequel
     #     to: MySQL
     replacements: []
+
+    # Word snap: after transcription, a capitalized word that sounds like one of
+    # your Words (whisper.hotwords) becomes that word, e.g. "Pradvi" -> "Prudhvi".
+    # Strict on purpose: it skips anything it is not sure about, and your
+    # replacements above always win. This is how Parakeet uses your Words.
+    word_snap: true
 
     # Vocabulary corrections: one canonical spelling, many misheard variants.
     # Use this when Whisper mangles the SAME term several different ways — you
