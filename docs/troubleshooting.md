@@ -34,7 +34,7 @@ The first rows are for macOS. The rows about the Windows `.exe` come after them.
 | App seems frozen on launch | Whisper model is downloading (first run) | Wait — `tiny` is ~75 MB, `large` is ~2.9 GB. Watch `~/.whisperkey/app.log` |
 | "Could not register hotkeys" | Another instance is already running, or another app owns the combo | `whisper-local --quit` then relaunch. Or change the hotkey |
 | GPU not used despite `device: cuda` | CTranslate2 CUDA runtime not installed | Set `onboarding.gpu: pending` in `user_settings.yaml`, restart in a terminal and accept the GPU install prompt |
-| Transcription accuracy is poor | Tiny model + noisy environment | Models page: pick `base` or `small`. Settings > Recording options > Reduce background noise (run `pip install -e '.[noise]'` first) |
+| Transcription accuracy is poor | Small model, or a loud room | Models page: pick a larger model. In a loud place, use a headset mic close to your mouth |
 | `Rephrase failed: Ollama did not answer` in tray | Ollama is the active AI and is not running | `ollama serve` in a terminal, or use Apple Intelligence (dashboard > Style > AI) |
 | `Apple Intelligence is getting ready` / `needs Command Line Tools` | The Apple Intelligence helper is not built yet | Run `xcode-select --install`, then restart. Run `--doctor` for the reason |
 | Text appears twice in chat apps | `auto_send_key` pressed by accident | The Esc cancel + retry; use the plain stop key in that app |

@@ -943,30 +943,6 @@ class UtilsTests(unittest.TestCase):
         self.assertEqual(resolve_asset_path(absolute), absolute)
 
 
-class NoiseSuppresionTests(unittest.TestCase):
-    def test_passthrough_without_noisereduce(self):
-        import sys
-        import unittest.mock as mock
-        import numpy as np
-        sys.modules.pop('whisper_key.noise_suppression', None)
-        import importlib
-        with mock.patch.dict(sys.modules, {'noisereduce': None}):
-            import whisper_key.noise_suppression as ns_mod
-            importlib.reload(ns_mod)
-            audio = np.zeros(16000, dtype=np.float32)
-            result = ns_mod.apply_noise_reduction(audio, 16000, 0.75)
-            np.testing.assert_array_equal(result, audio)
-
-    def test_config_in_defaults(self):
-        from ruamel.yaml import YAML
-        path = ROOT / "src" / "whisper_key" / "config.defaults.yaml"
-        with open(path, encoding="utf-8") as f:
-            cfg = YAML().load(f)
-        ns = cfg["audio"]["noise_suppression"]
-        self.assertFalse(ns["enabled"])
-        self.assertAlmostEqual(float(ns["strength"]), 0.75, places=2)
-
-
 class UpdateCheckTests(unittest.TestCase):
     def test_is_newer_basic(self):
         from whisper_key.update_check import _is_newer
@@ -1255,16 +1231,6 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("tags:", content)
         self.assertIn("v*", content)
         self.assertIn("pypa/gh-action-pypi-publish", content)
-
-
-class PyprojectOptionalDepsTests(unittest.TestCase):
-    def test_noise_optional_dep(self):
-        import tomllib
-        with open(ROOT / "pyproject.toml", "rb") as f:
-            data = tomllib.load(f)
-        extras = data.get("project", {}).get("optional-dependencies", {})
-        self.assertIn("noise", extras)
-        self.assertTrue(any("noisereduce" in d for d in extras["noise"]))
 
 
 class SelftestModuleTests(unittest.TestCase):
@@ -1813,7 +1779,7 @@ class ReviewFixTests(unittest.TestCase):
         self.assertEqual(coerce("2024", "whisper.initial_prompt"), "2024")
         self.assertEqual(coerce("3", "postprocess.ollama.model"), "3")
         self.assertEqual(coerce("5", "whisper.beam_size"), 5)
-        self.assertAlmostEqual(coerce("0.75", "audio.noise_suppression.strength"), 0.75)
+        self.assertAlmostEqual(coerce("2.5", "audio.whisper_mode.max_gain"), 2.5)
 
     # autostart.toggle returns the achieved state (macOS path, temp plist).
     def test_autostart_toggle_returns_state(self):
@@ -3609,7 +3575,6 @@ class OctoberReviewTests(unittest.TestCase):
         rec = AudioRecorder.__new__(AudioRecorder)
         rec.logger = __import__('logging').getLogger('test')
         rec._needs_resampling_cached = False
-        rec._noise_suppression_config = {}
         rec._whisper_mode_gain = None
         rec.sample_rate = 16000
         rec._recording_rate = 16000

@@ -77,7 +77,7 @@ class SettingsApiTests(unittest.TestCase):
                     self.assertIn(row['value'], [option['value'] for option in row['options']], row['path'])
         # Settings the old Tk window offered and that stayed here are still reachable.
         for kept_path in ('hotkey.recording_mode', 'clipboard.auto_paste', 'history.retention_days',
-                          'stats.typing_wpm', 'audio.noise_suppression.strength', 'vad.vad_silence_timeout_seconds'):
+                          'stats.typing_wpm', 'audio.whisper_mode.max_gain', 'vad.vad_silence_timeout_seconds'):
             self.assertIn(kept_path, paths)
 
     def test_top_level_is_short_and_links_to_every_drill_in(self):
@@ -132,13 +132,13 @@ class SettingsApiTests(unittest.TestCase):
         self.assertEqual(self.row('stats.typing_wpm')['value'], 55)
 
     def test_float_setting_stays_float(self):
-        self.assertTrue(self.api.save_setting('audio.noise_suppression.strength', '0.5')['ok'])
-        self.assertEqual(self.saved()['audio']['noise_suppression']['strength'], 0.5)
+        self.assertTrue(self.api.save_setting('audio.whisper_mode.max_gain', '2.5')['ok'])
+        self.assertEqual(self.saved()['audio']['whisper_mode']['max_gain'], 2.5)
 
     def test_bad_numbers_are_rejected_and_not_saved(self):
         for path, bad in (('stats.typing_wpm', 'fast'), ('stats.typing_wpm', '9999'),
                           ('audio.max_duration', '2.5'), ('audio.max_duration', ''),
-                          ('audio.noise_suppression.strength', '1.5')):
+                          ('audio.whisper_mode.max_gain', '25')):
             result = self.api.save_setting(path, bad)
             self.assertFalse(result['ok'], (path, bad))
             self.assertTrue(result['error'])

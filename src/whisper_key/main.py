@@ -136,7 +136,6 @@ def setup_audio_recorder(audio_config, state_manager, vad_manager, streaming_man
         streaming_manager=streaming_manager,
         on_streaming_result=state_manager.handle_streaming_result,
         device=audio_config['input_device'],
-        noise_suppression_config=audio_config.get('noise_suppression') or {},
         whisper_mode_config=audio_config.get('whisper_mode') or {},
         mic_always_on=audio_config.get('mic_always_on', True) is not False,
     )

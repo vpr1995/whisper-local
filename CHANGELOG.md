@@ -126,7 +126,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 - **Little-used tools:** the local API server (`--serve`), system audio
   capture (`--transcribe-system` and the `loopback` extra), `--import-vocab`,
   `--export-model` / `--import-model` and the delivery audit log
-  (`audit.enabled`). Noise suppression stays.
+  (`audit.enabled`).
+- **Noise suppression** (`audio.noise_suppression` and the `noise` extra). It
+  added scipy and matplotlib (about 60 MB), and spectral denoising often makes
+  Whisper and Parakeet less accurate. In a loud place, use a headset mic.
 - **Profiles, per-app rules and AI transforms** (`profiles.yaml`,
   `app_rules.yaml`, `transforms.yaml`, and the Profile, AI transforms and
   Per-app rules sections of the Style page). The app ignores these files now.

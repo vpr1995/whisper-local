@@ -17,7 +17,6 @@ _NUMERIC_PATHS = {
     'whisper.beam_size',
     'whisper.unload_after_minutes',
     'audio.max_duration',
-    'audio.noise_suppression.strength',
     'vad.vad_silence_timeout_seconds',
     'postprocess.ollama.timeout',
     'audio.whisper_mode.max_gain',

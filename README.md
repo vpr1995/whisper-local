@@ -58,7 +58,7 @@ On the first start the app downloads one speech model, then works offline. macOS
 - **Dictate in any app.** Hold `fn+ctrl`, talk, release. Cancel with `shift`. [Hotkeys](docs/hotkeys.md)
 - **A dashboard window.** Home, History, Models, Vocabulary, Style, Settings and About, with a live status bar. [Dashboard tour](docs/dashboard.md)
 - **Picks a speech model for you.** Parakeet v3 for English and 24 other European languages, Whisper `large-v3-turbo` on a GPU, Whisper `base` for other languages. [Models](docs/models.md)
-- **Clean text.** Stutters and "um" go. "Scratch that" and "at 2, actually 3" work. Spoken lists, times and emails get formatted. [Configuration](docs/configuration.md)
+- **Clean text.** Stutters and "um" go. "Scratch that" and "at 2, actually 3" work. Spoken lists, times and emails get formatted. Say "comma" or "new paragraph" to type the mark. [Configuration](docs/configuration.md)
 - **AI polish and rephrase.** They run on Apple Intelligence on your Mac, or on Ollama. Polish is one on/off switch. [AI polish](docs/ai-polish.md)
 - **Writing styles.** Formal, casual, very casual or verbatim, in one choice. [Writing styles](docs/writing-styles.md)
 - **Searchable history.** Search, copy, delete many at once, and fix a misheard word everywhere. [History and vocabulary](docs/history-and-vocabulary.md)

@@ -66,10 +66,6 @@ dependencies = [
     "pyobjc-framework-ApplicationServices; sys_platform=='darwin'",
 ]
 
-[project.optional-dependencies]
-# Spectral noise suppression via noisereduce (set `audio.noise_suppression.enabled: true`)
-noise = ["noisereduce>=3.0.0"]
-
 [project.scripts]
 whisper-local = "whisper_key.main:main"
 wl = "whisper_key.main:main"

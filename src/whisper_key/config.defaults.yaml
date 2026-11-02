@@ -313,13 +313,6 @@ audio: # Audio Recording Settings
     #         speak. The beep can take up to ~1s on Bluetooth headsets.
     mic_always_on: true
 
-    # Noise suppression (requires: pip install 'whisper-local[noise]')
-    # Applies spectral gating via noisereduce before passing audio to Whisper.
-    # Helps in noisy environments (fans, HVAC, keyboard clatter).
-    noise_suppression:
-        enabled: false
-        strength: 0.75  # 0.0 = minimal, 1.0 = aggressive
-
     # Whisper mode: boost quiet recordings (whispering in an open office, a
     # distant mic) before transcription. It only ever turns the volume UP, by at
     # most max_gain, so normal speech passes through untouched.

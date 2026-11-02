@@ -8,6 +8,7 @@ Most settings are in the dashboard. Every setting is also a plain text file that
 - [Edit and reset settings](#edit-and-reset-settings)
 - [Key settings](#key-settings)
 - [Cleanup levels](#cleanup-levels)
+- [Spoken punctuation](#spoken-punctuation)
 - [Command-line reference](#command-line-reference)
 
 ## Config files
@@ -57,7 +58,6 @@ The shipped defaults are in the package: [`config.defaults.yaml`](../src/whisper
 | `audio.input_device` | `default` | A microphone |
 | `audio.mic_always_on` | `true` | Keep the microphone open so the first word is not cut |
 | `audio.whisper_mode.enabled` | `false` | Boost quiet speech |
-| `audio.noise_suppression.enabled` | `false` | Needs `pip install -e '.[noise]'` |
 | `vad.vad_realtime_enabled` | `true` | Stop the recording after silence |
 | `vad.vad_silence_timeout_seconds` | `30` | How long a silence ends the recording |
 | `voice_commands.enabled` | `true` | Voice command mode |
@@ -91,6 +91,35 @@ On macOS, `clipboard.delivery_method` should stay `paste`. The `type` method wor
 | "Groceries: first, milk. Second, eggs." | a numbered list | `postprocess.list_formatting` |
 
 You can pin any single toggle on or off in `user_settings.yaml`, whatever the level. "Actually" and similar cues change text only when a number, time, weekday or month follows. So "I actually like it" is never changed.
+
+## Spoken punctuation
+
+Say a punctuation word while you dictate. The app changes the word into the mark. This is on by default, in every writing style and at every cleanup level.
+
+| You say | You get |
+|---|---|
+| "new paragraph" | A blank line |
+| "new line" | A line break |
+| "period" or "full stop" | `.` |
+| "comma" | `,` |
+| "question mark" | `?` |
+| "exclamation mark" or "exclamation point" | `!` |
+| "colon" / "semicolon" | `:` / `;` |
+| "open quote" / "close quote" | `"` |
+| "open paren" / "close paren" | `(` / `)` |
+| "open bracket" / "close bracket" | `[` / `]` |
+| "dash" | ` — ` |
+| "hyphen" | `-` |
+
+Example: "Hi Sam comma new paragraph thanks for the notes period" gives:
+
+```
+Hi Sam,
+
+thanks for the notes.
+```
+
+To stop this, set `postprocess.inline_formatting: false`. The words are English. For other languages, or to add your own words, see the [FAQ](faq.md).
 
 ## Command-line reference
 

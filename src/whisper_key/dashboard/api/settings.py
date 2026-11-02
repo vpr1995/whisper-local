@@ -191,10 +191,6 @@ def _build_catalogue(config: dict) -> list:
 
     recording = [
         _section('sound', 'Sound', 'recording', [
-            _toggle('audio.noise_suppression.enabled', 'Reduce background noise',
-                    'Cleans up hiss and hum before transcribing. Needs the noisereduce package.'),
-            _number('audio.noise_suppression.strength', 'Noise reduction strength', '0 is gentle, 1 is aggressive.',
-                    0.0, 1.0, enabled_by='audio.noise_suppression.enabled'),
             _toggle('audio.whisper_mode.enabled', 'Whisper mode', 'Boosts quiet speech so you can dictate softly.'),
             _number('audio.whisper_mode.max_gain', 'Whisper boost', 'The most a quiet recording is amplified.',
                     1.0, 20.0, unit='x', enabled_by='audio.whisper_mode.enabled'),

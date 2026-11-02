@@ -52,7 +52,6 @@ Open-source project maintained as `vpr1995/whisper-local` by Prudhvi Reddy Vemir
 | **Whisper Mode** | `audio_gain.py` | Boosts quiet recordings before transcription | numpy |
 | **Corrections** | `corrections.py` | Persist post-transcription replacements (history "Fix this everywhere") | ruamel.yaml |
 | **Streaming** | `streaming_manager.py` + `rolling_recognizer.py` | Live preview in the overlay (experimental): a Moonshine v2 model re-decoded a few times a second | sherpa-onnx |
-| **Noise Suppression** | `noise_suppression.py` | Optional spectral-gating noise reduction | noisereduce |
 | **Stats** | `stats.py` | Usage stats, streaks, daily summary | json |
 | **Update Check** | `update_check.py` | Opt-in daily GitHub release check | urllib |
 | **Uninstall** | `uninstall.py` | `--uninstall` removes settings/data/autostart, models opt-in | shutil |

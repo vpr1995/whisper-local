@@ -1214,7 +1214,6 @@ class StateManager:
             on_streaming_result = self.audio_recorder.on_streaming_result
 
             audio_cfg = self.config_manager.config.get('audio') or {}
-            noise_cfg = audio_cfg.get('noise_suppression') or {}
             new_recorder = AudioRecorder(
                 on_vad_event=self.handle_vad_event,
                 channels=channels,
@@ -1225,7 +1224,6 @@ class StateManager:
                 streaming_manager=streaming_manager,
                 on_streaming_result=on_streaming_result,
                 device=device_id if device_id != -1 else None,
-                noise_suppression_config=noise_cfg,
                 whisper_mode_config=audio_cfg.get('whisper_mode') or {},
                 mic_always_on=audio_cfg.get('mic_always_on', True) is not False,
             )
