@@ -103,7 +103,7 @@ class ProviderResolutionTests(unittest.TestCase):
 
 # ── Polish word check ────────────────────────────────────────────────────────
 
-class PreservesWordingTests(unittest.TestCase):
+class OnlyDeletesWordsTests(unittest.TestCase):
     def test_accepts_punctuation_and_case_only_edits(self):
         for raw, polished in [
             ("so i went to the store and they didnt have milk so i bought juice",
@@ -112,34 +112,76 @@ class PreservesWordingTests(unittest.TestCase):
             ("what is the capital of france", "What is the capital of France?"),
             ("write a poem about cats", "Write a poem about cats."),
         ]:
-            self.assertTrue(ai_provider.preserves_wording(raw, polished), polished)
+            self.assertTrue(ai_provider.only_deletes_words(raw, polished), polished)
 
     def test_rejects_the_refusal_paragraph(self):
         refusal = ("I apologize, but I cannot comply with that request. As an AI language model I am not "
                    "able to help with this, and I would suggest asking a human instead.")
-        self.assertFalse(ai_provider.preserves_wording("send the report to john tomorrow morning", refusal))
+        self.assertFalse(ai_provider.only_deletes_words("send the report to john tomorrow morning", refusal))
 
     def test_rejects_a_poem_for_a_dictated_command(self):
         poem = ("Whiskers soft and eyes of gold,\nCats are stories never told.\nThey purr beside the evening "
                 "light,\nAnd chase the shadows through the night.")
-        self.assertFalse(ai_provider.preserves_wording("write a poem about cats", poem))
+        self.assertFalse(ai_provider.only_deletes_words("write a poem about cats", poem))
 
     def test_rejects_an_answer_to_a_dictated_question(self):
-        self.assertFalse(ai_provider.preserves_wording("what is the capital of france",
+        self.assertFalse(ai_provider.only_deletes_words("what is the capital of france",
                                                        "The capital of France is Paris."))
 
     def test_rejects_preamble_and_empty_output(self):
-        self.assertFalse(ai_provider.preserves_wording(
+        self.assertFalse(ai_provider.only_deletes_words(
             "we should ship on friday", "Here is the polished text: We should ship on Friday."))
-        self.assertFalse(ai_provider.preserves_wording("we should ship on friday", ""))
-        self.assertFalse(ai_provider.preserves_wording("", "Hello."))
+        self.assertFalse(ai_provider.only_deletes_words("we should ship on friday", ""))
+        self.assertFalse(ai_provider.only_deletes_words("", "Hello."))
 
     def test_rejects_dropped_words(self):
-        self.assertFalse(ai_provider.preserves_wording(
+        self.assertFalse(ai_provider.only_deletes_words(
             "i think we should ship the release on friday if the tests pass", "We should ship on Friday."))
 
+    # Real answers from Apple's model to the default polish prompt.
+    def test_accepts_cleanups_that_only_delete(self):
+        for raw, cleaned in [
+            ("so um i think we should uh i think we should ship the release on friday",
+             "I think we should ship the release on Friday."),
+            ("lets meet on tuesday no wait wednesday at three", "Lets meet on Wednesday at three."),
+            ("hey john can you send me the um the slides from yesterday",
+             "Hey John, can you send me the slides from yesterday?"),
+            # Heavy disfluency: 7 of 13 words kept.
+            ("we need to um we need to ship it on tuesday no wait wednesday",
+             "We need to ship it on Wednesday."),
+            ("so basically what i'm trying to say is that the uh the budget is is tight this quarter",
+             "So basically, what I'm trying to say is that the budget is tight this quarter."),
+        ]:
+            self.assertTrue(ai_provider.only_deletes_words(raw, cleaned), cleaned)
+
+    def test_rejects_cleanups_that_add_or_move_words(self):
+        # Added "I think".
+        self.assertFalse(ai_provider.only_deletes_words(
+            "i like the new design but like the colors are you know a bit too bright",
+            "I like the new design, but I think the colors are a bit too bright."))
+        # Moved "send" ahead and dropped "is due on friday".
+        self.assertFalse(ai_provider.only_deletes_words(
+            "we need to the the report is due on friday so can you can you send it today",
+            "We need to send the report today."))
+
+    def test_rejects_a_dropped_negation(self):
+        self.assertFalse(ai_provider.only_deletes_words(
+            "i do not want to ship it on friday", "I do want to ship it on Friday."))
+        self.assertFalse(ai_provider.only_deletes_words(
+            "we can't um we can't merge this yet", "We merge this yet."))
+        # A repeated negation is a stutter: keeping one is enough.
+        self.assertTrue(ai_provider.only_deletes_words(
+            "i don't uh i don't want to ship it", "I don't want to ship it."))
+
+    # Known limit: dropping a whole clause in order is a deletion, so it passes as
+    # long as enough words remain. The prompt, not the check, prevents this.
+    def test_a_dropped_clause_above_the_floor_passes(self):
+        self.assertTrue(ai_provider.only_deletes_words(
+            "i think we should ship the release on friday if the tests pass",
+            "I think we should ship the release on Friday."))
+
     def test_apostrophes_and_curly_quotes_are_ignored(self):
-        self.assertTrue(ai_provider.preserves_wording("dont worry its fine", "Don’t worry, it’s fine."))
+        self.assertTrue(ai_provider.only_deletes_words("dont worry its fine", "Don’t worry, it’s fine."))
 
 
 # ── Polish ───────────────────────────────────────────────────────────────────
@@ -154,7 +196,29 @@ class PolishTests(unittest.TestCase):
         result, apple = self.polish_with_apple_answering("hello there how are you", "Hello there, how are you?")
         self.assertEqual(result, "Hello there, how are you?")
         self.assertIn("hello there how are you", apple.generate.call_args.args[0])
-        self.assertEqual(apple.generate.call_args.args[1], ai_provider.APPLE_POLISH_TIMEOUT_SECONDS)
+        self.assertEqual(apple.generate.call_args.args[1],
+                         ai_provider.apple_polish_timeout_seconds("hello there how are you"))
+
+    def test_polish_waits_longer_for_longer_dictations(self):
+        short_wait = ai_provider.apple_polish_timeout_seconds("x" * 80)
+        long_wait = ai_provider.apple_polish_timeout_seconds("x" * ai_provider.MAX_POLISH_CHARACTERS)
+        self.assertLess(short_wait, 4)          # a stalled model gives up fast on a sentence
+        self.assertGreater(long_wait, 6)        # a long dictation measured ~3 s warm, ~4.5 s cold
+
+
+    def test_prewarm_skips_ollama_and_unavailable_apple(self):
+        apple = fake_apple_module()
+        with mock.patch.object(ai_provider, '_apple_module', return_value=apple), \
+             mock.patch('threading.Thread') as thread:
+            ai_provider.prewarm_in_background(config_with('ollama'))
+            thread.assert_not_called()
+            ai_provider.prewarm_in_background(config_with('auto'))
+            load_model = thread.call_args.kwargs['target']
+        load_model()
+        apple.prewarm.assert_called_once()
+        apple.availability.return_value = (False, 'apple_intelligence_off')
+        load_model()
+        apple.prewarm.assert_called_once()      # not again: the model is not there
 
     def test_a_polish_that_changes_the_words_is_dropped(self):
         result, _ = self.polish_with_apple_answering("what is the capital of france", "The capital of France is Paris.")
@@ -271,21 +335,61 @@ class MacosModuleTests(unittest.TestCase):
             self.assertEqual(self.module.availability(), (True, ''))
             self.assertEqual(ask.call_count, 2)
 
-    def test_generate_maps_results_and_timeouts(self):
-        import subprocess
-        with mock.patch.object(self.module, '_helper_path', return_value=Path('/x/helper')):
-            ok = mock.Mock(returncode=0, stdout='{"text": "Hi."}')
-            with mock.patch('subprocess.run', return_value=ok):
-                self.assertEqual(self.module.generate('hi', 5), 'Hi.')
-            refused = mock.Mock(returncode=1, stdout='{"error": "guardrail", "detail": "x"}')
-            with mock.patch('subprocess.run', return_value=refused):
-                with self.assertRaises(OnDeviceAIError) as caught:
-                    self.module.generate('hi', 5)
-            self.assertEqual(caught.exception.code, 'guardrail')
-            with mock.patch('subprocess.run', side_effect=subprocess.TimeoutExpired('helper', 5)):
-                with self.assertRaises(OnDeviceAIError) as caught:
-                    self.module.generate('hi', 5)
-            self.assertEqual(caught.exception.code, 'timeout')
+    # A stand-in for `helper serve`: echoes the prompt upper-cased, refuses "refuse",
+    # hangs on "hang", and never answers a prewarm.
+    def start_fake_helper(self):
+        import tempfile
+        directory = tempfile.mkdtemp()
+        helper = Path(directory) / 'helper'
+        helper.write_text(f"""#!{sys.executable}
+import json, sys, time
+for line in sys.stdin:
+    request = json.loads(line)
+    if request['op'] == 'prewarm':
+        continue
+    if request['prompt'] == 'hang':
+        time.sleep(30)
+    if request['prompt'] == 'refuse':
+        print(json.dumps({{'id': request['id'], 'error': 'guardrail', 'detail': 'x'}}), flush=True)
+    else:
+        print(json.dumps({{'id': request['id'], 'text': request['prompt'].upper()}}), flush=True)
+""")
+        helper.chmod(0o755)
+        patcher = mock.patch.object(self.module, '_helper_path', return_value=helper)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self.module.shutdown)
+
+    def test_one_helper_answers_many_requests(self):
+        self.start_fake_helper()
+        self.assertEqual(self.module.generate('hi', 5), 'HI')
+        first_process = self.module._server_process
+        self.module.prewarm()
+        self.assertEqual(self.module.generate('again', 5), 'AGAIN')
+        self.assertIs(self.module._server_process, first_process)
+
+    def test_errors_are_mapped_to_codes(self):
+        self.start_fake_helper()
+        with self.assertRaises(OnDeviceAIError) as caught:
+            self.module.generate('refuse', 5)
+        self.assertEqual(caught.exception.code, 'guardrail')
+
+    def test_timeout_kills_the_helper_and_the_next_request_gets_a_fresh_one(self):
+        self.start_fake_helper()
+        self.module.generate('warm', 5)
+        stuck_process = self.module._server_process
+        with self.assertRaises(OnDeviceAIError) as caught:
+            self.module.generate('hang', 0.5)
+        self.assertEqual(caught.exception.code, 'timeout')
+        self.assertIsNotNone(stuck_process.poll())          # killed, not left running
+        self.assertEqual(self.module.generate('after', 5), 'AFTER')
+        self.assertIsNot(self.module._server_process, stuck_process)
+
+    def test_missing_helper_reports_not_built(self):
+        with mock.patch.object(self.module, '_helper_path', return_value=Path('/nonexistent/helper')):
+            with self.assertRaises(OnDeviceAIError) as caught:
+                self.module.generate('hi', 5)
+        self.assertEqual(caught.exception.code, 'not_built')
 
     def test_prepare_without_command_line_tools_does_not_compile(self):
         with mock.patch.object(self.module, '_unsupported_system_reason', return_value=''), \

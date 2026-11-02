@@ -288,6 +288,8 @@ class StateManager:
             print(f"\n🎙  Rephrase mode: selection captured ({len(selection)} chars)")
             print("   Speak instructions, then release to apply.")
 
+        # Rephrase always ends in an AI rewrite: load the model while the user talks.
+        ai_provider.prewarm_in_background(self.config_manager.get_postprocess_config())
         self._rephrase_mode = True
         self._streaming_delivery_active = False  # rephrase is never live-typed
         self.streaming_delivery = None
@@ -322,6 +324,7 @@ class StateManager:
 
     def _begin_recording(self):
         self.whisper_engine.preload_model_async()
+        self._prewarm_ai_if_polish_can_run()
         self._apply_recording_context()
         self._maybe_pause_media()
         with self._recorder_lock:
@@ -439,6 +442,21 @@ class StateManager:
             self.logger.debug("Sent media play/pause on recording start")
         except Exception as e:
             self.logger.debug(f"Media pause skipped: {e}")
+
+    # Loads Apple's model at hotkey press when this dictation may be polished, so the
+    # polish after the recording skips the ~1 s cold start. "May" means polish is on
+    # for the app in front (global setting or app rule) or a "stop and polish" key
+    # exists. Never raises: a missed prewarm only costs that cold start.
+    def _prewarm_ai_if_polish_can_run(self):
+        try:
+            postprocess_cfg = effective_postprocess_config(
+                self.config_manager.get_postprocess_config(), self.app_rules.match_for_foreground())
+            polish_on = bool((postprocess_cfg.get('ai') or {}).get('polish'))
+            stop_polish_key = self.config_manager.get_hotkey_config().get('stop_polish_key')
+            if polish_on or stop_polish_key:
+                ai_provider.prewarm_in_background(postprocess_cfg)
+        except Exception as error:
+            self.logger.debug(f"AI prewarm skipped: {error}")
 
     def _apply_recording_context(self):
         whisper_cfg = self.config_manager.get_whisper_config()

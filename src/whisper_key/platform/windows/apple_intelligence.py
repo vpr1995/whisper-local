@@ -23,5 +23,10 @@ def install_command_line_tools() -> bool:
     return False
 
 
+# No model to load ahead of time.
+def prewarm():
+    pass
+
+
 def generate(prompt: str, timeout_seconds: float) -> str:
     raise OnDeviceAIError('not_macos')

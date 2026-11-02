@@ -1,25 +1,27 @@
 // apple_intelligence_helper.swift
 // Tiny command-line bridge to Apple's on-device model (Foundation Models, macOS 26+).
 // Python can't call the Swift-only framework, so platform/macos/apple_intelligence.py
-// compiles this once with Apple's Command Line Tools and runs it per request.
+// compiles this once with Apple's Command Line Tools and keeps one `serve` process
+// running, so the model stays warm between dictations.
 //
 //   apple_intelligence_helper availability   -> {"available": true} or {"available": false, "reason": "..."}
-//   apple_intelligence_helper generate       stdin: {"prompt": "..."}  -> {"text": "..."} or {"error": "..."}
+//   apple_intelligence_helper serve          one JSON request per stdin line, until stdin closes:
+//       {"id": 1, "op": "prewarm"}                  -> no reply (loads the model ahead of a request)
+//       {"id": 2, "op": "generate", "prompt": "..."} -> {"id": 2, "text": "..."} or {"id": 2, "error": "..."}
 //
-// One JSON object on stdout, always. The caller enforces the time limit by
-// killing the process, which is the only reliable way to stop a stuck request.
+// The caller enforces the time limit by killing the process, which is the only
+// reliable way to stop a stuck request; it then starts a fresh one.
 
 import Foundation
 import FoundationModels
 
 // ── Output ───────────────────────────────────────────────────────────────────
 
-// Writes one JSON object and exits; every path through the program ends here.
-func finish(_ object: [String: Any], exitCode: Int32 = 0) -> Never {
+// Writes one JSON object as one line. FileHandle writes are unbuffered, so the
+// caller sees the reply at once.
+func reply(_ object: [String: Any]) {
     let data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data("{\"error\":\"unknown\"}".utf8)
-    FileHandle.standardOutput.write(data)
-    FileHandle.standardOutput.write(Data("\n".utf8))
-    exit(exitCode)
+    FileHandle.standardOutput.write(data + Data("\n".utf8))
 }
 
 // ── Availability ─────────────────────────────────────────────────────────────
@@ -50,22 +52,59 @@ func generationErrorCode(_ error: Error) -> String {
     }
 }
 
+// Answers requests until stdin closes (the app quit or crashed), so the helper
+// never outlives the app. Every generate gets a NEW session: a session keeps its
+// transcript, so reusing one would leak earlier dictations into later prompts.
 // Permissive guardrails: we only ever transform the user's own text, and the
 // default guardrails reject harmless dictations (the POC saw a nursery rhyme
 // blocked). Greedy sampling keeps polish deterministic.
-func generate(prompt: String) async -> Never {
+func serve() async {
     let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
-    if let reason = unavailableReasonCode(model) {
-        finish(["error": "unavailable", "reason": reason], exitCode: 2)
-    }
+    // A session prewarmed for the next generate; nil when none is waiting.
+    var prewarmedSession: LanguageModelSession? = nil
+
     do {
-        let session = LanguageModelSession(model: model)
-        var options = GenerationOptions()
-        options.sampling = .greedy
-        let response = try await session.respond(to: prompt, options: options)
-        finish(["text": response.content])
+        for try await line in FileHandle.standardInput.bytes.lines {
+            guard let request = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else {
+                reply(["error": "bad_request"])
+                continue
+            }
+            let requestId = request["id"] ?? NSNull()
+
+            switch request["op"] as? String {
+            case "prewarm":
+                if unavailableReasonCode(model) == nil {
+                    let session = LanguageModelSession(model: model)
+                    session.prewarm()
+                    prewarmedSession = session
+                }
+
+            case "generate":
+                guard let prompt = request["prompt"] as? String, !prompt.isEmpty else {
+                    reply(["id": requestId, "error": "bad_request"])
+                    continue
+                }
+                if let reason = unavailableReasonCode(model) {
+                    reply(["id": requestId, "error": "unavailable", "reason": reason])
+                    continue
+                }
+                let session = prewarmedSession ?? LanguageModelSession(model: model)
+                prewarmedSession = nil
+                do {
+                    var options = GenerationOptions()
+                    options.sampling = .greedy
+                    let response = try await session.respond(to: prompt, options: options)
+                    reply(["id": requestId, "text": response.content])
+                } catch {
+                    reply(["id": requestId, "error": generationErrorCode(error), "detail": "\(error)"])
+                }
+
+            default:
+                reply(["id": requestId, "error": "bad_request", "detail": "op must be prewarm or generate"])
+            }
+        }
     } catch {
-        finish(["error": generationErrorCode(error), "detail": "\(error)"], exitCode: 1)
+        // stdin broke: nothing more to answer.
     }
 }
 
@@ -75,16 +114,13 @@ let arguments = CommandLine.arguments
 switch arguments.count > 1 ? arguments[1] : "" {
 case "availability":
     if let reason = unavailableReasonCode(SystemLanguageModel.default) {
-        finish(["available": false, "reason": reason])
+        reply(["available": false, "reason": reason])
+    } else {
+        reply(["available": true])
     }
-    finish(["available": true])
-case "generate":
-    let input = FileHandle.standardInput.readDataToEndOfFile()
-    guard let request = try? JSONSerialization.jsonObject(with: input) as? [String: Any],
-          let prompt = request["prompt"] as? String, !prompt.isEmpty else {
-        finish(["error": "bad_request"], exitCode: 64)
-    }
-    await generate(prompt: prompt)
+case "serve":
+    await serve()
 default:
-    finish(["error": "bad_request", "detail": "usage: availability | generate"], exitCode: 64)
+    reply(["error": "bad_request", "detail": "usage: availability | serve"])
+    exit(64)
 }

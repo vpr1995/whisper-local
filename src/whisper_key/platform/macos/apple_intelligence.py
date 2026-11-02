@@ -1,12 +1,15 @@
 # platform/macos/apple_intelligence.py
 # Runs Apple's on-device language model through a small Swift helper program that
-# is compiled once on this Mac (no Xcode needed, only the Command Line Tools).
+# is compiled once on this Mac (no Xcode needed, only the Command Line Tools) and
+# kept running between requests, so the model stays warm.
 # Windows mirror: platform/windows/apple_intelligence.py (always unavailable).
+import atexit
 import hashlib
 import json
 import logging
 import os
 import platform
+import queue
 import subprocess
 import tempfile
 import threading
@@ -179,31 +182,146 @@ def prepare():
         record.write_text(source_hash)
         _build_failure_reason = ''
         _forget_cached_availability()
+        shutdown()                          # a helper started from the old binary is replaced on next use
         logger.info(f"Apple Intelligence helper built: {helper}")
     except (OSError, subprocess.SubprocessError) as error:
         _build_failure_reason = 'build_failed'
         logger.warning(f"Could not build the Apple Intelligence helper: {error}")
 
 
+# ── The serve process ────────────────────────────────────────────────────────
+# One helper process stays running and answers requests over stdin/stdout, so the
+# model stays warm between dictations. A request that runs past its timeout kills
+# the process (the only reliable way to stop a stuck model); the next request
+# starts a fresh one. The lock keeps one request in flight: polish, transforms,
+# rephrase and prewarm come from different threads, and the model refuses
+# concurrent requests anyway.
+
+_server_lock = threading.Lock()
+_server_process = None           # the running `helper serve`, or None
+_server_replies = None           # queue of reply lines from that process; None marks its exit
+_next_request_id = 0
+
+
+# Copies the helper's reply lines into `replies` until the process exits. Each
+# process gets its own queue, so a dying process can never feed the next one.
+def _read_replies(process, replies):
+    try:
+        for line in process.stdout:
+            replies.put(line)
+    except (OSError, ValueError):
+        pass
+    replies.put(None)
+
+
+def _start_server_locked():
+    global _server_process, _server_replies
+    process = subprocess.Popen([str(_helper_path()), 'serve'], stdin=subprocess.PIPE,
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                               text=True, bufsize=1)
+    replies = queue.Queue()
+    threading.Thread(target=_read_replies, args=(process, replies),
+                     name='apple-intelligence-replies', daemon=True).start()
+    _server_process, _server_replies = process, replies
+
+
+def _stop_server_locked():
+    global _server_process, _server_replies
+    process, _server_process, _server_replies = _server_process, None, None
+    if process is None:
+        return
+    try:
+        process.kill()
+        process.wait(timeout=2)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+# Stops the helper; the next request starts it again. Called after a rebuild, so
+# the new binary is used.
+def shutdown():
+    with _server_lock:
+        _stop_server_locked()
+
+
+# At app exit the helper is killed without waiting for the lock: a rephrase in
+# flight could hold it for 30 s. (If the app crashes instead, the helper sees its
+# stdin close and exits by itself.)
+def _kill_server_at_exit():
+    process = _server_process
+    if process is not None:
+        try:
+            process.kill()
+        except OSError:
+            pass
+
+
+atexit.register(_kill_server_at_exit)
+
+
+# Writes one request line, starting the helper first if it is not running.
+# Returns the request's id. Raises OnDeviceAIError when the helper can't be reached.
+def _send_locked(request: dict) -> int:
+    global _next_request_id
+    if _server_process is None or _server_process.poll() is not None:
+        _stop_server_locked()
+        try:
+            _start_server_locked()
+        except OSError as error:
+            raise OnDeviceAIError('not_built', str(error))
+    _next_request_id += 1
+    try:
+        _server_process.stdin.write(json.dumps({**request, 'id': _next_request_id}) + '\n')
+        _server_process.stdin.flush()
+    except (OSError, ValueError) as error:
+        _stop_server_locked()
+        raise OnDeviceAIError('failed', f"helper stopped ({error})")
+    return _next_request_id
+
+
 # ── Generating text ──────────────────────────────────────────────────────────
 
-# One-shot: runs the helper with the prompt and returns the model's text. Raises
-# OnDeviceAIError with a short code on any failure; a call that runs past the timeout
-# is killed (subprocess.run does that) so a model that hangs cannot stall the caller.
-def generate(prompt: str, timeout_seconds: float) -> str:
+# Loads the model ahead of a request (the app calls this when a recording starts),
+# so the first answer skips the ~1 s cold start. Best effort and never blocks:
+# skipped when a request is already running, since the model is warm then anyway.
+def prewarm():
+    if not _server_lock.acquire(blocking=False):
+        return
     try:
-        result = subprocess.run([str(_helper_path()), 'generate'], input=json.dumps({'prompt': prompt}),
-                                capture_output=True, text=True, timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        raise OnDeviceAIError('timeout', f"no answer within {timeout_seconds:g}s")
-    except OSError as error:
-        raise OnDeviceAIError('not_built', str(error))
+        _send_locked({'op': 'prewarm'})
+    except OnDeviceAIError as error:
+        logger.debug(f"Apple Intelligence prewarm skipped: {error}")
+    finally:
+        _server_lock.release()
 
-    try:
-        answer = json.loads(result.stdout)
-    except ValueError:
-        raise OnDeviceAIError('failed', f"unreadable helper output (exit {result.returncode})")
-    if result.returncode == 0 and isinstance(answer.get('text'), str):
+
+# Sends the prompt to the helper and returns the model's text. Raises
+# OnDeviceAIError with a short code on any failure. A call that runs past the
+# timeout kills the helper, so a model that hangs cannot stall the caller and a
+# late answer can never be read as the reply to the next request.
+def generate(prompt: str, timeout_seconds: float) -> str:
+    with _server_lock:
+        request_id = _send_locked({'op': 'generate', 'prompt': prompt})
+        replies = _server_replies
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            remaining = deadline - time.monotonic()
+            try:
+                line = replies.get(timeout=max(remaining, 0))
+            except queue.Empty:
+                _stop_server_locked()
+                raise OnDeviceAIError('timeout', f"no answer within {timeout_seconds:g}s")
+            if line is None:
+                _stop_server_locked()
+                raise OnDeviceAIError('failed', "the helper stopped without answering")
+            try:
+                answer = json.loads(line)
+            except ValueError:
+                continue                # not a reply line; keep waiting
+            if answer.get('id') == request_id:
+                break
+
+    if isinstance(answer.get('text'), str):
         return answer['text']
     error_code = str(answer.get('error') or 'failed')
     if error_code == 'unavailable':

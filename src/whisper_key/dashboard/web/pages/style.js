@@ -208,7 +208,7 @@ function buildAiSection(api, saved) {
     el('div', { class: 'setting-row' },
       el('div', { class: 'setting-text' }, el('div', { class: 'setting-label', text: 'AI provider' }), statusCaption),
       el('div', { class: 'setting-control' }, providerChoice)),
-    ui.settingRow('Polish in', 'Fixes punctuation with the AI. Adds about a second.', polishRow),
+    ui.settingRow('Polish in', 'Removes ums, repeats and false starts and fixes punctuation with the AI. Adds about half a second.', polishRow),
     ollamaFields,
   ]);
 }

@@ -1,6 +1,6 @@
 # AI polish, transforms and rephrase
 
-Whisper Local has three features that use a small AI language model. **Polish** fixes the punctuation and capital letters of each dictation. **Transforms** rewrite selected text with a stored prompt. **Rephrase** rewrites selected text with an instruction you speak. All three run on your computer. [Back to the README](../README.md).
+Whisper Local has three features that use a small AI language model. **Polish** cleans up each dictation: it removes filler words, repeats and false starts, and fixes punctuation and capital letters. **Transforms** rewrite selected text with a stored prompt. **Rephrase** rewrites selected text with an instruction you speak. All three run on your computer. [Back to the README](../README.md).
 
 **Contents**
 
@@ -69,7 +69,15 @@ Choose **Ollama** on the Style page to edit the server, model and timeout. The a
 
 ## Polish
 
-Polish sends each dictation to the AI. The AI fixes punctuation and capital letters. It must not change the words.
+Polish sends each dictation to the AI. The AI does these steps:
+
+1. It removes filler words ("um", "uh", "you know"), stutters and repeated phrases.
+2. It removes false starts. When you correct yourself, it keeps only the correction: "meet on tuesday no wait wednesday" becomes "Meet on Wednesday."
+3. It fixes punctuation and capital letters.
+
+The AI can only remove words. It must not add, move or change words.
+
+With Apple Intelligence, the app starts to load the model when you push the hotkey. Usually the model is ready when you stop talking. A sentence takes about 0.5 seconds. A long paragraph takes about 3 seconds.
 
 Polish is **off** by default, with one exception: email apps polish by default when an AI is available. The "Polish in" row on the Style page has three switches.
 
@@ -85,10 +93,13 @@ To set polish for one app, add `polish: true` or `polish: false` to a rule in `a
 
 A language model sometimes rewrites text, or answers a question that you dictated. The app checks every polished result against your original words. It types your **original text** when:
 
-- Fewer than 80 percent of your words are still in the result.
-- The result has more than 10 percent new words.
-- The result is more than 1.5 times as long as the original.
-- The AI refuses, fails or times out.
+- The result has a word that is not in your dictation, or a word in a different order. The limit is 5 percent of your words. For short dictations, the limit is zero.
+- Fewer than half of your words are still in the result. A result that short is a summary, not a cleanup.
+- A negative word in your dictation ("not", "never", "don't", "can't") is not in the result. A lost "not" changes the meaning.
+- The AI refuses or fails.
+- The AI does not answer in time. Apple Intelligence gets 3 seconds plus 1 second for each 200 characters.
+
+The check cannot find a removed clause when enough words stay. For example, "ship on Friday if the tests pass" can become "Ship on Friday." The prompt tells the AI not to do this.
 
 The app also skips polish for dictations over 1200 characters. The model is slower and changes more on long text.
 
