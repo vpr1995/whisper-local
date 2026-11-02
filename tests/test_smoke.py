@@ -233,7 +233,7 @@ class ParakeetEngineTests(unittest.TestCase):
         files = {role: f"{role}.onnx" for role in ('encoder', 'decoder', 'joiner', 'tokens')}
         for name in files.values():
             Path(folder, name).write_text("x")
-        Path(folder, files['tokens']).write_text("<unk> 0\n\u2581Pr 1\nudh 2\n")
+        Path(folder, files['tokens']).write_text("<unk> 0\n\u2581Pr 1\nudh 2\n", encoding='utf-8')
         registry = types.SimpleNamespace(get_model_files_path=lambda key: (folder, files))
 
         decoded = []
@@ -4356,6 +4356,8 @@ class StopAndPolishTests(unittest.TestCase):
 
     # Runs the real pipeline for one dictation (global polish off) with the AI mocked. Returns (text handed to delivery, tray notices).
     def _run_dictation(self, force_polish, polish_result):
+        import contextlib
+        import io
         import unittest.mock as mock
         sm = OctoberReviewTests._bare_state_manager(self)
         sm._command_mode = sm._rephrase_mode = False
@@ -4380,18 +4382,20 @@ class StopAndPolishTests(unittest.TestCase):
         ai_provider_in_use = sys.modules['whisper_key.state_manager'].ai_provider
         with mock.patch.object(ai_provider_in_use, 'polish', return_value=polish_result) as polish, \
                 mock.patch.object(ai_provider_in_use, 'apple_availability', return_value=(False, 'unknown')):
-            sm._transcription_pipeline(object(), force_polish=force_polish)
+            # The pipeline prints status lines with emoji; Windows' cp1252 test console can't encode them.
+            with contextlib.redirect_stdout(io.StringIO()):
+                sm._transcription_pipeline(object(), force_polish=force_polish)
         delivered = sm.clipboard_manager.deliver_transcription.call_args[0][0]
         notices = [call.args[0] for call in sm.system_tray.notify.call_args_list]
         return delivered, notices, polish
 
-    def test_a_forced_polish_is_delivered_even_where_the_rule_says_no(self):
+    def test_a_forced_polish_is_delivered_while_global_polish_is_off(self):
         delivered, notices, polish = self._run_dictation(True, 'Send me the report.')
         polish.assert_called_once()
         self.assertEqual(delivered, 'Send me the report.')
         self.assertEqual(notices, [])
 
-    def test_a_normal_stop_still_obeys_the_rule(self):
+    def test_a_normal_stop_does_not_polish_while_global_polish_is_off(self):
         delivered, notices, polish = self._run_dictation(False, 'Send me the report.')
         polish.assert_not_called()
         self.assertEqual(notices, [])
