@@ -1,7 +1,8 @@
 # styles.py
 # Named writing styles (formal, casual, very casual, verbatim) that bundle the
 # post-processing toggles into one choice (postprocess.style). Users can
-# redefine the presets or add their own under postprocess.styles.
+# redefine the presets or add their own under postprocess.styles, and give an
+# app its own style under postprocess.app_styles.
 
 import logging
 
@@ -59,3 +60,17 @@ def resolve_style(name, postprocess_cfg: dict = None) -> dict:
             logger.warning(f"Unknown style '{name}' — known styles: {', '.join(sorted(styles))}")
         return {}
     return dict(styles[key])
+
+
+# The config with the style the user chose for this app, or the same config
+# when the app has no row (the global postprocess.style then applies).
+# app_id is foreground.get_foreground_app()['exe']: a macOS bundle id or a
+# Windows exe name.
+def with_app_style(postprocess_cfg: dict, app_id: str) -> dict:
+    app_styles = (postprocess_cfg or {}).get('app_styles')
+    if not app_id or not isinstance(app_styles, dict):
+        return postprocess_cfg
+    row = app_styles.get(str(app_id).lower())
+    if not isinstance(row, dict) or not row.get('style'):
+        return postprocess_cfg
+    return {**postprocess_cfg, 'style': row['style']}

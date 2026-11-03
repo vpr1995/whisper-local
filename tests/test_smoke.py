@@ -4320,13 +4320,14 @@ class StopAndPolishTests(unittest.TestCase):
         listener.state_manager.stop_recording.assert_called_with(use_auto_enter=True)
 
     # Runs the real pipeline for one dictation (global polish off) with the AI mocked. Returns (text handed to delivery, tray notices).
-    def _run_dictation(self, force_polish, polish_result):
+    def _run_dictation(self, force_polish, polish_result, postprocess_cfg=None, app_id=''):
         import contextlib
         import io
         import unittest.mock as mock
         sm = OctoberReviewTests._bare_state_manager(self)
         sm._command_mode = sm._rephrase_mode = False
         sm._rephrase_selection = ''
+        sm._recording_app_id = app_id
         sm._streaming_delivery_active = False
         sm.streaming_delivery = None
         sm._pending_model_change = sm._pending_device_change = None
@@ -4337,7 +4338,7 @@ class StopAndPolishTests(unittest.TestCase):
         sm.whisper_engine.transcribe_audio.return_value = 'send me the report'
         sm.audio_recorder.get_audio_duration.return_value = 2.0
         sm.config_manager = mock.Mock()
-        sm.config_manager.get_postprocess_config.return_value = {'ai': {'provider': 'ollama', 'polish': False}}
+        sm.config_manager.get_postprocess_config.return_value = postprocess_cfg or {'ai': {'provider': 'ollama', 'polish': False}}
         sm.clipboard_manager = mock.Mock()
         sm.clipboard_manager.deliver_transcription.return_value = False   # skip stats and history writes
         for quiet in ('_offer_outsider_language', '_refresh_hotwords', '_update_ui_state'):
@@ -4364,6 +4365,15 @@ class StopAndPolishTests(unittest.TestCase):
         delivered, notices, polish = self._run_dictation(False, 'Send me the report.')
         polish.assert_not_called()
         self.assertEqual(notices, [])
+
+    # Style per app: the app focused at hotkey press picks the style; other apps keep the global one.
+    def test_the_recording_app_style_replaces_the_global_style(self):
+        config = {'ai': {'provider': 'ollama', 'polish': False}, 'style': 'formal',
+                  'app_styles': {'code.exe': {'name': 'VS Code', 'style': 'verbatim'}}}
+        in_code, _, _ = self._run_dictation(False, '', postprocess_cfg=dict(config), app_id='code.exe')
+        elsewhere, _, _ = self._run_dictation(False, '', postprocess_cfg=dict(config), app_id='notes.exe')
+        self.assertEqual(in_code, 'send me the report')
+        self.assertEqual(elsewhere, 'Send me the report.')
 
     def test_a_failed_forced_polish_pastes_plain_text_and_says_why(self):
         delivered, notices, _ = self._run_dictation(True, '')

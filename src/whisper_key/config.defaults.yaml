@@ -575,6 +575,14 @@ postprocess: # Transcription post-processing pipeline
     style: ""
     styles: {}
 
+    # Style per app: an app listed here gets its own style; every other app
+    # uses `style` above. Keys are the app id (macOS bundle id or Windows exe
+    # name, lowercase). Set these on the dashboard Style page. Example:
+    # app_styles:
+    #     com.tinyspeck.slackmacgap: {name: Slack, style: casual}
+    #     code.exe: {name: Visual Studio Code, style: verbatim}
+    app_styles: {}
+
     # Backtrack: correct yourself mid-sentence and only the correction is kept.
     # "Let's meet at 2, actually 3" → "Let's meet at 3".
     # "Ship it Tuesday, no wait, Wednesday" → "Ship it Wednesday".

@@ -37,6 +37,7 @@ from .voice_activity_detection import VadEvent, VadManager
 from .voice_commands import VoiceCommandManager
 from .streaming_delivery import StreamingDelivery, decide_stream_delivery
 from .text_postprocess import postprocess
+from .styles import with_app_style
 from .stats import record_transcription
 from .transcript_log import record_transcript
 from .platform import foreground, audio_endpoints
@@ -91,6 +92,10 @@ class StateManager:
         # current recording when conditions are met; default off → zero impact.
         self._streaming_delivery_active = False
         self.streaming_delivery = None
+
+        # The app that had focus at hotkey press. Its row in postprocess.app_styles
+        # picks the writing style, even if the user switches windows mid-dictation.
+        self._recording_app_id = ''
 
         self.logger = logging.getLogger(__name__)
         self._current_audio_host = None
@@ -241,6 +246,8 @@ class StateManager:
     def start_rephrase_recording(self):
         if not self.can_start_recording():
             return
+        # With nothing selected this becomes a plain dictation: style it for this app.
+        self._recording_app_id = self._read_foreground_app_id()
         self.whisper_engine.preload_model_async()
         import time
         import pyperclip
@@ -287,6 +294,7 @@ class StateManager:
         if not self.can_start_recording():
             return
 
+        self._recording_app_id = self._read_foreground_app_id()
         self.whisper_engine.preload_model_async()
         with self._state_lock:
             self._command_mode = True
@@ -305,6 +313,8 @@ class StateManager:
             self._schedule_silent_mic_check()
 
     def _begin_recording(self):
+        # First, before the overlay or anything else can change focus.
+        self._recording_app_id = self._read_foreground_app_id()
         self.whisper_engine.preload_model_async()
         self._prewarm_ai_if_polish_can_run()
         self._apply_recording_context()
@@ -634,6 +644,10 @@ class StateManager:
                 return
 
             postprocess_cfg = self.config_manager.get_postprocess_config()
+            # The app where the dictation started may have its own writing style.
+            postprocess_cfg = with_app_style(postprocess_cfg, self._recording_app_id)
+            self.logger.debug(f"Style for {self._recording_app_id or 'unknown app'}: "
+                              f"{postprocess_cfg.get('style') or 'none'}")
             # "Stop and polish": this one dictation is polished whatever the setting says.
             if force_polish:
                 postprocess_cfg = {**postprocess_cfg, 'ai': {**(postprocess_cfg.get('ai') or {}), 'polish': True}}
@@ -943,6 +957,14 @@ class StateManager:
             self.level_overlay.flash_success()
         self.logger.info(f"Rephrase complete: {len(selection)} -> {len(polished)} chars")
         print("   ✓ Rephrased and pasted")
+
+    # The focused app's id (macOS bundle id / Windows exe name), '' if unknown.
+    def _read_foreground_app_id(self) -> str:
+        try:
+            return ((foreground.get_foreground_app() or {}).get('exe') or '').lower()
+        except Exception as e:
+            self.logger.debug(f"Foreground app read failed: {e}")
+            return ''
 
     NON_TEXT_EXES = {'progman.exe', 'workerw.exe', 'dwm.exe', 'searchhost.exe',
                      'shellexperiencehost.exe', 'startmenuexperiencehost.exe',
