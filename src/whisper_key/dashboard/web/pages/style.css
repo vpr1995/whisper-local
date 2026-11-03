@@ -39,3 +39,20 @@
 .style-input-number { width: 72px; text-align: right; font-variant-numeric: tabular-nums; }
 
 .section-caption { font-weight: 400; font-size: 12px; text-align: right; }
+
+/* Style per app: one row per app, an id caption, and the inline app picker */
+.app-style-id { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11.5px; }
+.app-style-controls { display: inline-flex; align-items: center; gap: 8px; }
+.app-style-footer { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--border); }
+.app-picker { border-top: 1px solid var(--border); }
+.app-picker-bar { display: flex; gap: 8px; padding: 10px 16px 6px; }
+.app-picker-search { flex: 1; }
+.app-picker-list { max-height: 260px; overflow-y: auto; padding: 0 8px 8px; }
+.app-picker-item {
+  display: flex; width: 100%; align-items: baseline; gap: 10px; padding: 7px 8px;
+  border: 0; border-radius: 7px; background: transparent; color: var(--fg); text-align: left; cursor: pointer;
+}
+.app-picker-item:hover, .app-picker-item:focus-visible { background: var(--bg-hover); outline: none; }
+.app-picker-name { font-size: 13.5px; }
+.app-picker-id { font-size: 11.5px; color: var(--fg-secondary); }
+.app-picker-empty, .app-picker-list > .setting-caption { padding: 8px; }

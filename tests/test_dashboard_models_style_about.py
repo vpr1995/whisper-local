@@ -263,6 +263,48 @@ class StyleApiTests(unittest.TestCase):
         self.assertFalse(self.api.set_writing_style('bogus')['ok'])
         self.config.update_user_setting.assert_not_called()
 
+    # ── Style per app ──
+
+    def test_app_styles_rows_sorted_by_name(self):
+        self.config.config['postprocess']['app_styles'] = {
+            'com.tinyspeck.slackmacgap': {'name': 'Slack', 'style': 'casual'},
+            'com.apple.notes': {'name': 'Notes', 'style': 'formal'},
+            'broken': 'not a row',
+        }
+        data = self.api.get_app_styles()
+        self.assertEqual([row['name'] for row in data['rows']], ['Notes', 'Slack'])
+        self.assertIn('shouty', [style['id'] for style in data['styles']])
+
+    def test_set_app_style_writes_whole_table(self):
+        self.config.config['postprocess']['app_styles'] = {'com.apple.notes': {'name': 'Notes', 'style': 'formal'}}
+        self.assertEqual(self.api.set_app_style('Code.EXE', 'VS Code', 'verbatim'), {'ok': True, 'restart_required': False})
+        self.config.update_user_setting.assert_called_with('postprocess', 'app_styles', {
+            'com.apple.notes': {'name': 'Notes', 'style': 'formal'},
+            'code.exe': {'name': 'VS Code', 'style': 'verbatim'},
+        })
+
+    def test_set_app_style_rejects_unknown_style_and_empty_app(self):
+        self.assertFalse(self.api.set_app_style('code.exe', 'VS Code', 'bogus')['ok'])
+        self.assertFalse(self.api.set_app_style('', 'Nothing', 'casual')['ok'])
+        self.config.update_user_setting.assert_not_called()
+
+    def test_remove_app_style(self):
+        self.config.config['postprocess']['app_styles'] = {'code.exe': {'name': 'VS Code', 'style': 'verbatim'}}
+        self.assertTrue(self.api.remove_app_style('code.exe')['ok'])
+        self.config.update_user_setting.assert_called_with('postprocess', 'app_styles', {})
+        self.config.update_user_setting.reset_mock()
+        self.assertFalse(self.api.remove_app_style('notes.exe')['ok'])
+        self.config.update_user_setting.assert_not_called()
+
+    def test_picker_hides_apps_that_have_a_row(self):
+        self.config.config['postprocess']['app_styles'] = {'code.exe': {'name': 'VS Code', 'style': 'verbatim'}}
+        fake_apps = mock.MagicMock()
+        fake_apps.list_pickable_apps.return_value = [{'id': 'code.exe', 'name': 'VS Code'},
+                                                     {'id': 'slack.exe', 'name': 'Slack'}]
+        with mock.patch.dict(sys.modules, {'whisper_key.platform.apps': fake_apps}), \
+                mock.patch('whisper_key.platform.apps', fake_apps, create=True):
+            self.assertEqual(self.api.list_pickable_apps(), [{'id': 'slack.exe', 'name': 'Slack'}])
+
     def test_cleanup_levels_default_and_current(self):
         data = self.api.get_cleanup_levels()  # config has no postprocess.cleanup -> app default
         self.assertEqual(data['current'], data['default'])
@@ -650,3 +692,26 @@ class SettingsPaneWhitelistTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# ── Style per app: real save and reload ──────────────────────────────────────
+
+class AppStylesSaveRoundTripTests(unittest.TestCase):
+    # postprocess.app_styles holds the user's own keys, so a save must keep them
+    # (EXTENSIBLE_PATHS) and a removed row must stay removed after a reload.
+    def test_rows_survive_save_and_reload(self):
+        try:
+            from whisper_key import config_manager as cm_mod
+        except Exception:
+            self.skipTest("config_manager not importable on this platform")
+        with tempfile.TemporaryDirectory() as folder:
+            with mock.patch.object(cm_mod, 'get_user_app_data_path', return_value=folder):
+                api = make_api(style_api.StyleApi, None)
+                api._load_config = lambda: cm_mod.ConfigManager(quiet=True)
+                self.assertTrue(api.set_app_style('com.tinyspeck.slackmacgap', 'Slack', 'casual')['ok'])
+                self.assertTrue(api.set_app_style('code.exe', 'VS Code', 'verbatim')['ok'])
+                self.assertEqual([row['id'] for row in api.get_app_styles()['rows']],
+                                 ['com.tinyspeck.slackmacgap', 'code.exe'])
+                self.assertTrue(api.remove_app_style('code.exe')['ok'])
+                reloaded = cm_mod.ConfigManager(quiet=True).config['postprocess']['app_styles']
+                self.assertEqual(dict(reloaded), {'com.tinyspeck.slackmacgap': {'name': 'Slack', 'style': 'casual'}})

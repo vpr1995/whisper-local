@@ -1,6 +1,7 @@
 // pages/style.js
-// Style page: how dictation is shaped. The writing style chips, the clean-up level,
-// and the AI provider with its polish switch. Every control saves as it changes.
+// Style page: how dictation is shaped. The writing style chips, a style per app,
+// the clean-up level, and the AI provider with its polish switch. Every control
+// saves as it changes.
 // Data and actions come from api/style.py.
 
 // Wrapped in a function so these helper names stay private: all page scripts share one global scope.
@@ -60,6 +61,115 @@ function buildStyleSection(api, data) {
 
   showStyle(savedId);
   return sectionCard(chips, el('div', { class: 'style-strip style-sample-bar' }, sampleText, sampleDescription));
+}
+
+// ── Style per app ────────────────────────────────────────────────────────────
+
+// The app rows (name, style dropdown, remove) and an "Add app" picker. The user
+// picks an app from the list, then its style. Rows and picker re-render after
+// each save, so the picker never offers an app that already has a row.
+function buildAppStylesSection(api, data) {
+  const body = el('div');
+  const card = ui.card(null, body);
+  let pickerOpen = false;
+
+  const styleOptions = () => data.styles.map((style) => ({ value: style.id, label: style.name }));
+
+  // Fetches the rows again and redraws the card.
+  const reload = async () => {
+    const fresh = await api.call('get_app_styles').catch(() => null);
+    if (fresh) Object.assign(data, fresh);
+    render();
+  };
+
+  // One saved app: its style saves on change, the button deletes the row.
+  const appRow = (row) => {
+    const styleSelect = ui.select(styleOptions(), row.style, async (styleId) => {
+      const result = await saveOrToast(api, 'set_app_style', row.id, row.name, styleId);
+      if (!result) { styleSelect.value = row.style; return; }
+      row.style = styleId;
+      ui.toast(`${row.name} now uses this style from your next dictation.`, 'success');
+    });
+    // A hand-edited row may name a style that no longer exists: show it as missing.
+    if (!data.styles.some((style) => style.id === row.style)) {
+      styleSelect.prepend(el('option', { value: row.style, text: `${row.style} (missing)` }));
+      styleSelect.value = row.style;
+    }
+    const removeButton = ui.button('Remove', async () => {
+      if (await saveOrToast(api, 'remove_app_style', row.id)) {
+        ui.toast(`${row.name} uses the writing style above again.`, 'success');
+        reload();
+      }
+    }, { variant: 'ghost' });
+    return el('div', { class: 'setting-row app-style-row' },
+      el('div', { class: 'setting-text' },
+        el('div', { class: 'setting-label', text: row.name }),
+        el('div', { class: 'setting-caption app-style-id', text: row.id })),
+      el('div', { class: 'setting-control app-style-controls' }, styleSelect, removeButton));
+  };
+
+  // Step 1: search and click an app. Step 2: choose its style and add it.
+  const picker = () => {
+    const panel = el('div', { class: 'app-picker' });
+    const searchInput = el('input', { class: 'style-input app-picker-search', type: 'search',
+      placeholder: 'Search apps…', spellcheck: 'false' });
+    const list = el('div', { class: 'app-picker-list' }, el('div', { class: 'setting-caption', text: 'Loading apps…' }));
+    const close = () => { pickerOpen = false; render(); };
+    panel.append(el('div', { class: 'app-picker-bar' }, searchInput, ui.button('Cancel', close, { variant: 'ghost' })), list);
+
+    let apps = [];
+    const showApps = () => {
+      const query = searchInput.value.trim().toLowerCase();
+      const matches = apps.filter((app) => app.name.toLowerCase().includes(query) || app.id.includes(query));
+      list.replaceChildren(...(matches.length ? matches.map((app) => {
+        const item = el('button', { type: 'button', class: 'app-picker-item' },
+          el('span', { class: 'app-picker-name', text: app.name }),
+          el('span', { class: 'app-picker-id', text: app.id }));
+        item.addEventListener('click', () => chooseStyle(app));
+        return item;
+      }) : [el('div', { class: 'setting-caption app-picker-empty', text: 'No matching apps.' })]));
+    };
+
+    const chooseStyle = (app) => {
+      const styleSelect = ui.select([{ value: '', label: 'Choose a style' }, ...styleOptions()], '');
+      const addButton = ui.button('Add', async () => {
+        if (!styleSelect.value) { ui.toast('Choose a style first.', 'info'); return; }
+        if (await saveOrToast(api, 'set_app_style', app.id, app.name, styleSelect.value)) {
+          ui.toast(`${app.name} now has its own style. It applies to your next dictation.`, 'success');
+          pickerOpen = false;
+          reload();
+        }
+      }, { variant: 'primary' });
+      panel.replaceChildren(el('div', { class: 'setting-row app-picker-choose' },
+        el('div', { class: 'setting-text' }, el('div', { class: 'setting-label', text: `Style for ${app.name}` })),
+        el('div', { class: 'setting-control app-style-controls' }, styleSelect, addButton,
+          ui.button('Back', () => { panel.replaceWith(picker()); }, { variant: 'ghost' }))));
+    };
+
+    searchInput.addEventListener('input', showApps);
+    api.call('list_pickable_apps').catch(() => null).then((found) => {
+      if (!found) { list.replaceChildren(el('div', { class: 'setting-caption', text: 'Could not list your apps.' })); return; }
+      apps = found;
+      showApps();
+      searchInput.focus();
+    });
+    return panel;
+  };
+
+  // Draws the rows (or the empty state), then the "Add app" bar or the open picker.
+  const render = () => {
+    const rows = data.rows.length ? data.rows.map(appRow)
+      : [ui.emptyState('No apps yet', 'Add an app to give it its own style.')];
+    const footer = pickerOpen ? picker()
+      : el('div', { class: 'app-style-footer' },
+        ui.button('+ Add app', () => { pickerOpen = true; render(); }),
+        el('span', { class: 'setting-caption',
+          text: 'Browsers count as one app: Gmail and Slack in Chrome get the same style.' }));
+    body.replaceChildren(...rows, footer);
+  };
+
+  render();
+  return card;
 }
 
 // ── Clean-up ─────────────────────────────────────────────────────────────────
@@ -160,8 +270,9 @@ registerPage('style', {
       el('p', { class: 'page-subtitle', text: 'How your dictation is shaped before it is typed.' }));
 
     // Independent blocks: one failing call must not blank the page.
-    const [styles, cleanup, aiSettings] = await Promise.all([
+    const [styles, appStyles, cleanup, aiSettings] = await Promise.all([
       api.call('get_writing_styles').catch(() => null),
+      api.call('get_app_styles').catch(() => null),
       api.call('get_cleanup_levels').catch(() => null),
       api.call('get_ai_settings').catch(() => null),
     ]);
@@ -170,6 +281,9 @@ registerPage('style', {
     container.append(...[
       ui.sectionHeader('Writing style'),
       styles ? buildStyleSection(api, styles) : unavailable(),
+      ui.sectionHeader('Style per app', el('span', { class: 'section-caption',
+        text: "Apps you don't add here use the writing style above." })),
+      appStyles ? buildAppStylesSection(api, appStyles) : unavailable(),
       ui.sectionHeader('Clean-up', el('span', { class: 'section-caption',
         text: 'How much to tidy what you said before it is typed.' })),
       cleanup ? buildCleanupSection(api, cleanup) : unavailable(),

@@ -20,6 +20,6 @@ IS_WINDOWS = PLATFORM == 'windows'
 # "unsupported platform" failure where it matters, rather than blowing up
 # at module import on every developer's CI box.
 if IS_MACOS:
-    from .macos import instance_lock, keyboard, hotkeys, paths, app, permissions, icons, gpu, console, foreground, audio_endpoints, overlay, apple_intelligence
+    from .macos import instance_lock, keyboard, hotkeys, paths, app, permissions, icons, gpu, console, foreground, audio_endpoints, overlay, apple_intelligence, apps
 elif IS_WINDOWS:
-    from .windows import instance_lock, keyboard, hotkeys, paths, app, permissions, icons, gpu, console, foreground, audio_endpoints, overlay, apple_intelligence
+    from .windows import instance_lock, keyboard, hotkeys, paths, app, permissions, icons, gpu, console, foreground, audio_endpoints, overlay, apple_intelligence, apps

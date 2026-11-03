@@ -1,7 +1,8 @@
 # dashboard/api/style.py
-# Python API for the Style page: the writing style, the clean-up level, and the
-# AI provider and polish switch. Every setting is written to user_settings.yaml
-# here; the running app hot-reloads them, so changes apply on the next dictation.
+# Python API for the Style page: the writing style, the style per app, the
+# clean-up level, and the AI provider and polish switch. Every setting is
+# written to user_settings.yaml here; the running app hot-reloads them, so
+# changes apply on the next dictation.
 
 import os
 from pathlib import Path
@@ -77,6 +78,50 @@ class StyleApi:
         config_manager.update_user_setting('postprocess', 'style', style_id)
         return {'ok': True, 'restart_required': False}
 
+    # ── Style per app ────────────────────────────────────────────────────────
+
+    # The apps that have their own style (postprocess.app_styles), sorted by
+    # name, plus the styles a row can pick.
+    def get_app_styles(self) -> dict:
+        from ...styles import available_styles
+        postprocess_cfg = self._load_config().config.get('postprocess', {}) or {}
+        rows = [{'id': app_id, 'name': str(row.get('name') or app_id), 'style': str(row.get('style') or '')}
+                for app_id, row in self._app_style_rows(postprocess_cfg).items()]
+        styles = [{'id': style_id, 'name': humanize_name(style_id)} for style_id in available_styles(postprocess_cfg)]
+        return {'rows': sorted(rows, key=lambda row: row['name'].lower()), 'styles': styles}
+
+    # The apps the picker offers (installed apps on macOS, open and History apps
+    # on Windows), without the apps that already have a row.
+    def list_pickable_apps(self) -> list:
+        from ...platform import apps
+        postprocess_cfg = self._load_config().config.get('postprocess', {}) or {}
+        configured = self._app_style_rows(postprocess_cfg)
+        return [app for app in apps.list_pickable_apps() if app['id'] not in configured]
+
+    # Adds the app's row or changes its style. Hot-reloaded: next dictation, no restart.
+    def set_app_style(self, app_id: str, name: str, style_id: str) -> dict:
+        from ...styles import available_styles
+        app_id = str(app_id or '').strip().lower()
+        if not app_id:
+            return {'ok': False, 'error': "No app selected"}
+        config_manager = self._load_config()
+        postprocess_cfg = config_manager.config.get('postprocess', {}) or {}
+        if style_id not in available_styles(postprocess_cfg):
+            return {'ok': False, 'error': f"Unknown style: {style_id}"}
+        rows = self._app_style_rows(postprocess_cfg)
+        rows[app_id] = {'name': str(name or app_id).strip(), 'style': style_id}
+        config_manager.update_user_setting('postprocess', 'app_styles', rows)
+        return {'ok': True, 'restart_required': False}
+
+    # Deletes the app's row: the app uses the global writing style again.
+    def remove_app_style(self, app_id: str) -> dict:
+        config_manager = self._load_config()
+        rows = self._app_style_rows(config_manager.config.get('postprocess', {}) or {})
+        if rows.pop(str(app_id or '').lower(), None) is None:
+            return {'ok': False, 'error': "This app has no style of its own"}
+        config_manager.update_user_setting('postprocess', 'app_styles', rows)
+        return {'ok': True, 'restart_required': False}
+
     # ── Clean-up level ───────────────────────────────────────────────────────
 
     # The current postprocess.cleanup level and every level on offer, mildest first.
@@ -142,6 +187,16 @@ class StyleApi:
         return self._open_user_file('user_settings.yaml')
 
     # ── Helpers ──────────────────────────────────────────────────────────────
+
+    # A plain copy of postprocess.app_styles with only well-formed rows, so a
+    # save never mutates the loaded config and a hand-edit typo can't crash the page.
+    @staticmethod
+    def _app_style_rows(postprocess_cfg: dict) -> dict:
+        table = postprocess_cfg.get('app_styles')
+        if not isinstance(table, dict):
+            return {}
+        return {str(app_id).lower(): {'name': str(row.get('name') or app_id), 'style': str(row.get('style') or '')}
+                for app_id, row in table.items() if isinstance(row, dict)}
 
     # Opens a file in the user's config folder with the OS default app.
     def _open_user_file(self, filename: str) -> bool:
