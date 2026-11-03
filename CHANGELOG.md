@@ -5,6 +5,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 ## [Unreleased]
 
 ### Added
+- **A writing style per app.** On the Style page, click "+ Add app", pick an
+  app, then pick its style. All other apps use the global writing style. On
+  macOS, the list shows all installed apps. On Windows, it shows the open apps
+  and the apps in your History. The app reads the focused app when you press
+  the hotkey. Stored in `postprocess.app_styles`.
 - **Word snap: Parakeet now uses your Words.** After transcription, a
   capitalized word that sounds like one of your Words becomes that word
   ("Pradvi" becomes "Prudhvi"). It is strict: it skips "Prithvi", "Proud" and
@@ -138,7 +143,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and th
 - **Profiles, per-app rules and AI transforms** (`profiles.yaml`,
   `app_rules.yaml`, `transforms.yaml`, and the Profile, AI transforms and
   Per-app rules sections of the Style page). The app ignores these files now.
-  One writing style and one clean-up level apply to every app. There is no
+  One clean-up level applies to every app. (A simpler style per app is back:
+  see Added.) There is no
   built-in guard for password managers or terminals any more: the app types
   where the cursor is.
 - **"Polish in" per app type.** AI polish is one switch for every app:

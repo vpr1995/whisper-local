@@ -63,6 +63,7 @@
 - As a *user* I want **restricted language auto-detect** (`whisper.languages: [en, hi]`) so switching between the languages I speak never lands on one I don't
 - As a *user* I want a **short command alias** so I can launch the app by typing `wl`
 - As a *user* I want **wrapped model downloading** so I see a clean progress line instead of raw HuggingFace output
+- As a *user* I want **a writing style for each app** so Slack gets casual text and my terminal gets verbatim text without a manual switch (dashboard Style page: pick an app, then its style)
 
 ## Resolved Bugs
 

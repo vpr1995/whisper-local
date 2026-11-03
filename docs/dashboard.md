@@ -67,6 +67,7 @@ Three cards. **Words** are hotwords that help the model spell names and jargon. 
 How your dictation is shaped before it is typed.
 
 - **Writing style.** None, Formal, Casual, Very casual, Verbatim, or your own.
+- **Style per app.** Pick an app, then its style. All other apps use the writing style.
 - **Clean-up.** Off, Light, Medium or High.
 - **AI.** The provider, and the **AI polish** switch. See [AI polish](ai-polish.md).
 

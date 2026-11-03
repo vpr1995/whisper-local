@@ -48,7 +48,8 @@ Open-source project maintained as `vpr1995/whisper-local` by Prudhvi Reddy Vemir
 | **Dictation Cleanup** | `dictation_cleanup.py` | Backtrack ("actually 3"), stutter removal, spoken lists, lowercase | re |
 | **Dictation Languages** | `dictation_languages.py` | "Languages you speak": restricts auto-detection, flags speech in other languages | - |
 | **Snippets** | `snippets.py` | Spoken shortcuts expanded inline during dictation | re |
-| **Styles** | `styles.py` | Named writing styles (formal/casual/very casual/verbatim), one global choice | - |
+| **Styles** | `styles.py` | Named writing styles (formal/casual/very casual/verbatim). One global style, plus a style per app (`postprocess.app_styles`, read from the app at hotkey press) | - |
+| **App List** | `platform/*/apps.py` | Apps for the Style page's per-app picker: installed apps on macOS, open and History apps on Windows | plistlib / ctypes |
 | **Hotkey Gestures** | `hotkey_gestures.py` | Double-tap-to-lock state machine for push-to-talk | threading |
 | **Whisper Mode** | `audio_gain.py` | Boosts quiet recordings before transcription | numpy |
 | **Corrections** | `corrections.py` | Persist post-transcription replacements (history "Fix this everywhere") | ruamel.yaml |
@@ -87,6 +88,7 @@ whisper-local/
 │       │   └── {macos,windows}/       # Platform-specific implementations
 │       │       ├── assets/            # Platform-specific assets
 │       │       ├── app.py             # Thread requirements, getch()
+│       │       ├── apps.py            # Apps for the per-app style picker
 │       │       ├── apple_intelligence.py # On-device AI helper (macOS); Windows stub
 │       │       ├── hotkeys.py         # Hotkey detection
 │       │       ├── icons.py           # Tray icons
