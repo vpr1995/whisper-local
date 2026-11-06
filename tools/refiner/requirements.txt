@@ -1,0 +1,17 @@
+# Fine-tune tools for the Built-in polish model (docs/plans/2026-11-06-1134-gemma-polish-finetune-implementation.md).
+# Separate venv (.temp/refiner-venv); never app dependencies.
+mlx-lm
+transformers
+torch
+# ONNX export: the onnxruntime-genai model builder (same tool as onnx-community).
+# optimum does not work with transformers 5.
+onnxruntime-genai
+onnx_ir
+requests
+onnx
+onnxruntime
+datasets
+tokenizers
+huggingface_hub
+soxr
+numpy

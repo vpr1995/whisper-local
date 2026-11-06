@@ -153,6 +153,7 @@ The phases are in delivery order. Phases 1–2 (live ASR) give the latency gain 
 - [ ] Measure separately: CPU `small`, GPU `large-v3-turbo`.
 
 7. Training data and fine-tune (write a separate plan when we reach it)
+- Plan: `2026-11-06-1134-gemma-polish-finetune-implementation.md` (round 1: plain clean-up, MLX on this Mac, public data + hand-written eval set)
 - [ ] Pair logging (opt-in, local only): raw ASR, prepared text, polished text, delivered text, style, app. Include History "Fix this everywhere" edits.
 - [ ] Frozen eval set (~300 rows) before any training. Metrics: WER vs target, damage rate (rows worse than prepared text), fillers left per 100 words, self-corrections resolved, negations kept, runaway rate, latency.
 - [ ] Public data (see table below). Check each license before use.
