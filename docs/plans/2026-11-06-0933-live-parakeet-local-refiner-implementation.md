@@ -84,20 +84,26 @@ The phases are in delivery order. Phases 1–2 (live ASR) give the latency gain 
   - ✅ `tests/test_live_transcriber.py`: 10 tests pass. Full suite: 584 pass, 5 skipped
 
 2. Live transcription (ASR rounds)
-- [ ] `LiveTranscriber`: holds a 16 kHz buffer, runs one worker thread and exposes `start(preroll)`, `feed(chunk)`, `finish() -> str` and `cancel()`.
+- [x] `LiveTranscriber`: holds a 16 kHz buffer, runs one worker thread and exposes `start(preroll)`, `feed(chunk)`, `finish() -> str` and `cancel()`.
   - Round plan: every 0.4 s, left context 5 s, commit after 15 s while the recording is ≤ 60 s. After that: every 5 s, left context 3 s, commit each round.
   - Commit words that start more than 2 s before the round end.
   - `finish()`: `t_cut = max(commit_t, last_round_end − 2 s)`. Decode `[t_cut − 4 s, end]`. Drop a round that is still running (or wait, per the Phase 1 concurrency result).
   - Publish `(version, committed words, open words)` for the LLM worker and the overlay.
-- [ ] `audio_recorder.py`:
+  - ✅ Rounds run in `step()`, so tests and replay drive them inline. `finish()` drops a running round (decodes are safe in parallel). Text goes out through an `on_text` callback; the LLM hook comes in Phase 4. Replay of the spike clips: 5.2 min WER 0.0151 (spike 0.0151), 1.3 min 0.0105 inline and 0.0174 real-time (spike 0.0174), key-up 215–293 ms
+- [x] `audio_recorder.py`:
   - At `start_recording()`, seed `LiveTranscriber.start()` with the pre-roll buffer (~500 ms), resampled to 16 kHz mono. Without it the first word gets clipped again.
   - For each chunk while recording: flatten channels to mono, resample to 16 kHz (reuse `_resample_audio`), call `live_transcriber.feed()`.
-- [ ] `state_manager.py`: in `_transcription_pipeline`, use `live_transcriber.finish()` when it is active and healthy. Otherwise use `transcribe_audio(full)` and log why.
+  - ✅ `start_recording(live_sink=)`. The callback only makes mono and enqueues. The worker resamples with `soxr.ResampleStream` (per-chunk `resample` puts artifacts at chunk edges). Pre-roll seed and `is_recording = True` are in one lock block. Moonshine is skipped while a live sink runs. **The WASAPI resample path is not tested on a real mic yet (Windows test).**
+- [x] `state_manager.py`: in `_transcription_pipeline`, use `live_transcriber.finish()` when it is active and healthy. Otherwise use `transcribe_audio(full)` and log why.
   - Live path is off for: non-Parakeet backend, whisper mode, command mode, rephrase, and commit-on-endpoint delivery.
-- [ ] `config.defaults.yaml`: `streaming.live_transcription` (default from decision 0.1) with a comment on the CPU cost. Keep cadence numbers as constants in code.
-- [ ] `idle_unload.py`: never unload the engine while a live session runs.
-- [ ] Overlay: show the live text (decision 0.2).
-- [ ] Log per dictation (no text): key-up → text ms, release decode ms, key-up wait, rounds, retries, lag at key-up, CPU busy %.
+  - ✅ Gate: `hasattr(engine, 'decode_window')`, so Phase 6 needs no gate change. Empty live text = "No speech detected". Live text of ≤ 3 words gets the VAD check, like `transcribe_audio`. Cancel and every recording start (dictation, command, rephrase) end a left-over session
+- [x] `config.defaults.yaml`: `streaming.live_transcription` (default from decision 0.1) with a comment on the CPU cost. Keep cadence numbers as constants in code.
+- [x] `idle_unload.py`: never unload the engine while a live session runs.
+  - ✅ No change needed: `is_app_idle` is `state == "idle"`, false while recording and processing
+- [x] Overlay: show the live text (decision 0.2).
+- [x] Log per dictation (no text): key-up → text ms, release decode ms, key-up wait, rounds, retries, lag at key-up, CPU busy %.
+  - ✅ `Live transcription: {keyup_ms, duration_s, rounds, retries, release_anchored, lag_s, busy_pct}`. Measured CPU in the first minute: ~280–310% of one core (Parakeet uses 4 threads)
+- [ ] Settings page toggle for `live_transcription` (YAML only for now).
 - [ ] **Checkpoint:** live ASR bench (Phase 5 tool, ASR part) + user real-mic test with polish off and with Apple Intelligence.
 
 3. Built-in refiner: Gemma 3 270M on ONNX (no live polish yet)

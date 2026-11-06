@@ -4449,3 +4449,101 @@ class CommandsLayeringTests(unittest.TestCase):
 
     def test_missing_shipped_file_falls_back_to_the_user_file(self):
         self.assertEqual(self._load('nope.yaml'), [])
+
+
+# Live transcription wiring: the pipeline takes the live text, falls back to the
+# whole-recording decode, keeps the no-speech guard, and a session left from a
+# lost device never feeds a command. The recorder seeds the pre-roll once.
+class LiveTranscriptionWiringTests(unittest.TestCase):
+    def _state_manager(self, live_text, has_speech=True):
+        import unittest.mock as mock
+        try:
+            import numpy  # noqa: F401  (must predate the sys.modules snapshot)
+        except ImportError:
+            self.skipTest('numpy not installed')
+        fakes = fake_platform_modules()
+        for name in ('PIL', 'PIL.Image', 'PIL.ImageDraw', 'pystray', 'sounddevice', 'soxr',
+                     'faster_whisper', 'playsound3'):
+            fakes[name] = _stand_in_module(name)
+        reimport_under(self, fakes)
+        from whisper_key.state_manager import StateManager
+        sm = StateManager.__new__(StateManager)
+        sm.logger = __import__('logging').getLogger('test')
+        sm._state_lock = __import__('threading').Lock()
+        sm.whisper_engine = mock.Mock()
+        sm.whisper_engine.transcribe_audio.return_value = 'whole recording'
+        sm.vad_manager = mock.Mock()
+        sm.vad_manager.is_available.return_value = True
+        sm.vad_manager.check_audio_for_speech.return_value = has_speech
+        live = mock.Mock()
+        live.finish.return_value = live_text
+        live.last_stats = {'keyup_ms': 1}
+        return sm, live
+
+    def _transcribe(self, sm, live):
+        import io, contextlib
+        with contextlib.redirect_stdout(io.StringIO()):
+            return sm._transcribe('audio', live)
+
+    def test_live_text_is_used_without_a_full_decode(self):
+        sm, live = self._state_manager('the live words are here')
+        self.assertEqual(self._transcribe(sm, live), 'the live words are here')
+        sm.whisper_engine.transcribe_audio.assert_not_called()
+        sm.vad_manager.check_audio_for_speech.assert_not_called()
+
+    def test_a_failed_session_falls_back_to_the_full_decode(self):
+        sm, live = self._state_manager(None)
+        self.assertEqual(self._transcribe(sm, live), 'whole recording')
+
+    def test_short_live_text_on_noise_is_no_speech(self):
+        sm, live = self._state_manager('Yeah.', has_speech=False)
+        self.assertIsNone(self._transcribe(sm, live))
+        sm.whisper_engine.transcribe_audio.assert_not_called()
+
+    def test_empty_live_text_is_no_speech(self):
+        sm, live = self._state_manager('')
+        self.assertIsNone(self._transcribe(sm, live))
+
+    def test_a_command_recording_cancels_a_left_over_session(self):
+        import unittest.mock as mock
+        sm, live = self._state_manager('old dictation')
+        sm._live_session = live
+        sm.can_start_recording = lambda: True
+        sm._read_foreground_app_id = lambda: ''
+        sm.audio_recorder = mock.Mock()
+        sm.audio_recorder.start_recording.return_value = False
+        sm._recorder_lock = __import__('threading').RLock()
+        sm.start_command_recording()
+        live.cancel.assert_called_once()
+        self.assertIsNone(sm._take_live_session())
+
+    def test_recorder_seeds_the_preroll_once_and_skips_moonshine(self):
+        import collections, threading
+        import unittest.mock as mock
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest('numpy not installed')
+        fakes = fake_platform_modules()
+        for name in ('sounddevice', 'soxr'):
+            fakes[name] = _stand_in_module(name)
+        reimport_under(self, fakes)
+        from whisper_key.audio_recorder import AudioRecorder
+        rec = AudioRecorder.__new__(AudioRecorder)
+        rec.logger = __import__('logging').getLogger('test')
+        rec.is_recording = False
+        rec.mic_always_on = True
+        rec.continuous_vad = None
+        rec.continuous_streaming = mock.Mock()
+        rec._buffer = collections.deque([np.full((4, 2), 1.0, np.float32)])
+        rec._buffer_lock = threading.Lock()
+        rec._first_audio_arrived = threading.Event()
+        rec._preroll_max_chunks = 10
+        rec._recording_peak = 0.0
+        rec._vad_blocksize = 4
+        rec._recording_rate = 16000
+        fed = []
+        self.assertTrue(rec.start_recording(live_sink=fed.append))
+        rec._audio_callback(np.full((4, 2), 2.0, np.float32), 4, None, None)
+        self.assertEqual([chunk.tolist() for chunk in fed], [[1.0] * 4, [2.0] * 4])
+        rec.continuous_streaming.process_chunk.assert_not_called()

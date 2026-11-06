@@ -11,7 +11,8 @@
 #                                              stats + transcripts
 #
 # Also owns the floating overlay + FallbackWindow lifecycle and the cross-cutting
-# concerns: AI rephrase, command mode and the continuous-dictation restart loop.
+# concerns: AI rephrase, command mode, live transcription and the
+# continuous-dictation restart loop.
 #
 # Thread safety: most state lives behind self._state_lock. The audio capture
 # thread writes recording-status atomically; everything else mutates state
@@ -36,6 +37,7 @@ from .utils import OptionalComponent
 from .voice_activity_detection import VadEvent, VadManager
 from .voice_commands import VoiceCommandManager
 from .streaming_delivery import StreamingDelivery, decide_stream_delivery
+from .live_transcriber import LiveTranscriber
 from .text_postprocess import postprocess
 from .styles import with_app_style
 from .stats import record_transcription
@@ -46,6 +48,10 @@ from .fallback_window import FallbackWindow
 from . import ai_provider, window_launcher
 
 class StateManager:
+    # Live transcription session of the current dictation (opt-in,
+    # streaming.live_transcription). Swapped under _state_lock.
+    _live_session = None
+
     def __init__(self,
                  audio_recorder: AudioRecorder,
                  whisper_engine: WhisperEngine,
@@ -199,6 +205,7 @@ class StateManager:
                 pass
             self.streaming_delivery = None
         self._streaming_delivery_active = False
+        self._cancel_live_session()
         with self._state_lock:
             self._command_mode = False
             self._rephrase_mode = False
@@ -279,6 +286,8 @@ class StateManager:
 
         # Rephrase always ends in an AI rewrite: load the model while the user talks.
         ai_provider.prewarm_in_background(self.config_manager.get_postprocess_config())
+        # A session left from a lost device must not give its text to this recording.
+        self._cancel_live_session()
         self._rephrase_mode = True
         self._streaming_delivery_active = False  # rephrase is never live-typed
         self.streaming_delivery = None
@@ -296,6 +305,8 @@ class StateManager:
 
         self._recording_app_id = self._read_foreground_app_id()
         self.whisper_engine.preload_model_async()
+        # A session left from a lost device must not give its text to this command.
+        self._cancel_live_session()
         with self._state_lock:
             self._command_mode = True
         self._streaming_delivery_active = False  # command mode is never live-typed
@@ -319,19 +330,96 @@ class StateManager:
         self._prewarm_ai_if_polish_can_run()
         self._apply_recording_context()
         self._maybe_pause_media()
+        # A session left over from a recording that never reached the pipeline
+        # (device lost mid-recording) ends here.
+        self._cancel_live_session()
+        live = self._new_live_session()
         with self._recorder_lock:
-            success = self.audio_recorder.start_recording()
+            success = self.audio_recorder.start_recording(live_sink=live.feed if live else None)
+
+        if success and live:
+            live.start()
+            with self._state_lock:
+                self._live_session = live
+        elif live:
+            live.cancel()
 
         if success:
             # Only spin up the streaming-delivery worker once recording is
             # confirmed — otherwise a failed start would leak the worker thread.
-            self._setup_streaming_delivery()
+            # Live transcription and live typing never run together.
+            if not live:
+                self._setup_streaming_delivery()
             print("\n🎤 Recording started! Speak now...")
             self.config_manager.print_stop_instructions_based_on_config()
             self.audio_feedback.play_start_sound()
             self._update_ui_state("recording")
             self._show_recording_overlay()
             self._schedule_silent_mic_check()
+
+    # ── Live transcription (opt-in) ─────────────────────────────────────────
+    # The engine transcribes while the user speaks, so key-up waits only for the
+    # last seconds. Plain dictation only; command and rephrase never start it.
+
+    # A new session when live transcription can run for this dictation, else None.
+    def _new_live_session(self) -> Optional[LiveTranscriber]:
+        streaming_cfg = self.config_manager.get_streaming_config()
+        if not streaming_cfg.get('live_transcription'):
+            return None
+        # Only engines with windowed decode (Parakeet today).
+        if not hasattr(self.whisper_engine, 'decode_window'):
+            self.logger.info("Live transcription skipped: the speech model has no windowed decode")
+            return None
+        # Live typing types each phrase at once; it keeps its own path.
+        if streaming_cfg.get('streaming_enabled') and streaming_cfg.get('deliver_to_cursor'):
+            self.logger.info("Live transcription skipped: live typing (deliver_to_cursor) is on")
+            return None
+        # Whisper mode boosts the whole recording at stop time; live rounds would not hear it.
+        whisper_mode = self.config_manager.get_audio_config().get('whisper_mode') or {}
+        if isinstance(whisper_mode, dict) and whisper_mode.get('enabled') is True:
+            self.logger.info("Live transcription skipped: whisper mode is on")
+            return None
+        overlay = self.level_overlay
+        return LiveTranscriber(self.whisper_engine.decode_window,
+                               input_rate=self.audio_recorder.get_capture_rate(),
+                               on_text=overlay.set_streaming_text if overlay else None)
+
+    def _take_live_session(self) -> Optional[LiveTranscriber]:
+        with self._state_lock:
+            live, self._live_session = self._live_session, None
+        return live
+
+    def _cancel_live_session(self):
+        live = self._take_live_session()
+        if live:
+            live.cancel()
+
+    # Live text this short gets the VAD check that transcribe_audio does, so a
+    # press with only fan or key noise still ends as "No speech detected".
+    LIVE_VAD_CHECK_MAX_WORDS = 3
+
+    # The transcript of a dictation: from the live session when one ran and
+    # worked, else from a decode of the whole recording.
+    def _transcribe(self, audio_data, live: Optional[LiveTranscriber]) -> Optional[str]:
+        if live:
+            text = live.finish()
+            if text is not None:
+                self.whisper_engine.last_error = None
+                stats = live.last_stats or {}
+                self.logger.info(f"Live transcription: {stats}")
+                print(f"   ✓ Live transcription finished {stats.get('keyup_ms', '?')} ms after key-up")
+                if text and len(text.split()) <= self.LIVE_VAD_CHECK_MAX_WORDS and not self._audio_has_speech(audio_data):
+                    print("   ✗ No speech detected, skipping transcription")
+                    return None
+                return text or None
+            self.logger.warning("Live transcription failed; transcribing the whole recording")
+        return self.whisper_engine.transcribe_audio(audio_data)
+
+    def _audio_has_speech(self, audio_data) -> bool:
+        vad = self.vad_manager
+        if not vad or not vad.is_available():
+            return True
+        return vad.check_audio_for_speech(audio_data)
 
     # Decide whether this (plain dictation) recording should stream finalized
     # phrases to the cursor live, and if so spin up the delivery worker. Only the
@@ -565,6 +653,8 @@ class StateManager:
     # is a legitimate "nothing to deliver" case and must still clear state via
     # the finally block.
     def _transcription_pipeline(self, audio_data, use_auto_enter: bool = False, force_polish: bool = False):
+        # Taken first, so every return below ends the session (finally).
+        live = self._take_live_session()
         try:
             with self._state_lock:
                 self.is_processing = True
@@ -606,7 +696,7 @@ class StateManager:
                 self.level_overlay.show_processing()
 
             self._refresh_hotwords()
-            transcribed_text = self.whisper_engine.transcribe_audio(audio_data)
+            transcribed_text = self._transcribe(audio_data, live)
             self._offer_outsider_language()
 
             if not transcribed_text:
@@ -720,6 +810,8 @@ class StateManager:
                 self.level_overlay.flash_failure()
 
         finally:
+            if live:
+                live.cancel()
             # Safety net: if a streaming-delivery worker is still around (e.g. the
             # audio came back None and we returned before _finalize_streaming_delivery,
             # or an exception fired), stop+join it here so no path can leak the

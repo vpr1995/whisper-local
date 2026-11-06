@@ -53,6 +53,7 @@ Open-source project maintained as `vpr1995/whisper-local` by Prudhvi Reddy Vemir
 | **Hotkey Gestures** | `hotkey_gestures.py` | Double-tap-to-lock state machine for push-to-talk | threading |
 | **Whisper Mode** | `audio_gain.py` | Boosts quiet recordings before transcription | numpy |
 | **Corrections** | `corrections.py` | Persist post-transcription replacements (history "Fix this everywhere") | ruamel.yaml |
+| **Live Transcription** | `live_transcriber.py` | Opt-in (`streaming.live_transcription`): Parakeet decodes the recording in rounds while you speak; key-up decodes only the last seconds. Replaces the Moonshine preview when on | numpy, soxr |
 | **Streaming** | `streaming_manager.py` + `rolling_recognizer.py` | Live preview in the overlay (experimental): a Moonshine v2 model re-decoded a few times a second | sherpa-onnx |
 | **Stats** | `stats.py` | Usage stats, streaks, daily summary | json |
 | **Update Check** | `update_check.py` | Opt-in daily GitHub release check | urllib |

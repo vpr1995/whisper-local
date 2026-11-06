@@ -167,6 +167,13 @@ streaming: # Real-time STT (Experimental)
     # command and rephrase modes are unaffected.
     deliver_to_cursor: false
 
+    # Live transcription (experimental, Parakeet only). The main model transcribes
+    # while you speak, so the text is ready about 0.3 s after you release the key,
+    # also for long dictations. The overlay shows this text instead of the Moonshine
+    # preview. Cost: CPU while you speak (high in the first minute, low after).
+    # Off for whisper mode and live typing (deliver_to_cursor).
+    live_transcription: false
+
     # Live preview model. Moonshine v2 models are offline models re-decoded a
     # few times a second; they handle fast speech and add punctuation. English
     # only; the final pasted text still comes from the main model.

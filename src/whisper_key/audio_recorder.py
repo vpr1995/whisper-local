@@ -108,6 +108,8 @@ class AudioRecorder:
         # Loudest sample since the current recording began, so the state
         # manager can warn within a second that the mic is delivering nothing.
         self._recording_peak = 0.0
+        # Live transcription: gets each mono chunk of the recording at the capture rate.
+        self._live_sink = None
         if self.mic_always_on:
             self._start_capture()
 
@@ -308,13 +310,26 @@ class AudioRecorder:
                 else:
                     self.continuous_vad.process_chunk(chunk)
 
-            if self.continuous_streaming:
+            live_sink = self._live_sink
+            if live_sink:
+                live_sink(self._to_mono(chunk))
+            # Live transcription replaces the Moonshine preview: no CPU spent twice.
+            elif self.continuous_streaming:
                 self.continuous_streaming.process_chunk(chunk)
 
         if status:
             self.logger.debug(f"Audio callback status: {status}")
 
-    def start_recording(self):
+    @staticmethod
+    def _to_mono(audio: np.ndarray) -> np.ndarray:
+        return audio.mean(axis=1) if audio.ndim > 1 and audio.shape[1] > 1 else audio.reshape(-1)
+
+    # Sample rate of the chunks given to a live sink.
+    def get_capture_rate(self) -> int:
+        return self._recording_rate
+
+    # `live_sink(mono_chunk)` gets the pre-roll first, then each chunk until stop.
+    def start_recording(self, live_sink: Optional[Callable[[np.ndarray], None]] = None):
         if self.is_recording:
             return False
 
@@ -328,9 +343,15 @@ class AudioRecorder:
         if self.continuous_streaming:
             self.continuous_streaming.reset()
 
-        preroll_chunks = len(self._buffer)
         self._recording_peak = 0.0
-        self.is_recording = True
+        # Pre-roll seed and recording start in one lock block, so the audio callback
+        # cannot give the sink one chunk twice (once in the seed, once live).
+        with self._buffer_lock:
+            preroll_chunks = len(self._buffer)
+            self._live_sink = live_sink
+            if live_sink and self._buffer:
+                live_sink(self._to_mono(np.concatenate(self._buffer, axis=0)))
+            self.is_recording = True
         self.logger.debug(f"Recording started with {preroll_chunks} preroll chunks (~{preroll_chunks * self._vad_blocksize / self._recording_rate:.2f}s)")
         return True
 

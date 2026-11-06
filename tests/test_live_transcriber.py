@@ -8,7 +8,7 @@ import unittest
 
 import numpy as np
 
-from whisper_key.live_transcriber import SAMPLE_RATE, Word, decode_after, words_after
+from whisper_key.live_transcriber import SAMPLE_RATE, LiveTranscriber, Word, decode_after, words_after
 
 KEPT = [Word("fix", 9.6), Word("for", 9.8), Word("the", 10.0)]
 
@@ -96,6 +96,83 @@ class DecodeAfterTests(unittest.TestCase):
         self.assertFalse(result.anchored)
         self.assertEqual(result.retries, 0)
         self.assertEqual(decoder.calls, [0.0])
+
+
+# Feeds `seconds` of audio in 0.4 s chunks and runs rounds inline on the live
+# cadence, like the worker thread but without a clock.
+def replay(live, seconds):
+    step, done = int(0.4 * SAMPLE_RATE), 0
+    for end in range(step, int(seconds * SAMPLE_RATE) + 1, step):
+        live.feed(np.zeros(step, dtype=np.float32))
+        heard = live._drain()
+        if heard - done >= live._round_plan(heard)[0] * SAMPLE_RATE:
+            done = heard
+            live.step(heard)
+
+
+LONG_SCRIPT = [Word(f"w{i}", i * 0.5) for i in range(200)]   # 100 s of words
+
+
+class LiveTranscriberTests(unittest.TestCase):
+    def test_finish_before_any_round_decodes_everything(self):
+        live = LiveTranscriber(FakeDecoder(SCRIPT))
+        live.feed(np.zeros(3 * SAMPLE_RATE, dtype=np.float32))
+        self.assertEqual(live.finish(), " ".join(f"w{i}" for i in range(6)))
+
+    def test_a_too_short_recording_gives_empty_text(self):
+        live = LiveTranscriber(lambda audio, offset: [] if len(audio) < 0.25 * SAMPLE_RATE else [Word("x", 0)])
+        live.feed(np.zeros(SAMPLE_RATE // 10, dtype=np.float32))
+        self.assertEqual(live.finish(), "")
+
+    def test_rounds_then_finish_give_every_word_once(self):
+        # 70 s crosses from fast rounds to slow rounds.
+        live = LiveTranscriber(FakeDecoder(LONG_SCRIPT))
+        replay(live, 70)
+        self.assertEqual(live.finish(), " ".join(f"w{i}" for i in range(140)))
+        self.assertGreater(live.last_stats['rounds'], 100)
+        self.assertTrue(live.last_stats['release_anchored'])
+
+    def test_old_words_get_committed(self):
+        live = LiveTranscriber(FakeDecoder(LONG_SCRIPT))
+        replay(live, 40)
+        self.assertTrue(live._committed)
+        self.assertGreater(live._commit_t, 20.0)
+
+    def test_on_text_shows_the_words_so_far(self):
+        shown = []
+        live = LiveTranscriber(FakeDecoder(SCRIPT), on_text=shown.append)
+        replay(live, 2)
+        self.assertEqual(shown[-1], "w0 w1 w2 w3")
+
+    def test_feed_after_finish_is_ignored(self):
+        live = LiveTranscriber(FakeDecoder(SCRIPT))
+        live.feed(np.zeros(SAMPLE_RATE, dtype=np.float32))
+        live.finish()
+        live.feed(np.zeros(SAMPLE_RATE, dtype=np.float32))
+        self.assertEqual(live._drain(), SAMPLE_RATE)
+
+    def test_a_round_that_ends_after_finish_is_dropped(self):
+        live = LiveTranscriber(FakeDecoder(SCRIPT))
+        live.feed(np.zeros(5 * SAMPLE_RATE, dtype=np.float32))
+        heard = live._drain()
+        live.finish()
+        live.step(heard)
+        self.assertEqual(live._rounds, 0)
+
+    def test_a_failed_round_makes_finish_return_none(self):
+        def broken(audio, offset):
+            raise RuntimeError("model gone")
+        live = LiveTranscriber(broken)
+        live.start(np.zeros(SAMPLE_RATE, dtype=np.float32))
+        live._thread.join(timeout=2)
+        self.assertIsNone(live.finish())
+
+    def test_a_48k_mic_is_resampled_to_16k(self):
+        live = LiveTranscriber(FakeDecoder(SCRIPT), input_rate=48000)
+        for _ in range(10):
+            live.feed(np.zeros(4800, dtype=np.float32))   # 1 s at 48 kHz
+        live.finish()
+        self.assertEqual(live._heard, SAMPLE_RATE)
 
 
 if __name__ == '__main__':
