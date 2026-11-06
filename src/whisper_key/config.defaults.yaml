@@ -654,6 +654,10 @@ postprocess: # Transcription post-processing pipeline
         #   apple_intelligence Apple Intelligence; falls back to Ollama when it is not available
         #                      (needs macOS 26+, Apple silicon and Apple Intelligence turned on)
         #   ollama             always Ollama (https://ollama.ai), running on `ollama:` below
+        #   builtin            experimental: Gemma 3 270M runs inside this app (CPU, any OS).
+        #                      Downloads ~340 MB on first use; until then you get plain text.
+        #                      Weaker than the others until a fine-tuned model ships.
+        #                      Polish only: rephrase uses what `auto` would pick.
         provider: auto
 
         # Clean up every dictation with the AI: remove filler words, stutters, repeated

@@ -1,6 +1,7 @@
 # ai_provider.py
 # One front door for every AI text step (per-dictation polish and rephrase).
-# Picks Apple Intelligence (on-device, macOS 26+) or Ollama from `postprocess.ai.provider`.
+# Picks Apple Intelligence (on-device, macOS 26+), Ollama or the Built-in model
+# (local_refiner.py, experimental) from `postprocess.ai.provider`.
 # Polish cleans up each dictation (fillers, repeats, false starts, punctuation) and is
 # guarded so the model may only delete words, never reword or answer the dictation.
 
@@ -21,8 +22,10 @@ logger = logging.getLogger(__name__)
 PROVIDER_AUTO = 'auto'
 PROVIDER_APPLE = 'apple_intelligence'
 PROVIDER_OLLAMA = 'ollama'
+PROVIDER_BUILTIN = 'builtin'
 
-PROVIDER_LABELS = {PROVIDER_APPLE: 'Apple Intelligence', PROVIDER_OLLAMA: 'Ollama'}
+PROVIDER_LABELS = {PROVIDER_APPLE: 'Apple Intelligence', PROVIDER_OLLAMA: 'Ollama',
+                   PROVIDER_BUILTIN: 'Built-in model'}
 
 # Two worked examples teach self-corrections far better than rules alone (tested on
 # Apple's model: without them "tuesday no wait wednesday" kept both days).
@@ -102,7 +105,11 @@ def apple_availability(force_refresh: bool = False) -> tuple:
 # step after the recording skips the ~1 s cold start. Nothing to do when Ollama is the
 # chosen provider. Never blocks the caller and never raises.
 def prewarm_in_background(config):
-    if _ai_settings(config).get('provider', PROVIDER_AUTO) == PROVIDER_OLLAMA:
+    setting = _ai_settings(config).get('provider', PROVIDER_AUTO)
+    if setting == PROVIDER_OLLAMA:
+        return
+    if setting == PROVIDER_BUILTIN:
+        _prewarm_builtin(config)
         return
     module = _apple_module()
     if module is None:
@@ -116,6 +123,18 @@ def prewarm_in_background(config):
         except Exception as error:      # best effort: a failed prewarm only costs the cold start
             logger.debug(f"Apple Intelligence prewarm failed: {error}")
     threading.Thread(target=load_model, name='apple-intelligence-prewarm', daemon=True).start()
+
+
+# Built-in model: start the download if it is missing, else load it and cache the
+# polish prompt start.
+def _prewarm_builtin(config):
+    from .local_refiner import get_refiner
+    refiner = get_refiner()
+    if not refiner.is_downloaded():
+        refiner.download_in_background()
+        return
+    stable_prefix = _polish_prompt_parts(config)[0]
+    threading.Thread(target=refiner.prewarm, args=(stable_prefix,), name='builtin-ai-prewarm', daemon=True).start()
 
 
 # Compiles the Apple Intelligence helper in the background so it is ready before the
@@ -141,12 +160,13 @@ def _ollama_settings(config) -> dict:
     return ollama_settings if isinstance(ollama_settings, dict) else {}
 
 
-# 'apple_intelligence' or 'ollama': what will answer right now for this config.
+# 'apple_intelligence', 'ollama' or 'builtin': what will answer right now for this config.
 # `auto` and an explicit Apple choice both fall back to Ollama when Apple is not usable.
+# `auto` never picks the Built-in model (experimental, manual choice only).
 def active_provider(config) -> str:
     setting = _ai_settings(config).get('provider', PROVIDER_AUTO)
-    if setting == PROVIDER_OLLAMA:
-        return PROVIDER_OLLAMA
+    if setting in (PROVIDER_OLLAMA, PROVIDER_BUILTIN):
+        return setting
     available, reason = apple_availability()
     if available:
         return PROVIDER_APPLE
@@ -200,6 +220,10 @@ def describe_status(config) -> dict:
 def polish_failure_reason(config) -> str:
     status = describe_status(config)
     label = PROVIDER_LABELS[status['active_provider']]
+    if status['active_provider'] == PROVIDER_BUILTIN:
+        from .local_refiner import get_refiner
+        if not get_refiner().is_downloaded():
+            return "the Built-in model is still downloading"
     fell_back_from_apple = (status['active_provider'] == PROVIDER_OLLAMA
                             and status['provider_setting'] != PROVIDER_OLLAMA)
     if fell_back_from_apple and status['apple_reason_text']:
@@ -243,10 +267,16 @@ def _apple_generate(prompt: str, timeout_seconds: float) -> str:
 
 # Sends a finished prompt to whichever provider is active and logs how long it took
 # (never the text: dictations are private). `purpose` names the step in that log line.
-def _generate(prompt: str, config, apple_timeout_seconds: float, purpose: str = 'rewrite') -> str:
-    provider = active_provider(config)
+# `stable_prefix` is the start of the prompt that does not change between calls; the
+# Built-in model caches it.
+def _generate(prompt: str, config, apple_timeout_seconds: float, purpose: str = 'rewrite',
+              stable_prefix: str = '', provider: str = '') -> str:
+    provider = provider or active_provider(config)
     started = time.monotonic()
-    if provider == PROVIDER_APPLE:
+    if provider == PROVIDER_BUILTIN:
+        from .local_refiner import get_refiner
+        text = get_refiner().generate(prompt, stable_prefix)
+    elif provider == PROVIDER_APPLE:
         text = _apple_generate(prompt, apple_timeout_seconds)
     else:
         text = _ollama_generate(prompt, _ollama_settings(config))
@@ -267,8 +297,14 @@ def build_rephrase_prompt(instruction: str, selection: str) -> str:
 
 # Free-form rewrite with a finished prompt. Not checked against the input: the user
 # asked for a rewrite on purpose. '' on any failure; never raises.
+# The Built-in model does polish only: it is too small to follow a rewrite
+# instruction (it gave runaway answers), and a rewrite replaces the user's
+# selection unchecked. With Built-in chosen, rephrase uses what `auto` would.
 def rewrite(prompt: str, config) -> str:
-    return _generate(prompt, config, APPLE_REWRITE_TIMEOUT_SECONDS)
+    provider = active_provider(config)
+    if provider == PROVIDER_BUILTIN:
+        provider = active_provider({**(config or {}), 'ai': {**_ai_settings(config), 'provider': PROVIDER_AUTO}})
+    return _generate(prompt, config, APPLE_REWRITE_TIMEOUT_SECONDS, provider=provider)
 
 
 # ── Polish (every dictation) ─────────────────────────────────────────────────
@@ -309,6 +345,17 @@ def apple_polish_timeout_seconds(text: str) -> float:
     return APPLE_POLISH_BASE_TIMEOUT_SECONDS + APPLE_POLISH_TIMEOUT_SECONDS_PER_CHARACTER * len(text)
 
 
+# The polish prompt as (text before the dictation, text after it). A custom prompt
+# without {text} gets the dictation at the end. Split, not format(): the dictation
+# or the prompt may contain curly braces.
+def _polish_prompt_parts(config) -> tuple:
+    template = _ai_settings(config).get('polish_prompt') or DEFAULT_POLISH_PROMPT
+    if '{text}' not in template:
+        return f"{template}\n\n", ''
+    head, _, tail = template.partition('{text}')
+    return head, tail
+
+
 # Cleans up one dictation: fillers, repeats, false starts, punctuation and case.
 # Returns '' when the caller should keep the raw text: too long, provider failed, or
 # the output did more than delete words.
@@ -316,12 +363,9 @@ def polish(text: str, config) -> str:
     if len(text) > MAX_POLISH_CHARACTERS:
         logger.info(f"AI polish skipped: {len(text)} characters is over the {MAX_POLISH_CHARACTERS} limit")
         return ''
-    prompt_template = _ai_settings(config).get('polish_prompt') or DEFAULT_POLISH_PROMPT
-    # str.replace, not format(): the dictation or the prompt may contain curly braces.
-    prompt = prompt_template.replace('{text}', text) if '{text}' in prompt_template \
-        else f"{prompt_template}\n\n{text}"
-
-    polished = _generate(prompt, config, apple_polish_timeout_seconds(text), purpose='polish')
+    head, tail = _polish_prompt_parts(config)
+    polished = _generate(head + text + tail, config, apple_polish_timeout_seconds(text), purpose='polish',
+                         stable_prefix=head)
     if not polished:
         return ''
     if not only_deletes_words(text, polished):

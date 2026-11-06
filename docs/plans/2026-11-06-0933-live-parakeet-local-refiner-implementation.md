@@ -107,15 +107,25 @@ The phases are in delivery order. Phases 1–2 (live ASR) give the latency gain 
 - [ ] **Checkpoint:** live ASR bench (Phase 5 tool, ASR part) + user real-mic test with polish off and with Apple Intelligence.
 
 3. Built-in refiner: Gemma 3 270M on ONNX (no live polish yet)
-- [ ] Add a `refiner` model group to `model_registry.py`: source `onnx-community/gemma-3-270m-it-ONNX`, files `onnx/model_q4.onnx`, `onnx/model_q4.onnx_data`, `tokenizer.json` (~340 MB). Download through `model_download.py` with the progress line.
-- [ ] New `local_refiner.py`: `LocalRefiner` with lazy load, one ONNX session, a lock (one generate at a time), `refine(text, draft=(), abort=None) -> str`, output cap `1.5 × input tokens + 32`, stop on `<eos>` / `<end_of_turn>`, `unload()`.
-- [ ] Prefix KV cache: tokenize the prompt part before `{text}` once per template. Keep its KV. Recompute when the template changes.
-- [ ] `ai_provider.py`: add `PROVIDER_LOCAL = 'local'` ("Built-in"). Route `_generate`, `prewarm_in_background`, `describe_status` and `polish_failure_reason` to it. Keep the `only_deletes_words` guard.
+- [x] Add a `refiner` model group to `model_registry.py`: source `onnx-community/gemma-3-270m-it-ONNX`, files `onnx/model_q4.onnx`, `onnx/model_q4.onnx_data`, `tokenizer.json` (~340 MB). Download through `model_download.py` with the progress line.
+  - ✅ Changed: no registry group. The files go to `<app data>/builtin_ai/` (`download_snapshot(local_dir=)`). In the shared HF cache (xet layout) the model and its external data are in different blob folders, and onnxruntime refuses to load that. Download starts at the first hotkey press with Built-in chosen; until then polish gives plain text
+- [x] New `local_refiner.py`: `LocalRefiner` with lazy load, one ONNX session, a lock (one generate at a time), `refine(text, draft=(), abort=None) -> str`, output cap `1.5 × input tokens + 32`, stop on `<eos>` / `<end_of_turn>`, `unload()`.
+- [x] Prefix KV cache: tokenize the prompt part before `{text}` once per template. Keep its KV. Recompute when the template changes.
+  - ✅ Trailing whitespace stays out of the cached part ("Dictation: so" tokenizes the space with the word). Then tokens and output equal a run without the cache. Saves ~260 ms per polish (505 vs 769 ms median)
+- [x] `ai_provider.py`: add `PROVIDER_LOCAL = 'local'` ("Built-in"). Route `_generate`, `prewarm_in_background`, `describe_status` and `polish_failure_reason` to it. Keep the `only_deletes_words` guard.
+  - ✅ `PROVIDER_BUILTIN = 'builtin'`. Polish and rephrase (user decision, 2026-11-06). `auto` never picks it
 - [ ] `idle_unload.py`: also unload the refiner after idle.
 - [ ] Settings page: add "Built-in" to the provider choice. Show download state on the Models page.
 - [ ] `doctor.py`: report refiner files and load time.
-- [ ] Tests: prefix-cache output equals a no-cache run (skip when the model is not downloaded). Cap and stop-token handling with a fake session.
-- [ ] **Measure:** polish time per sentence vs Ollama and Apple Intelligence on the same 20 dictations.
+- [x] Tests: prefix-cache output equals a no-cache run (skip when the model is not downloaded). Cap and stop-token handling with a fake session.
+  - ✅ `tests/test_local_refiner.py` (fake session). Cache equality checked on the real model in `.temp/phase3/compare.py`, not in CI
+- [x] **Measure:** polish time per sentence vs Ollama and Apple Intelligence on the same 20 dictations.
+  - ✅ 10 dictations: Built-in median 442 ms, guard pass 6/10, passes barely cleaned (kept "um", "no wait"), 2 runaway answers ("I'm ready to be your assistant", hit the cap at ~1.3 s). Apple median 528 ms, pass 9/10, good clean-up. Built-in is not faster for one sentence; its gain comes from Phase 4 and the Phase 7 fine-tune
+  - ✅ App path (prewarm at hotkey press, then `polish()`), ~250–300 characters: Built-in 1.2–2.6 s, 1 of 3 rejected (hit the cap), the 2 passes kept "um" and "we we". Apple on the user's machine: ~1.5 s at 300 characters. Model load 1.6 s, process RSS +660 MB while loaded
+  - **Result:** the stock model is slower than Apple at dictation length and does not clean up. Phase 3 alone gives no win on a Mac with Apple Intelligence
+- [x] Rephrase with Built-in: no guard, and the stock model gave runaway answers. Decide: Built-in or fall back to Apple/Ollama until Phase 7
+  - ✅ Falls back to what `auto` picks (user decision, 2026-11-06). Next: Phase 7 before Phase 4 (user decision): Phase 4 only pays off once the model cleans up well
+- [ ] Uninstall: `builtin_ai/` (340 MB) is deleted with the settings folder, not under the separate "models" choice
 
 4. Rewrite while talking
 - [ ] `text_postprocess.py`: split `postprocess()` into `prepare(text, config)` (all steps before polish) and the polish step. No behavior change. Existing tests must pass.

@@ -45,6 +45,8 @@ AI_SETTING_PATHS = {
 def ai_status_text(status: dict) -> str:
     if status['active_provider'] == 'apple_intelligence':
         return "Using Apple Intelligence (on this Mac, offline)."
+    if status['active_provider'] == 'builtin':
+        return "Using the Built-in model (experimental, on this computer, offline)."
     if status['provider_setting'] == 'ollama' or status['apple_available']:
         return "Using Ollama."
     return f"{status['apple_reason_text']}. Using Ollama."

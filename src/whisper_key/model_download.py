@@ -21,20 +21,23 @@ POLL_SECONDS = 0.5
 # A caller with its own UI (the dashboard) passes `on_progress(done_bytes,
 # total_bytes)` instead: nothing is printed then, and total_bytes is 0 when the
 # Hub could not be asked for the size.
+# `local_dir` puts plain files in that folder instead of the shared cache (onnxruntime
+# cannot load a model whose external data is in a different cache blob folder).
 def download_snapshot(repo_id: str, label: str, allow_patterns: Optional[list] = None,
-                      on_progress=None) -> str:
+                      on_progress=None, local_dir: Optional[str] = None) -> str:
     from huggingface_hub import snapshot_download
     from huggingface_hub.constants import HF_HUB_CACHE
 
     report = on_progress or (lambda done, total: _report(label, done, total))
     total_bytes = _expected_bytes(repo_id, allow_patterns)
-    repo_folder = os.path.join(HF_HUB_CACHE, "models--" + repo_id.replace("/", "--"))
+    repo_folder = local_dir or os.path.join(HF_HUB_CACHE, "models--" + repo_id.replace("/", "--"))
 
     result = {}
 
     def run():
         try:
-            result["path"] = snapshot_download(repo_id=repo_id, allow_patterns=allow_patterns)
+            result["path"] = snapshot_download(repo_id=repo_id, allow_patterns=allow_patterns,
+                                               local_dir=local_dir)
         except Exception as e:
             result["error"] = e
 

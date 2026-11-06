@@ -56,6 +56,9 @@ dependencies = [
     "playsound3>=2.0",
     "ten-vad>=1.0.6",
     "pywebview>=6.2",
+    # Built-in AI model (local_refiner.py); also pulled in by faster-whisper.
+    "onnxruntime>=1.17",
+    "tokenizers>=0.15",
 
     # Windows-only
     "global-hotkeys>=0.1.7; sys_platform=='win32'",
