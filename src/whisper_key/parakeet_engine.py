@@ -16,6 +16,8 @@ from typing import Callable, Optional
 
 import numpy as np
 
+from .live_transcriber import Word
+
 SAMPLE_RATE = 16000
 
 
@@ -213,6 +215,40 @@ class ParakeetEngine:
         stream.accept_waveform(SAMPLE_RATE, audio)
         self.model.decode_stream(stream)
         return stream.result.text.strip()
+
+    # ── Windowed decode (live transcription) ──────────────────────────────────
+
+    # A window that starts mid-speech can make Parakeet skip seconds of speech (in tests,
+    # 0 words for 10 s). 0.3 s of leading silence fixed 21 of 22 bad starts; 1 s was worse.
+    WINDOW_LEAD_SILENCE_S = 0.3
+    # Shorter windows hold no full word.
+    MIN_WINDOW_S = 0.25
+
+    # Words of one 16 kHz window, with start times from the recording start
+    # (offset_s + time in the window). Safe beside other window decodes: in a test,
+    # 200 parallel decodes on one recognizer matched sequential ones exactly. So the
+    # model lock is held only to get the recognizer, not during the decode.
+    def decode_window(self, audio_16k: np.ndarray, offset_s: float) -> list:
+        if audio_16k is None or len(audio_16k) < self.MIN_WINDOW_S * SAMPLE_RATE:
+            return []
+        with self._model_lock:
+            if not self.ensure_model_loaded():
+                return []
+            recognizer = self.model
+        lead = np.zeros(int(self.WINDOW_LEAD_SILENCE_S * SAMPLE_RATE), dtype=np.float32)
+        stream = recognizer.create_stream()
+        stream.accept_waveform(SAMPLE_RATE, np.concatenate([lead, audio_16k.flatten().astype(np.float32)]))
+        recognizer.decode_stream(stream)
+        self._last_used = time.monotonic()
+        # Tokens are word pieces; a piece with a leading space starts a new word.
+        words = []
+        for piece, piece_start in zip(stream.result.tokens, stream.result.timestamps):
+            if piece.startswith(' ') or not words:
+                words.append([piece, piece_start])
+            else:
+                words[-1][0] += piece
+        start_shift = offset_s - self.WINDOW_LEAD_SILENCE_S
+        return [Word(text.strip(), start_shift + start) for text, start in words if text.strip()]
 
     # ── Model switching (tray menu) ───────────────────────────────────────────
 
