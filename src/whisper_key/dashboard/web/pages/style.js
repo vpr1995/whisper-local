@@ -199,11 +199,14 @@ function buildCleanupSection(api, data) {
 
 // ── AI (provider, polish, Ollama server) ─────────────────────────────────────
 
+// Apple Intelligence only exists on a Mac, so Windows is not offered it.
 const AI_PROVIDER_OPTIONS = [
   { value: 'auto', label: 'Auto' },
-  { value: 'apple_intelligence', label: 'Apple Intelligence' },
+  { value: 'apple_intelligence', label: 'Apple Intelligence', platform: 'macos' },
   { value: 'ollama', label: 'Ollama' },
 ];
+const aiProviderOptionsForThisOs = () =>
+  AI_PROVIDER_OPTIONS.filter((option) => !option.platform || option.platform === ui.platform);
 
 // Provider choice with a live status caption, the polish toggle, and the Ollama server
 // fields (only while Ollama is the AI that answers). Each control saves on change and
@@ -219,7 +222,7 @@ function buildAiSection(api, saved) {
   };
   ollamaFields.hidden = saved.active_provider !== 'ollama';
 
-  const providerChoice = ui.segmented(AI_PROVIDER_OPTIONS, saved.provider, async (provider) => {
+  const providerChoice = ui.segmented(aiProviderOptionsForThisOs(), saved.provider, async (provider) => {
     const result = await saveOrToast(api, 'set_ai_setting', 'provider', provider);
     if (!result) { providerChoice.value = saved.provider; return; }
     refresh(result.settings);

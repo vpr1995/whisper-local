@@ -43,7 +43,7 @@ The shipped defaults are in the package: [`config.defaults.yaml`](../src/whisper
 | `whisper.language` | `auto` | Auto-detect, or a language code |
 | `whisper.languages` | `[]` | The languages you dictate in, such as `[en, fr]` |
 | `whisper.hotwords` | `[]` | Names and terms to favor. See [History and vocabulary](history-and-vocabulary.md#hotwords). |
-| `whisper.unload_after_minutes` | `0` | Free the model after this many idle minutes. `0` keeps it loaded. |
+| `whisper.unload_after_minutes` | `10` | Free the model after this many idle minutes. `0` keeps it loaded. Ignored for faster-whisper on a GPU. |
 | `hotkey.recording_hotkey` | `fn+ctrl` | See [Hotkeys](hotkeys.md) for all hotkey settings |
 | `hotkey.recording_mode` | `push_to_talk` | `push_to_talk` or `toggle` |
 | `hotkey.double_tap_to_lock` | `false` | Hands-free recording |

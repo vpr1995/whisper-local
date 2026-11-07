@@ -39,6 +39,7 @@ def _options(*pairs):
 # One catalogue entry. `restart` defaults to "derived from the key path"; `control`
 # is toggle | select | number | text | hotkey. Extra keyword args (min, max, integer,
 # nullable, unit, placeholder, optional, enabled_by) ride along to the UI/validator.
+# `platforms=('windows',)` shows the row on those OSes only; omit it for every OS.
 def _row(path, label, caption, control, options=None, restart=None, **extra):
     if restart is None:
         restart = not path.startswith(HOT_RELOAD_PREFIXES)
@@ -85,6 +86,14 @@ def _microphone_options(config: dict) -> list:
     return _options(*pairs)
 
 
+# The live preview models from the config registry, labelled as written there
+# ("Moonshine v2 English Base (140MB)"). Falls back to the stored key alone.
+def _streaming_model_options(config: dict) -> list:
+    models = ((config.get('streaming') or {}).get('models')) or {}
+    pairs = [(key, (entry or {}).get('label') or key) for key, entry in models.items()]
+    return _options(*pairs)
+
+
 # ── The catalogue ────────────────────────────────────────────────────────────
 
 # The Settings page has a short top level and four drill-in views. Speech-engine
@@ -109,7 +118,7 @@ def _section(section_id, title, view, rows, more_label=None, more_view=None):
 # Sections in display order. Built per call because the microphone list depends on
 # the live hardware.
 def _build_catalogue(config: dict) -> list:
-    from ...platform import IS_MACOS, IS_WINDOWS
+    from ...platform import IS_MACOS
     from ... import autostart
 
     mac_note = ' (Fn is the Globe key)' if IS_MACOS else ''
@@ -137,9 +146,9 @@ def _build_catalogue(config: dict) -> list:
         _toggle('overlay.click_through', 'Pill ignores clicks', 'Lets clicks pass through the pill to the app underneath.'),
         _toggle('system_tray.enabled', 'Show tray icon', 'The menu bar or system tray icon.'),
     ]
-    if IS_WINDOWS:
-        interface_rows.append(_toggle('console.start_hidden', 'Start with console hidden',
-                                      'Only for the hideable build: hide the console window at launch.'))
+    interface_rows.append(_toggle('console.start_hidden', 'Start with console hidden',
+                                  'Only for the hideable build: hide the console window at launch.',
+                                  platforms=('windows',)))
 
     top_level = [
         _section('shortcuts', 'Shortcuts', MAIN_VIEW, [
@@ -162,6 +171,20 @@ def _build_catalogue(config: dict) -> list:
                     'Puts back whatever you had copied once the text is pasted.'),
         ], 'Formatting', 'formatting'),
         _section('app', 'App', MAIN_VIEW, app_rows, 'More', 'app-more'),
+        # Features still being proven. Kept on the main page so they can be found and
+        # switched on without editing user_settings.yaml; new experiments go here.
+        _section('experimental', 'Experimental', MAIN_VIEW, [
+            _toggle('streaming.streaming_enabled', 'Live preview',
+                    'Show your words in the pill while you are still speaking. Downloads a small model on first use.'),
+            _select('streaming.streaming_model', 'Preview model',
+                    'The small English model behind the live preview. The text you get still comes from your main model.',
+                    _streaming_model_options(config), enabled_by='streaming.streaming_enabled'),
+            _toggle('streaming.deliver_to_cursor', 'Type live text at the cursor',
+                    'Types phrases as you speak and skips the final pass. Less accurate. Needs live preview.',
+                    enabled_by='streaming.streaming_enabled'),
+            _toggle('streaming.live_transcription', 'Live transcription (Parakeet only)',
+                    'Your main model transcribes while you speak, so text is ready about 0.3 seconds after you let go. Uses more CPU while you talk. Off while live typing is on.'),
+        ]),
     ]
 
     # ── Drill-in views ──
@@ -239,14 +262,12 @@ def _build_catalogue(config: dict) -> list:
         ]),
         _section('delivery', 'Delivery', 'formatting', [
             _select('clipboard.delivery_method', 'Delivery method',
-                    'Paste puts text through the clipboard. Type simulates key presses (Windows only).',
-                    _options(('paste', 'Paste'), ('type', 'Type'))),
+                    'Paste puts text through the clipboard. Type simulates key presses.',
+                    _options(('paste', 'Paste'), ('type', 'Type')), platforms=('windows',)),
             _text('clipboard.paste_hotkey', 'Paste shortcut', 'The shortcut Whisper Local presses to paste into the app.'),
             _toggle('clipboard.type_also_copy_to_clipboard', 'Also copy typed text',
-                    'When typing instead of pasting, leave a copy on the clipboard too.'),
-            _toggle('streaming.deliver_to_cursor', 'Type live text at the cursor (experimental)',
-                    'Types phrases as you speak and skips the final pass. Less accurate. Needs live preview.',
-                    enabled_by='streaming.streaming_enabled'),
+                    'When typing instead of pasting, leave a copy on the clipboard too.',
+                    platforms=('windows',)),
         ]),
     ]
 
@@ -270,13 +291,23 @@ def _build_catalogue(config: dict) -> list:
             _toggle('logging.log_transcriptions', 'Log transcribed text',
                     'Writes what you say into the log file. Off keeps your words private.'),
         ]),
-        _section('experimental', 'Experimental', 'app-more', [
-            _toggle('streaming.streaming_enabled', 'Live preview (experimental)',
-                    'Show words in the pill while you are still speaking. Downloads a small model on first use.'),
-        ]),
     ]
 
-    return top_level + more_shortcuts + recording + formatting + app_more
+    return _only_for_this_platform(top_level + more_shortcuts + recording + formatting + app_more)
+
+
+# Drops rows whose `platforms` excludes this OS, then any card left empty, so a
+# setting that cannot work here is never shown (and cannot be saved either).
+def _only_for_this_platform(sections: list) -> list:
+    from ...platform import IS_MACOS
+    current = 'macos' if IS_MACOS else 'windows'
+    kept = []
+    for section in sections:
+        section['rows'] = [row for row in section['rows']
+                           if current in row.get('platforms', (current,))]
+        if section['rows']:
+            kept.append(section)
+    return kept
 
 
 # ── Reading values ───────────────────────────────────────────────────────────

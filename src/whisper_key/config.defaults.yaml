@@ -73,9 +73,9 @@ whisper: # Whisper AI Model Settings
     # Free the model's memory after this many minutes without dictation
     # (0 = keep it loaded). It reloads in the background when you next start
     # recording, so the first dictation after a long break may wait a moment.
-    # CPU only for now: on cuda the setting is ignored (see the GPU
-    # model-switch crash in docs/roadmap/roadmap.md).
-    unload_after_minutes: 0
+    # Ignored for faster-whisper on cuda (see the GPU model-switch crash in
+    # docs/roadmap/roadmap.md); Parakeet and CPU models always honour it.
+    unload_after_minutes: 10
 
     # Available models (set enabled: false to hide from menu)
     # To add custom models (CTranslate2 format), add entry with source (HuggingFace or local path)

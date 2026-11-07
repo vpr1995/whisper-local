@@ -172,15 +172,17 @@ def setup_whisper_engine(whisper_config, vad_manager, model_registry, log_transc
         return _handle_gpu_failure(e, whisper_config, vad_manager, model_registry, log_transcriptions, config_manager)
 
 # Optional idle unload of the Whisper model (whisper.unload_after_minutes).
-# Skipped on cuda: dropping and recreating a GPU model is the same pattern as
-# the known CTranslate2 GPU model-switch crash, so it stays CPU-only until
-# that is fixed upstream.
+# Skipped for faster-whisper on cuda: dropping and recreating a CTranslate2 GPU
+# model is the known model-switch crash pattern. Parakeet runs on sherpa-onnx
+# (CPU) whatever `whisper.device` says, so it is always safe to unload.
 def setup_idle_model_unloader(whisper_config, whisper_engine, state_manager, logger):
     from .idle_unload import IdleModelUnloader
     minutes = whisper_config.get('unload_after_minutes', 0) or 0
     if minutes <= 0:
         return None
-    if whisper_engine.device == 'cuda':
+    is_parakeet = type(whisper_engine).__name__ == 'ParakeetEngine'
+    runs_on_gpu = whisper_engine.device == 'cuda' and not is_parakeet
+    if runs_on_gpu:
         logger.warning("whisper.unload_after_minutes is ignored on GPU (cuda)")
         print("   ⚠ Idle model unload is CPU-only; ignored while running on GPU")
         return None

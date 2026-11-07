@@ -383,18 +383,28 @@ registerPage('models', {
         { onStored: muteSpokenRow });
       muteSpokenRow(settings['whisper.language'].value);
 
-      const deviceCaption = ui.platform === 'macos'
-        ? 'Macs have no CUDA graphics card support here, so leave this on CPU.'
-        : 'GPU needs a supported graphics card and its drivers. See the GPU setup guide.';
-      const performanceCard = ui.card(null, [
-        row('whisper.device', 'Run on', deviceCaption, controlFactories.segmented),
-        row('whisper.unload_after_minutes', 'Free memory when idle',
-          'Unloads the model after this many idle minutes and reloads it on your next recording. 0 keeps it loaded. CPU only.',
-          controlFactories.input),
-      ]);
+      // Unsupported options are hidden, not greyed out. Macs have no CUDA, so the GPU
+      // switch is Windows-only; idle unload does not apply to faster-whisper on a GPU
+      // (the CTranslate2 reload crash), so that row follows the device and engine picks.
+      let currentDevice = settings['whisper.device'].value;
+      let currentBackend = settings['whisper.backend'].value;
+      let unloadRow = null;
+      const syncUnloadRowVisibility = () => {
+        if (unloadRow) unloadRow.hidden = currentBackend === 'faster_whisper' && currentDevice === 'cuda';
+      };
+      const deviceRow = ui.platform === 'macos' ? null : row('whisper.device', 'Run on',
+        'GPU needs a supported graphics card and its drivers. See the GPU setup guide.',
+        controlFactories.segmented,
+        { onStored: (value) => { currentDevice = value; syncUnloadRowVisibility(); } });
+      unloadRow = row('whisper.unload_after_minutes', 'Free memory when idle',
+        'Unloads the model after this many idle minutes and reloads it on your next recording. 0 keeps it loaded.',
+        controlFactories.input);
+      syncUnloadRowVisibility();
+      const performanceCard = ui.card(null, [deviceRow, unloadRow].filter(Boolean));
 
       advancedView.append(ui.card(null, [
-        row('whisper.backend', 'Engine', 'faster-whisper suits most computers. Parakeet is faster on the CPU.', controlFactories.select),
+        row('whisper.backend', 'Engine', 'faster-whisper suits most computers. Parakeet is faster on the CPU.', controlFactories.select,
+          { onStored: (value) => { currentBackend = value; syncUnloadRowVisibility(); } }),
         row('whisper.compute_type', 'Compute type', 'int8 is smallest and fastest. float16 needs a GPU.', controlFactories.select),
         row('whisper.beam_size', 'Beam size', 'Higher is a little more accurate but slower (1 to 10). Parakeet ignores it.', controlFactories.input),
         row('whisper.initial_prompt', 'Initial prompt', 'A sentence that nudges style, spelling or language variant. Parakeet ignores it.', controlFactories.input),

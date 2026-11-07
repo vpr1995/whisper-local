@@ -84,7 +84,7 @@ class SettingsApiTests(unittest.TestCase):
         schema = self.api.get_settings_schema()
         top_level = [section for section in schema['sections'] if section['view'] == 'main']
         self.assertEqual([section['title'] for section in top_level],
-                         ['Shortcuts', 'Microphone', 'After you speak', 'App'])
+                         ['Shortcuts', 'Microphone', 'After you speak', 'App', 'Experimental'])
         self.assertLessEqual(sum(len(section['rows']) for section in top_level), 16)
         # Each drill-in view is opened by exactly one "more" link and holds at least one card.
         linked_views = sorted(section['more']['view'] for section in top_level if section['more'])
@@ -293,3 +293,27 @@ class MovedSettingsStoreTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# ── Platform filtering ───────────────────────────────────────────────────────
+
+class PlatformFilteringTests(unittest.TestCase):
+    # Paths of every row the Settings catalogue would show on the given OS.
+    def _paths_on(self, is_macos: bool) -> set:
+        from unittest import mock
+        from whisper_key.dashboard.api import settings as settings_api
+        with mock.patch('whisper_key.platform.IS_MACOS', is_macos):
+            sections = settings_api._build_catalogue({})
+        return {row['path'] for section in sections for row in section['rows']}
+
+    def test_windows_only_rows_are_hidden_on_macos(self):
+        mac_paths = self._paths_on(is_macos=True)
+        for path in ('clipboard.delivery_method', 'clipboard.type_also_copy_to_clipboard',
+                     'console.start_hidden'):
+            self.assertNotIn(path, mac_paths)
+
+    def test_windows_only_rows_are_shown_on_windows(self):
+        windows_paths = self._paths_on(is_macos=False)
+        for path in ('clipboard.delivery_method', 'clipboard.type_also_copy_to_clipboard',
+                     'console.start_hidden'):
+            self.assertIn(path, windows_paths)

@@ -18,7 +18,7 @@ So you get the best of both: instant visual feedback *and* high-quality final te
 
 ## How to turn it on
 
-Turn it on in the dashboard: **Settings > App > More > Live preview (experimental)**. Or edit `user_settings.yaml`:
+Turn it on in the dashboard: **Settings > Experimental > Live preview**. Or edit `user_settings.yaml`:
 
 ```yaml
 streaming:

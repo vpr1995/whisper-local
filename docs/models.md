@@ -72,7 +72,7 @@ Parakeet v3 is NVIDIA's Parakeet TDT model. It runs through sherpa-onnx, which i
 
 ## Free memory when idle
 
-`whisper.unload_after_minutes` frees the model's memory after that many idle minutes. The default is `0`, which keeps the model loaded. The model loads again, in the background, when you start the next recording. The first dictation after a long break may wait a moment. The dashboard status bar shows **Sleeping** while the model is unloaded.
+`whisper.unload_after_minutes` frees the model's memory after that many idle minutes. The default is `10`; `0` keeps the model loaded. It does not apply to faster-whisper on a GPU. The model loads again, in the background, when you start the next recording. The first dictation after a long break may wait a moment. The dashboard status bar shows **Sleeping** while the model is unloaded.
 
 This works on CPU only. With a GPU the setting is ignored. Set it on the Models page (**Free memory when idle**).
 
