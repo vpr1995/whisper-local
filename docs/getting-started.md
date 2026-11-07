@@ -110,6 +110,8 @@ If something fails, see [Troubleshooting](troubleshooting.md). To send a bug rep
 
 Turn on **Start on login** in the dashboard's Settings page. Or run `whisper-local --enable-autostart`. Run `whisper-local --disable-autostart` to undo it. The [FAQ](faq.md#how-do-i-autostart-on-login) explains the macOS helper app.
 
+On Windows, running from a source checkout, `powershell -ExecutionPolicy Bypass -File tools\install-windows-launcher.ps1` adds a Desktop and Start-menu shortcut that starts the app in the tray with no console window, and turns on start on login. Add `-NoAutostart` for the shortcuts only, or `-Uninstall` to remove both.
+
 ## Windows (not validated yet)
 
 The code has Windows support. The maintainer has not tested it on a current build. Treat every Windows note in these docs as unverified. The Windows defaults are `Ctrl+Win` to record and `Alt+Win` for voice commands. Config files live in `%APPDATA%\whisperkey`.
