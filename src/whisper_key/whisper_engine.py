@@ -22,9 +22,7 @@ from .utils import import_ctranslate2_without_optional_backends
 import_ctranslate2_without_optional_backends()
 from faster_whisper import WhisperModel  # noqa: E402
 
-# The files faster-whisper fetches for a model (mirrors faster_whisper.utils.download_model).
-FASTER_WHISPER_FILES = ["config.json", "preprocessor_config.json", "model.bin",
-                        "tokenizer.json", "vocabulary.*"]
+from .model_registry import FASTER_WHISPER_FILES
 
 
 class WhisperEngine:

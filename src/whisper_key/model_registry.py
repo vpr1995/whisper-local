@@ -10,10 +10,13 @@ import logging
 import os
 from typing import Optional
 
-from .utils import import_ctranslate2_without_optional_backends
-# Before faster_whisper, which imports ctranslate2: see the helper for why.
-import_ctranslate2_without_optional_backends()
-from faster_whisper.utils import _MODELS  # noqa: E402
+from .utils import faster_whisper_model_repos
+
+# The files faster-whisper fetches for a model (mirrors faster_whisper.utils.download_model).
+# Lives here, not in whisper_engine, so the dashboard can list and download models
+# without importing the inference stack (ctranslate2, numpy, ...).
+FASTER_WHISPER_FILES = ["config.json", "preprocessor_config.json", "model.bin",
+                        "tokenizer.json", "vocabulary.*"]
 
 
 class ModelRegistry:
@@ -178,8 +181,8 @@ class ModelDefinition:
         if "/" in self.source:
             return "models--" + self.source.replace("/", "--")
 
-        if self.source in _MODELS:
-            repo = _MODELS[self.source]
-            return "models--" + repo.replace("/", "--")
+        known_repos = faster_whisper_model_repos()
+        if self.source in known_repos:
+            return "models--" + known_repos[self.source].replace("/", "--")
 
         return f"{ModelRegistry.DEFAULT_CACHE_PREFIX}{self.source}"

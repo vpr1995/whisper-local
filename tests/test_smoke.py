@@ -3742,10 +3742,30 @@ class OctoberReviewTests(unittest.TestCase):
 
     # --- startup time ---
     def test_ctranslate2_optional_backends_are_shielded(self):
-        for rel in ('whisper_engine.py', 'model_registry.py'):
-            src = self._source(rel)
-            self.assertLess(src.index('import_ctranslate2_without_optional_backends()'),
-                            src.index('from faster_whisper'), rel)
+        src = self._source('whisper_engine.py')
+        self.assertLess(src.index('import_ctranslate2_without_optional_backends()'),
+                        src.index('from faster_whisper'), 'whisper_engine.py')
+
+    # The dashboard lists models from a pywebview worker thread. Loading ctranslate2/numpy
+    # there after an idle spell froze the window, so the model list must stay light.
+    def test_dashboard_model_list_does_not_import_the_inference_stack(self):
+        import subprocess
+        import sys as _sys
+        code = (
+            "import sys; sys.path.insert(0, %r)\n"
+            "from whisper_key.dashboard.api import DashboardApi\n"
+            "DashboardApi(initial_page='models').get_models()\n"
+            "print(sorted(m for m in ('numpy', 'ctranslate2', 'faster_whisper', 'onnxruntime', 'av', "
+            "'sherpa_onnx') if m in sys.modules))\n"
+        ) % str(ROOT / 'src')
+        out = subprocess.run([_sys.executable, '-c', code], capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.stdout.strip(), '[]',
+                         f'get_models pulled in heavy native libraries: {out.stdout} {out.stderr[-300:]}')
+
+    def test_faster_whisper_model_table_is_read_without_the_package(self):
+        from whisper_key.utils import faster_whisper_model_repos
+        repos = faster_whisper_model_repos()
+        self.assertEqual(repos.get('base'), 'Systran/faster-whisper-base')
 
     def test_shield_blocks_torch_only_during_the_import(self):
         import subprocess

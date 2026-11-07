@@ -86,9 +86,9 @@ def download_target(model) -> tuple:
         return None
     if model.files:  # sherpa-onnx file set: the whole snapshot
         return model.source, None
-    from faster_whisper.utils import _MODELS
-    from ...whisper_engine import FASTER_WHISPER_FILES
-    repo_id = _MODELS.get(model.source, model.source)
+    from ...model_registry import FASTER_WHISPER_FILES
+    from ...utils import faster_whisper_model_repos
+    repo_id = faster_whisper_model_repos().get(model.source, model.source)
     if '/' not in repo_id or os.path.isdir(repo_id):
         return None
     return repo_id, FASTER_WHISPER_FILES
@@ -186,7 +186,8 @@ class ModelsApi:
 
         def describe(model) -> dict:
             name, languages, size = parse_model_label(model.label, model.group)
-            missing = missing_backend_dependency('parakeet') if model.backend == 'parakeet' else None
+            missing = (missing_backend_dependency('parakeet', only_check_installed=True)
+                       if model.backend == 'parakeet' else None)
             return {
                 'key': model.key,
                 'name': name,

@@ -174,11 +174,26 @@ def _listen_until_app_exits(window, api, parent_stream):
         window.destroy()
 
 
+# ── Native libraries ─────────────────────────────────────────────────────────
+
+# The Settings page lists microphones, which needs numpy and PortAudio. They are
+# loaded here, on the main thread before any window exists, rather than lazily from
+# a pywebview worker thread: a first-time native load there, after the machine sat
+# idle, left the UI thread waiting on it and the whole window frozen until
+# something else woke the process. Costs about a second before the window opens.
+def _preload_native_libraries():
+    try:
+        from .. import audio_recorder  # noqa: F401
+    except Exception as e:
+        logger.warning(f"Could not preload the audio libraries; the Settings microphone list may be empty: {e}")
+
+
 # ── Entry ────────────────────────────────────────────────────────────────────
 
 # Builds the window and blocks in the GUI loop. Returns the process exit code.
 def run_dashboard_window(page: str = 'home', parent_stream=None, app_state=None) -> int:
     _configure_child_logging()
+    _preload_native_libraries()
     try:
         import webview
     except ImportError:

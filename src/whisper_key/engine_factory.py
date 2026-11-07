@@ -3,6 +3,7 @@
 # self-test both build their engine here, so a new backend is wired in once.
 # Engine imports stay lazy: each backend pulls in a different ML runtime.
 
+import importlib.util
 import logging
 
 from .auto_model import AUTO, pick_model
@@ -63,11 +64,18 @@ def create_engine(whisper_cfg: dict, vad_manager, model_registry, **overrides):
 
 
 # (problem, fix) when the backend's runtime is not importable, else None.
-def missing_backend_dependency(backend: str):
+# `only_check_installed=True` looks the package up without loading its native
+# libraries: enough for a UI badge, and it keeps those DLLs out of the dashboard
+# (loading them from a pywebview worker thread can freeze the window). The default
+# really imports it, which is what --doctor and --selftest want to prove.
+def missing_backend_dependency(backend: str, only_check_installed: bool = False):
     if backend == 'parakeet':
+        problem = ("parakeet backend selected but sherpa-onnx not installed",
+                   "pip install sherpa-onnx")
+        if only_check_installed:
+            return problem if importlib.util.find_spec('sherpa_onnx') is None else None
         try:
             import sherpa_onnx  # noqa: F401
         except ImportError:
-            return ("parakeet backend selected but sherpa-onnx not installed",
-                    "pip install sherpa-onnx")
+            return problem
     return None

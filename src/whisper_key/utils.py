@@ -3,11 +3,13 @@
 # config directory, resolving bundled asset paths (source checkout vs installed
 # wheel vs frozen .exe), hotkey string parsing/prettifying, version lookup, and
 # the OptionalComponent shim used for gracefully-absent dependencies.
+import functools
 import os
 import site
 import subprocess
 import sys
 import importlib.resources
+import importlib.util
 import tomllib
 from pathlib import Path
 
@@ -116,6 +118,28 @@ def import_ctranslate2_without_optional_backends():
         for name in blocked:
             if sys.modules.get(name, 'absent') is None:
                 del sys.modules[name]
+
+
+# faster-whisper's table of model name -> HuggingFace repo ("base" -> "Systran/
+# faster-whisper-base"), read WITHOUT importing the faster_whisper package. Its
+# __init__ loads ctranslate2, numpy, onnxruntime and av, which the dashboard has no
+# use for. Loading those native libraries from a pywebview worker thread after the
+# machine sat idle froze the whole window (the UI thread waits on the same thread
+# start). faster_whisper/utils.py is plain Python, so it is loaded straight from its
+# file; the full import is only the fallback if that layout ever changes.
+@functools.lru_cache(maxsize=None)
+def faster_whisper_model_repos() -> dict:
+    try:
+        package_spec = importlib.util.find_spec('faster_whisper')
+        package_folder = Path(next(iter(package_spec.submodule_search_locations)))
+        module_spec = importlib.util.spec_from_file_location(
+            '_faster_whisper_utils_standalone', package_folder / 'utils.py')
+        standalone_module = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(standalone_module)
+        return dict(standalone_module._MODELS)
+    except Exception:
+        from faster_whisper.utils import _MODELS
+        return dict(_MODELS)
 
 
 def setup_portaudio_path():
